@@ -110,8 +110,44 @@ def init_db():
                   object_name TEXT,
                   user TEXT,
                   date TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS rooms
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  name TEXT UNIQUE,
+                  date_added TEXT)''')
     conn.commit()
     conn.close()
+
+# --- ФУНКЦИИ ДЛЯ ПОМЕЩЕНИЙ ---
+def add_room(name):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO rooms (name, date_added) VALUES (?,?)",
+                  (name, datetime.now().strftime("%Y-%m-%d %H:%M")))
+        conn.commit()
+        conn.close()
+        return True, f"Помещение '{name}' добавлено"
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, f"Помещение '{name}' уже существует"
+
+def delete_room(room_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM rooms WHERE id = ?", (room_id,))
+    conn.commit()
+    conn.close()
+
+def get_rooms():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM rooms ORDER BY name")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_room_names():
+    return [room[1] for room in get_rooms()]
 
 # --- ФУНКЦИИ ДЛЯ ПАРКА ---
 def add_park_object(name):
@@ -148,7 +184,6 @@ def get_park_objects():
         results = []
     conn.close()
     
-    # Нормализация результатов: всегда возвращаем (id, name, date_added)
     formatted_results = []
     for row in results:
         if len(row) == 3:
@@ -163,27 +198,6 @@ def get_park_objects():
 
 def get_park_names():
     return [obj[1] for obj in get_park_objects()]
-
-def get_consumption_by_object(object_name):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("""SELECT c.*, i.name FROM consumption c 
-                 JOIN items i ON c.item_id = i.id 
-                 WHERE c.object_name = ? 
-                 ORDER BY c.date DESC""", (object_name,))
-    results = c.fetchall()
-    conn.close()
-    return results
-
-def get_all_consumption():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("""SELECT c.*, i.name FROM consumption c 
-                 JOIN items i ON c.item_id = i.id 
-                 ORDER BY c.date DESC LIMIT 200""")
-    results = c.fetchall()
-    conn.close()
-    return results
 
 # --- ФУНКЦИИ ДЛЯ РАСХОДА ---
 def consume_item(item_id, quantity, object_name, user="Пользователь", note=""):
@@ -205,6 +219,27 @@ def consume_item(item_id, quantity, object_name, user="Пользователь"
     conn.commit()
     conn.close()
     return True, f"Списано {quantity} {unit} на '{object_name}'"
+
+def get_consumption_by_object(object_name):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("""SELECT c.*, i.name FROM consumption c 
+                 JOIN items i ON c.item_id = i.id 
+                 WHERE c.object_name = ? 
+                 ORDER BY c.date DESC""", (object_name,))
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_all_consumption():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("""SELECT c.*, i.name FROM consumption c 
+                 JOIN items i ON c.item_id = i.id 
+                 ORDER BY c.date DESC LIMIT 200""")
+    results = c.fetchall()
+    conn.close()
+    return results
 
 # --- ОСНОВНЫЕ ФУНКЦИИ ---
 def add_item(name, category, location, room, description, item_photo_path, location_photo_path, quantity, unit, threshold):
@@ -272,13 +307,9 @@ def get_all_items(room_filter=None):
     conn.close()
     return results
 
-def get_all_rooms():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT DISTINCT room FROM items")
-    rooms = [row[0] for row in c.fetchall()]
-    conn.close()
-    return rooms if rooms else ["Общий"]
+def get_all_rooms_from_db():
+    """Получаем список помещений из базы данных"""
+    return get_room_names()
 
 def get_low_stock_items():
     conn = sqlite3.connect('storage.db')
@@ -301,8 +332,10 @@ def get_statistics():
     top_categories = c.fetchall()
     c.execute("SELECT COUNT(*) FROM park")
     total_park = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM rooms")
+    total_rooms_list = c.fetchone()[0]
     conn.close()
-    return total_items, total_rooms, low_stock_count, top_categories, total_park
+    return total_items, total_rooms, low_stock_count, top_categories, total_park, total_rooms_list
 
 def export_to_excel():
     conn = sqlite3.connect('storage.db')
@@ -320,13 +353,13 @@ def export_to_excel():
 init_db()
 
 # --- СТАТИСТИКА ---
-total_items, total_rooms, low_stock_count, top_categories, total_park = get_statistics()
+total_items, total_rooms, low_stock_count, top_categories, total_park, total_rooms_list = get_statistics()
 
-col1, col2, col3, col4, col5 = st.columns(5)
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 with col1:
     st.metric("📦 Вещей", total_items)
 with col2:
-    st.metric("🏠 Помещ.", total_rooms)
+    st.metric("🏠 Помещ.", total_rooms_list)
 with col3:
     st.metric("⚠️ Пополнить", low_stock_count)
 with col4:
@@ -334,6 +367,8 @@ with col4:
     st.metric("🏆 Топ", top_cat_str)
 with col5:
     st.metric("🚗 В парке", total_park)
+with col6:
+    st.metric("📤 Списано", 0)
 
 # --- УВЕДОМЛЕНИЯ ---
 low_stock = get_low_stock_items()
@@ -372,8 +407,7 @@ with st.sidebar:
     
     park_objects = get_park_objects()
     if park_objects:
-        for obj in park_objects:
-            obj_id, obj_name, obj_date = obj
+        for obj_id, obj_name, obj_date in park_objects:
             col1, col2 = st.columns([4, 1])
             with col1:
                 st.caption(f"• {obj_name}")
@@ -386,19 +420,23 @@ with st.sidebar:
     
     st.divider()
     
-    # --- ДОБАВЛЕНИЕ ВЕЩИ ---
+    # --- ДОБАВЛЕНИЕ ВЕЩИ (ТОЛЬКО ВЫБОР ИЗ СПИСКА) ---
     st.header("➕ Добавить вещь")
-    existing_rooms = get_all_rooms()
-    room_options = ["Новое помещение"] + existing_rooms
+    
+    room_names = get_room_names()
+    if not room_names:
+        st.warning("⚠️ Сначала добавьте помещения в разделе 'Помещения'!")
     
     with st.form("add_form", clear_on_submit=True):
         name = st.text_input("Название вещи*")
         category = st.text_input("Категория")
-        room_choice = st.selectbox("Помещение", room_options)
-        if room_choice == "Новое помещение":
-            room = st.text_input("Название нового помещения*")
+        
+        # ТОЛЬКО ВЫБОР ИЗ СПИСКА
+        if room_names:
+            room = st.selectbox("Помещение*", room_names)
         else:
-            room = room_choice
+            room = st.selectbox("Помещение*", ["— Сначала добавьте помещение —"])
+        
         location = st.text_input("Место внутри помещения*")
         description = st.text_area("Описание")
         col1, col2, col3 = st.columns(3)
@@ -415,7 +453,7 @@ with st.sidebar:
         location_pic = st.file_uploader("📷 Фото места", type=["jpg", "jpeg", "png"], key="loc")
         
         submitted = st.form_submit_button("💾 Сохранить")
-        if submitted and name and location and room:
+        if submitted and name and location and room and room != "— Сначала добавьте помещение —":
             item_path = ""; loc_path = ""
             if item_pic:
                 ext = item_pic.name.split('.')[-1]
@@ -452,10 +490,9 @@ with st.sidebar:
         )
 
 # --- ОСНОВНАЯ ОБЛАСТЬ: ВКЛАДКИ ---
-tab1, tab2, tab3 = st.tabs(["🔍 Поиск и управление", "📋 Все вещи", "🚗 Парк (история списаний)"])
+tab1, tab2, tab3, tab4 = st.tabs(["🔍 Поиск и управление", "📋 Все вещи", "🚗 Парк", "🏠 Помещения"])
 
 with tab1:
-    # --- ПОИСК СВЕРХУ ---
     col_search, col_btn = st.columns([5, 1])
     with col_search:
         search_query = st.text_input("🔍 Что ищем?", placeholder="Введите название, категорию, место...", key="search_input")
@@ -463,11 +500,9 @@ with tab1:
         st.write("")
         search_clicked = st.button("🔍 Найти", use_container_width=True)
     
-    # Фильтр по помещению
-    rooms = ["Все помещения"] + get_all_rooms()
+    rooms = ["Все помещения"] + get_room_names()
     room_filter = st.selectbox("🏠 Помещение", rooms, key="room_filter_tab1")
     
-    # Поиск
     if search_query:
         items = search_items(search_query, room_filter)
     else:
@@ -576,7 +611,7 @@ with tab1:
                                     st.session_state[f"thr_mode_{item_id}"] = False
                                     st.rerun()
                     
-                    # --- Списание (с выбором техники из парка) ---
+                    # --- Списание ---
                     if st.session_state.get(f"cons_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Списание {name}**")
@@ -698,3 +733,40 @@ with tab3:
             st.write(f"• **{c[7]}** → {c[2]} {c[3]} на **{c[4]}** (списал {c[5]}, {c[6]})")
         if len(all_consumption) > 50:
             st.caption("... показаны последние 50 записей")
+
+with tab4:
+    st.subheader("🏠 Управление помещениями")
+    
+    # Добавление помещения
+    with st.form("add_room_form", clear_on_submit=True):
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            new_room = st.text_input("Название нового помещения", placeholder="Гараж, Склад, Мастерская...")
+        with col2:
+            st.write("")
+            st.write("")
+            add_room_btn = st.form_submit_button("➕ Добавить")
+        if add_room_btn and new_room:
+            success, msg = add_room(new_room)
+            if success:
+                st.success(msg)
+                st.rerun()
+            else:
+                st.error(msg)
+    
+    st.divider()
+    
+    # Список помещений
+    rooms = get_rooms()
+    if not rooms:
+        st.info("Пока нет помещений. Добавьте первое!")
+    else:
+        st.caption(f"Всего помещений: {len(rooms)}")
+        for room_id, room_name, room_date in rooms:
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.write(f"🏠 **{room_name}** (добавлено {room_date[:10]})")
+            with col2:
+                if st.button("🗑️", key=f"del_room_{room_id}"):
+                    delete_room(room_id)
+                    st.rerun()
