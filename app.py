@@ -21,7 +21,7 @@ st.set_page_config(page_title="Мой Склад", page_icon="📦", layout="wid
 
 # --- ПЕРСОНАЛЬНЫЕ НАСТРОЙКИ ---
 GARAGE_NAME = "Мой Склад"
-OWNER_NAME = "Сергей"
+OWNER_NAME = "Пользователь"
 PRIMARY_COLOR = "#FF6B35"
 SECONDARY_COLOR = "#004E89"
 
@@ -35,7 +35,7 @@ with st.sidebar:
         st.session_state.dark_mode = dark_mode_toggle
         st.rerun()
 
-# --- ПРИМЕНЕНИЕ ТЁМНОЙ ТЕМЫ (обновлённый CSS) ---
+# --- CSS ДЛЯ ТЁМНОЙ ТЕМЫ ---
 if st.session_state.dark_mode:
     st.markdown("""
         <style>
@@ -43,7 +43,7 @@ if st.session_state.dark_mode:
             .stMarkdown, .stMarkdown p, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4 {
                 color: #fafafa !important;
             }
-            .stTextInput label, .stSelectbox label, .stNumberInput label, .stTextArea label, .stDateInput label {
+            .stTextInput label, .stSelectbox label, .stNumberInput label, .stTextArea label {
                 color: #cccccc !important;
             }
             .stTextInput input, .stSelectbox select, .stNumberInput input, .stTextArea textarea {
@@ -106,6 +106,13 @@ st.markdown(f"""
         .stat-number {{ font-size: 2rem; font-weight: bold; color: {PRIMARY_COLOR}; }}
         .critical-warning {{ background-color: #ffebee; border-left: 5px solid #f44336; padding: 0.8rem; border-radius: 5px; margin-bottom: 1rem; }}
         .warning-warning {{ background-color: #fff3e0; border-left: 5px solid #ff9800; padding: 0.8rem; border-radius: 5px; margin-bottom: 1rem; }}
+        .item-card {{
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            background: {'#1a1d23' if st.session_state.dark_mode else '#f9f9f9'};
+            border: 1px solid {'#333' if st.session_state.dark_mode else '#ddd'};
+        }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -121,12 +128,10 @@ st.markdown(f"""
 if not os.path.exists("images"):
     os.makedirs("images")
 
-# --- БАЗА ДАННЫХ (новая таблица park) ---
+# --- БАЗА ДАННЫХ ---
 def init_db():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    
-    # Таблица вещей
     c.execute('''CREATE TABLE IF NOT EXISTS items
                  (id TEXT PRIMARY KEY, 
                   name TEXT, 
@@ -140,8 +145,10 @@ def init_db():
                   quantity REAL,
                   unit TEXT,
                   threshold INTEGER DEFAULT 1)''')
-    
-    # Таблица расхода
+    c.execute('''CREATE TABLE IF NOT EXISTS park
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  name TEXT UNIQUE,
+                  date_added TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS consumption
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   item_id TEXT,
@@ -149,48 +156,20 @@ def init_db():
                   unit TEXT,
                   object_name TEXT,
                   user TEXT,
-                  date TEXT,
-                  note TEXT)''')
-    
-    # --- НОВАЯ ТАБЛИЦА "ПАРК" (объекты для списания) ---
-    c.execute('''CREATE TABLE IF NOT EXISTS park
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT UNIQUE,
-                  description TEXT,
-                  date_added TEXT)''')
-    
-    # Добавляем колонки для совместимости
-    c.execute("PRAGMA table_info(items)")
-    columns = [col[1] for col in c.fetchall()]
-    if 'room' not in columns:
-        c.execute("ALTER TABLE items ADD COLUMN room TEXT DEFAULT 'Общий'")
-    if 'unit' not in columns:
-        c.execute("ALTER TABLE items ADD COLUMN unit TEXT DEFAULT 'шт'")
-    if 'threshold' not in columns:
-        c.execute("ALTER TABLE items ADD COLUMN threshold INTEGER DEFAULT 1")
-    
-    if 'quantity' in columns:
-        try:
-            c.execute("ALTER TABLE items RENAME COLUMN quantity TO quantity_old")
-            c.execute("ALTER TABLE items ADD COLUMN quantity REAL DEFAULT 1")
-            c.execute("UPDATE items SET quantity = quantity_old")
-            c.execute("ALTER TABLE items DROP COLUMN quantity_old")
-        except:
-            pass
-    
+                  date TEXT)''')
     conn.commit()
     conn.close()
 
 # --- ФУНКЦИИ ДЛЯ ПАРКА ---
-def add_park_object(name, description=""):
+def add_park_object(name):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO park (name, description, date_added) VALUES (?,?,?)",
-                  (name, description, datetime.now().strftime("%Y-%m-%d %H:%M")))
+        c.execute("INSERT INTO park (name, date_added) VALUES (?,?)",
+                  (name, datetime.now().strftime("%Y-%m-%d %H:%M")))
         conn.commit()
         conn.close()
-        return True, f"Объект '{name}' добавлен в парк"
+        return True, f"Объект '{name}' добавлен"
     except sqlite3.IntegrityError:
         conn.close()
         return False, f"Объект '{name}' уже существует"
@@ -213,19 +192,23 @@ def get_park_objects():
 def get_park_names():
     return [obj[1] for obj in get_park_objects()]
 
-# --- ОСТАЛЬНЫЕ ФУНКЦИИ ---
+# --- ФУНКЦИИ ДЛЯ РАСХОДА ---
 def consume_item(item_id, quantity, object_name, user="Пользователь", note=""):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute("SELECT quantity, unit FROM items WHERE id = ?", (item_id,))
-    current_q, unit = c.fetchone()
+    result = c.fetchone()
+    if result is None:
+        conn.close()
+        return False, "Вещь не найдена"
+    current_q, unit = result
     if quantity > current_q:
         conn.close()
-        return False, f"Недостаточно на складе! Есть {current_q} {unit}"
+        return False, f"Недостаточно! Есть {current_q} {unit}"
     new_q = current_q - quantity
     c.execute("UPDATE items SET quantity = ? WHERE id = ?", (new_q, item_id))
-    c.execute("INSERT INTO consumption (item_id, quantity, unit, object_name, user, date, note) VALUES (?,?,?,?,?,?,?)",
-              (item_id, quantity, unit, object_name, user, datetime.now().strftime("%Y-%m-%d %H:%M"), note))
+    c.execute("INSERT INTO consumption (item_id, quantity, unit, object_name, user, date) VALUES (?,?,?,?,?,?)",
+              (item_id, quantity, unit, object_name, user, datetime.now().strftime("%Y-%m-%d %H:%M")))
     conn.commit()
     conn.close()
     return True, f"Списано {quantity} {unit} на '{object_name}'"
@@ -262,6 +245,7 @@ def get_total_consumed():
     conn.close()
     return total
 
+# --- ОСНОВНЫЕ ФУНКЦИИ ---
 def add_item(name, category, location, room, description, item_photo_path, location_photo_path, quantity, unit, threshold):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -400,9 +384,74 @@ def import_from_excel(file):
                 added += 1
         conn.commit()
         conn.close()
-        return True, f"Успешно добавлено {added} позиций"
+        return True, f"Добавлено {added} позиций"
     except Exception as e:
         return False, f"Ошибка: {str(e)}"
+
+def render_item_card(item):
+    """Отрисовка карточки одной вещи"""
+    try:
+        item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item
+    except ValueError:
+        item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit = item
+        threshold = 1
+    
+    try:
+        qty = float(quantity)
+    except (TypeError, ValueError):
+        qty = 0
+    
+    if qty <= 0:
+        status_emoji = "🔴"
+        status_text = "КРИТИЧНО!"
+    elif qty <= threshold:
+        status_emoji = "🟡"
+        status_text = f"Скоро закончится (≤ {threshold})"
+    else:
+        status_emoji = "🟢"
+        status_text = "В норме"
+    
+    with st.container(border=True):
+        st.markdown(f"**{status_emoji} {name}**")
+        if category:
+            st.caption(f"📂 {category}")
+        st.caption(f"🏠 {room} → 📍 {location}")
+        st.caption(f"📦 Количество: **{qty} {unit}**")
+        st.caption(f"📊 Статус: **{status_text}**")
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            if item_photo and os.path.exists(item_photo):
+                st.image(item_photo, caption="Вещь", use_container_width=True)
+            else:
+                st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
+        with c2:
+            if location_photo and os.path.exists(location_photo):
+                st.image(location_photo, caption="Место", use_container_width=True)
+            else:
+                st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
+        
+        if description:
+            st.write(f"📝 {description}")
+        st.caption(f"🕒 Добавлено: {date_added}")
+        
+        col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns(5)
+        with col_btn1:
+            if st.button("✏️ Кол-во", key=f"edit_{item_id}"):
+                quantity_dialog(item_id, name, qty, unit)
+        with col_btn2:
+            if st.button("⚙️ Порог", key=f"thr_{item_id}"):
+                threshold_dialog(item_id, name, threshold)
+        with col_btn3:
+            if st.button("📤 Спис.", key=f"cons_{item_id}"):
+                consume_dialog(item_id, name, qty, unit)
+        with col_btn4:
+            if st.button("📷 QR", key=f"qr_{item_id}"):
+                qr_dialog(item_id, name)
+        with col_btn5:
+            if st.button("🗑️", key=f"del_{item_id}"):
+                delete_item(item_id)
+                st.rerun()
 
 init_db()
 
@@ -411,48 +460,18 @@ total_items, total_rooms, low_stock_count, top_categories, total_consumed, total
 
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 with col1:
-    st.markdown(f"""
-        <div class="stat-card">
-            <div class="stat-number">{total_items}</div>
-            <div>📦 Вещей</div>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<div class="stat-card"><div class="stat-number">{total_items}</div><div>📦 Вещей</div></div>""", unsafe_allow_html=True)
 with col2:
-    st.markdown(f"""
-        <div class="stat-card">
-            <div class="stat-number">{total_rooms}</div>
-            <div>🏠 Помещ.</div>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<div class="stat-card"><div class="stat-number">{total_rooms}</div><div>🏠 Помещ.</div></div>""", unsafe_allow_html=True)
 with col3:
-    st.markdown(f"""
-        <div class="stat-card" style="border-left-color: #f44336;">
-            <div class="stat-number" style="color: #f44336;">{low_stock_count}</div>
-            <div>⚠️ Пополнить</div>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<div class="stat-card" style="border-left-color: #f44336;"><div class="stat-number" style="color: #f44336;">{low_stock_count}</div><div>⚠️ Пополнить</div></div>""", unsafe_allow_html=True)
 with col4:
     top_cat_str = ", ".join([f"{cat}" for cat, count in top_categories[:2]]) if top_categories else "—"
-    st.markdown(f"""
-        <div class="stat-card">
-            <div class="stat-number">🏆</div>
-            <div>{top_cat_str}</div>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<div class="stat-card"><div class="stat-number">🏆</div><div>{top_cat_str}</div></div>""", unsafe_allow_html=True)
 with col5:
-    st.markdown(f"""
-        <div class="stat-card" style="border-left-color: #4CAF50;">
-            <div class="stat-number" style="color: #4CAF50;">{total_consumed:.1f}</div>
-            <div>📤 Списано</div>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<div class="stat-card" style="border-left-color: #4CAF50;"><div class="stat-number" style="color: #4CAF50;">{total_consumed:.1f}</div><div>📤 Списано</div></div>""", unsafe_allow_html=True)
 with col6:
-    st.markdown(f"""
-        <div class="stat-card" style="border-left-color: #9C27B0;">
-            <div class="stat-number" style="color: #9C27B0;">{total_park}</div>
-            <div>🚗 В парке</div>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<div class="stat-card" style="border-left-color: #9C27B0;"><div class="stat-number" style="color: #9C27B0;">{total_park}</div><div>🚗 В парке</div></div>""", unsafe_allow_html=True)
 
 # --- УВЕДОМЛЕНИЯ ---
 low_stock = get_low_stock_items()
@@ -475,13 +494,12 @@ if low_stock:
 
 # --- БОКОВАЯ ПАНЕЛЬ ---
 with st.sidebar:
-    # --- РАЗДЕЛ "ПАРК" ---
+    # --- ПАРК ---
     st.header("🚗 Парк объектов")
-    
     with st.form("add_park_form", clear_on_submit=True):
         col1, col2 = st.columns([3, 1])
         with col1:
-            new_park_object = st.text_input("Новый объект (машина, заказ...)", placeholder="Машина №5")
+            new_park_object = st.text_input("Новый объект", placeholder="Машина №5")
         with col2:
             st.write("")
             st.write("")
@@ -494,7 +512,6 @@ with st.sidebar:
             else:
                 st.error(msg)
     
-    # Список объектов парка
     park_objects = get_park_objects()
     if park_objects:
         for obj in park_objects:
@@ -506,7 +523,7 @@ with st.sidebar:
                     delete_park_object(obj[0])
                     st.rerun()
     else:
-        st.caption("Пока нет объектов. Добавьте первый!")
+        st.caption("Пока нет объектов")
     
     st.divider()
     
@@ -524,7 +541,7 @@ with st.sidebar:
         else:
             room = room_choice
         location = st.text_input("Место внутри помещения*")
-        description = st.text_area("Описание / Ключевые слова")
+        description = st.text_area("Описание")
         col1, col2, col3 = st.columns(3)
         with col1:
             quantity = st.number_input("Количество", min_value=0.0, step=0.5, value=1.0)
@@ -555,7 +572,7 @@ with st.sidebar:
     
     st.divider()
     
-    # --- РАСХОД ПО ОБЪЕКТАМ (быстрый просмотр) ---
+    # --- РАСХОД ПО ОБЪЕКТАМ ---
     st.header("📊 Расход по объектам")
     objects = get_all_objects()
     if objects:
@@ -598,71 +615,68 @@ with st.sidebar:
             use_container_width=True
         )
 
-# --- ГЛАВНАЯ ОБЛАСТЬ ---
-col_search, col_filter = st.columns([3, 1])
-with col_search:
-    search_query = st.text_input("🔍 Что ищем?", placeholder="Введите название, категорию, место...")
-with col_filter:
-    rooms = ["Все помещения"] + get_all_rooms()
-    room_filter = st.selectbox("🏠 Помещение", rooms)
+# --- ОСНОВНАЯ ОБЛАСТЬ: ВКЛАДКИ ---
+tab1, tab2 = st.tabs(["🔍 Поиск и управление", "📋 Все вещи"])
 
-items = search_items(search_query, room_filter) if search_query else get_all_items(room_filter)
-st.subheader(f"📌 Найдено: {len(items)}")
+with tab1:
+    col_search, col_filter = st.columns([3, 1])
+    with col_search:
+        search_query = st.text_input("🔍 Что ищем?", placeholder="Введите название, категорию, место...")
+    with col_filter:
+        rooms = ["Все помещения"] + get_all_rooms()
+        room_filter = st.selectbox("🏠 Помещение", rooms)
 
-if not items:
-    st.info("Ничего нет. Добавьте через меню.")
-else:
-    cols = st.columns(3)
-    for idx, item in enumerate(items):
-        with cols[idx % 3]:
-            item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item
-            
-            if quantity <= 0:
-                status_emoji = "🔴"; status_text = "КРИТИЧНО!"
-            elif quantity <= threshold:
-                status_emoji = "🟡"; status_text = f"Скоро закончится (≤ {threshold})"
-            else:
-                status_emoji = "🟢"; status_text = "В норме"
-            
-            with st.container(border=True):
-                st.markdown(f"**{status_emoji} {name}**")
-                if category: st.caption(f"📂 {category}")
-                st.caption(f"🏠 {room} → 📍 {location}")
-                st.caption(f"📦 Количество: **{quantity} {unit}**")
-                st.caption(f"📊 Статус: **{status_text}**")
-                
-                c1, c2 = st.columns(2)
-                with c1:
-                    if item_photo and os.path.exists(item_photo):
-                        st.image(item_photo, caption="Вещь", use_container_width=True)
-                    else:
-                        st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
-                with c2:
-                    if location_photo and os.path.exists(location_photo):
-                        st.image(location_photo, caption="Место", use_container_width=True)
-                    else:
-                        st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
-                
-                if description: st.write(f"📝 {description}")
-                st.caption(f"🕒 Добавлено: {date_added}")
-                
-                col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns(5)
-                with col_btn1:
-                    if st.button("✏️ Кол-во", key=f"edit_{item_id}"):
-                        quantity_dialog(item_id, name, quantity, unit)
-                with col_btn2:
-                    if st.button("⚙️ Порог", key=f"thr_{item_id}"):
-                        threshold_dialog(item_id, name, threshold)
-                with col_btn3:
-                    if st.button("📤 Спис.", key=f"cons_{item_id}"):
-                        consume_dialog(item_id, name, quantity, unit)
-                with col_btn4:
-                    if st.button("📷 QR", key=f"qr_{item_id}"):
-                        qr_dialog(item_id, name)
-                with col_btn5:
-                    if st.button("🗑️", key=f"del_{item_id}"):
-                        delete_item(item_id)
-                        st.rerun()
+    items = search_items(search_query, room_filter) if search_query else get_all_items(room_filter)
+    st.subheader(f"📌 Найдено: {len(items)}")
+
+    if not items:
+        st.info("Ничего нет. Добавьте через меню.")
+    else:
+        cols = st.columns(3)
+        for idx, item in enumerate(items):
+            with cols[idx % 3]:
+                render_item_card(item)
+
+with tab2:
+    st.subheader("📋 Все вещи в базе данных")
+    all_items = get_all_items()
+    
+    if not all_items:
+        st.info("В базе пока нет вещей. Добавьте первую вещь через боковое меню!")
+    else:
+        # Показываем таблицу
+        data = []
+        for item in all_items:
+            try:
+                item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item
+            except ValueError:
+                item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit = item
+                threshold = 1
+            try:
+                qty = float(quantity)
+            except (TypeError, ValueError):
+                qty = 0
+            data.append({
+                "Название": name,
+                "Категория": category or "",
+                "Помещение": room,
+                "Место": location,
+                "Количество": f"{qty} {unit}",
+                "Статус": "🔴 Критично" if qty <= 0 else "🟡 Скоро" if qty <= threshold else "🟢 Норма",
+                "Дата": date_added[:10]
+            })
+        
+        df = pd.DataFrame(data)
+        st.dataframe(df, use_container_width=True)
+        
+        # Кнопка для скачивания таблицы
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Скачать таблицу (CSV)",
+            data=csv,
+            file_name=f"все_вещи_{datetime.now().strftime('%Y-%m-%d')}.csv",
+            mime="text/csv"
+        )
 
 # --- ДИАЛОГИ ---
 @st.dialog("✏️ Изменение количества")
@@ -700,13 +714,11 @@ def consume_dialog(item_id, item_name, current_quantity, unit):
     with col1:
         qty = st.number_input("Количество", min_value=0.0, step=0.5, max_value=float(current_quantity), value=min(1.0, float(current_quantity)))
     with col2:
-        # --- ВЫБОР ОБЪЕКТА ИЗ ПАРКА ---
         park_names = get_park_names()
         if park_names:
             object_name = st.selectbox("Объект списания", park_names)
         else:
-            object_name = st.text_input("Объект (создайте в парке или введите вручную)*")
-            st.caption("Нет объектов в парке. Добавьте их в разделе 'Парк' выше.")
+            object_name = st.text_input("Объект*")
     
     user = st.text_input("Кто списывает", value=OWNER_NAME)
     note = st.text_area("Примечание")
@@ -732,7 +744,8 @@ def consume_dialog(item_id, item_name, current_quantity, unit):
 @st.dialog("📷 QR-код")
 def qr_dialog(item_id, item_name):
     st.write(f"QR-код для **{item_name}**")
-    qr_data = f"https://ваш-сайт.onrender.com/?search={item_id}"
+    app_url = "https://garage-app-2-fcfztptpvqdfqmrh3vczif.streamlit.app"
+    qr_data = f"{app_url}?search={item_id}"
     qr = qrcode.make(qr_data)
     buf = BytesIO()
     qr.save(buf, format="PNG")
@@ -743,5 +756,4 @@ def qr_dialog(item_id, item_name):
         file_name=f"qr_{item_name}_{item_id}.png",
         mime="image/png"
     )
-    
     
