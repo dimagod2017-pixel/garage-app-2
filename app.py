@@ -659,15 +659,20 @@ with tab3:
         st.info("Пока нет объектов в парке. Добавьте их через боковое меню!")
     else:
         for obj in park_objects:
-            obj_id, obj_name, obj_date = obj  # Теперь это работает!
-            with st.expander(f"🚗 {obj_name} (добавлен {obj_date[:10]})"):
+            # Безопасная распаковка (поддержка старых и новых баз данных)
+            if len(obj) == 3:
+                obj_id, obj_name, obj_date = obj
+            else:
+                obj_id, obj_name = obj
+                obj_date = "—"
+            
+            with st.expander(f"🚗 {obj_name} (добавлен {obj_date[:10] if obj_date != '—' else 'неизвестно'})"):
                 consumptions = get_consumption_by_object(obj_name)
                 if not consumptions:
                     st.caption("Нет списаний на этот объект")
                 else:
                     st.caption(f"Всего списаний: {len(consumptions)}")
                     for c in consumptions:
-                        # c: (id, item_id, quantity, unit, object_name, user, date, item_name)
                         st.write(f"• {c[7]} → **{c[2]} {c[3]}** (списал {c[5]}, {c[6][:10]})")
     
     # Общая история списаний
