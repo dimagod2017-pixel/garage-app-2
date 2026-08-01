@@ -418,7 +418,6 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Выберите Excel-файл", type=["xlsx", "xls"])
     if uploaded_file:
         if st.button("📤 Импортировать"):
-            # Простая версия импорта
             st.success("Импорт пока в разработке")
     
     st.header("📤 Экспорт Excel")
@@ -567,7 +566,6 @@ with tab1:
                             with col1:
                                 consume_qty = st.number_input("Количество", min_value=0.0, step=0.5, max_value=float(qty), value=min(1.0, float(qty)), key=f"cons_qty_{item_id}")
                             with col2:
-                                # --- ВЫБОР ТЕХНИКИ ИЗ ПАРКА ---
                                 park_names = get_park_names()
                                 if park_names:
                                     object_name = st.selectbox("Объект списания", park_names, key=f"cons_obj_{item_id}")
@@ -661,7 +659,7 @@ with tab3:
         st.info("Пока нет объектов в парке. Добавьте их через боковое меню!")
     else:
         for obj in park_objects:
-            obj_id, obj_name, obj_date = obj
+            obj_id, obj_name, obj_date = obj  # Теперь это работает!
             with st.expander(f"🚗 {obj_name} (добавлен {obj_date[:10]})"):
                 consumptions = get_consumption_by_object(obj_name)
                 if not consumptions:
