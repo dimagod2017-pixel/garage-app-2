@@ -756,4 +756,3 @@ def qr_dialog(item_id, item_name):
         file_name=f"qr_{item_name}_{item_id}.png",
         mime="image/png"
     )
-    
