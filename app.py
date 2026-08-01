@@ -137,10 +137,29 @@ def delete_park_object(object_id):
 def get_park_objects():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    c.execute("SELECT * FROM park ORDER BY name")
-    results = c.fetchall()
+    try:
+        c.execute("SELECT * FROM park ORDER BY name")
+        results = c.fetchall()
+    except sqlite3.OperationalError:
+        c.execute('''CREATE TABLE IF NOT EXISTS park
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      name TEXT UNIQUE,
+                      date_added TEXT)''')
+        results = []
     conn.close()
-    return results
+    
+    # Нормализация результатов: всегда возвращаем (id, name, date_added)
+    formatted_results = []
+    for row in results:
+        if len(row) == 3:
+            formatted_results.append(row)
+        elif len(row) == 2:
+            formatted_results.append((row[0], row[1], "—"))
+        elif len(row) == 1:
+            formatted_results.append((None, row[0], "—"))
+        else:
+            formatted_results.append((None, str(row), "—"))
+    return formatted_results
 
 def get_park_names():
     return [obj[1] for obj in get_park_objects()]
@@ -354,12 +373,13 @@ with st.sidebar:
     park_objects = get_park_objects()
     if park_objects:
         for obj in park_objects:
+            obj_id, obj_name, obj_date = obj
             col1, col2 = st.columns([4, 1])
             with col1:
-                st.caption(f"• {obj[1]}")
+                st.caption(f"• {obj_name}")
             with col2:
-                if st.button("🗑️", key=f"del_park_{obj[0]}"):
-                    delete_park_object(obj[0])
+                if st.button("🗑️", key=f"del_park_{obj_id}"):
+                    delete_park_object(obj_id)
                     st.rerun()
     else:
         st.caption("Пока нет объектов")
@@ -658,14 +678,7 @@ with tab3:
     if not park_objects:
         st.info("Пока нет объектов в парке. Добавьте их через боковое меню!")
     else:
-        for obj in park_objects:
-            # Безопасная распаковка (поддержка старых и новых баз данных)
-            if len(obj) == 3:
-                obj_id, obj_name, obj_date = obj
-            else:
-                obj_id, obj_name = obj
-                obj_date = "—"
-            
+        for obj_id, obj_name, obj_date in park_objects:
             with st.expander(f"🚗 {obj_name} (добавлен {obj_date[:10] if obj_date != '—' else 'неизвестно'})"):
                 consumptions = get_consumption_by_object(obj_name)
                 if not consumptions:
@@ -675,7 +688,6 @@ with tab3:
                     for c in consumptions:
                         st.write(f"• {c[7]} → **{c[2]} {c[3]}** (списал {c[5]}, {c[6][:10]})")
     
-    # Общая история списаний
     st.divider()
     st.subheader("📋 Общая история списаний")
     all_consumption = get_all_consumption()
