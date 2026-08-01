@@ -106,13 +106,6 @@ st.markdown(f"""
         .stat-number {{ font-size: 2rem; font-weight: bold; color: {PRIMARY_COLOR}; }}
         .critical-warning {{ background-color: #ffebee; border-left: 5px solid #f44336; padding: 0.8rem; border-radius: 5px; margin-bottom: 1rem; }}
         .warning-warning {{ background-color: #fff3e0; border-left: 5px solid #ff9800; padding: 0.8rem; border-radius: 5px; margin-bottom: 1rem; }}
-        .item-card {{
-            padding: 1rem;
-            border-radius: 10px;
-            margin-bottom: 1rem;
-            background: {'#1a1d23' if st.session_state.dark_mode else '#f9f9f9'};
-            border: 1px solid {'#333' if st.session_state.dark_mode else '#ddd'};
-        }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -159,6 +152,8 @@ def init_db():
                   date TEXT)''')
     conn.commit()
     conn.close()
+
+init_db()
 
 # --- ФУНКЦИИ ДЛЯ ПАРКА ---
 def add_park_object(name):
@@ -280,7 +275,7 @@ def delete_item(item_id):
             if path and os.path.exists(path):
                 os.remove(path)
     c.execute("DELETE FROM items WHERE id = ?", (item_id,))
-    c.execute("DELETE FROM consumption WHERE item_id = ?", (item_id,))
+    c.execute("DELETE FROM consumption WHERE id = ?", (item_id,))
     conn.commit()
     conn.close()
 
@@ -388,6 +383,7 @@ def import_from_excel(file):
     except Exception as e:
         return False, f"Ошибка: {str(e)}"
 
+# ---------- ФУНКЦИЯ ДЛЯ ОТРИСОВКИ КАРТОЧКИ (ВЫНЕСЕНА НАВЕРХ) ----------
 def render_item_card(item):
     """Отрисовка карточки одной вещи"""
     try:
@@ -419,13 +415,13 @@ def render_item_card(item):
         st.caption(f"📦 Количество: **{qty} {unit}**")
         st.caption(f"📊 Статус: **{status_text}**")
         
-        c1, c2 = st.columns(2)
-        with c1:
+        col1, col2 = st.columns(2)
+        with col1:
             if item_photo and os.path.exists(item_photo):
                 st.image(item_photo, caption="Вещь", use_container_width=True)
             else:
                 st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
-        with c2:
+        with col2:
             if location_photo and os.path.exists(location_photo):
                 st.image(location_photo, caption="Место", use_container_width=True)
             else:
@@ -438,22 +434,105 @@ def render_item_card(item):
         col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns(5)
         with col_btn1:
             if st.button("✏️ Кол-во", key=f"edit_{item_id}"):
-                quantity_dialog(item_id, name, qty, unit)
+                st.session_state[f"edit_{item_id}"] = True
         with col_btn2:
             if st.button("⚙️ Порог", key=f"thr_{item_id}"):
-                threshold_dialog(item_id, name, threshold)
+                st.session_state[f"thr_{item_id}"] = True
         with col_btn3:
             if st.button("📤 Спис.", key=f"cons_{item_id}"):
-                consume_dialog(item_id, name, qty, unit)
+                st.session_state[f"cons_{item_id}"] = True
         with col_btn4:
             if st.button("📷 QR", key=f"qr_{item_id}"):
-                qr_dialog(item_id, name)
+                st.session_state[f"qr_{item_id}"] = True
         with col_btn5:
             if st.button("🗑️", key=f"del_{item_id}"):
                 delete_item(item_id)
                 st.rerun()
-
-init_db()
+        
+        # Диалоги для кнопок
+        if st.session_state.get(f"edit_{item_id}", False):
+            with st.container():
+                st.write("---")
+                new_q = st.number_input(f"Новое количество ({unit})", min_value=0.0, step=0.5, value=float(qty), key=f"new_q_{item_id}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("✅ Сохранить", key=f"save_q_{item_id}"):
+                        update_quantity(item_id, new_q)
+                        st.session_state[f"edit_{item_id}"] = False
+                        st.rerun()
+                with col2:
+                    if st.button("❌ Отмена", key=f"cancel_q_{item_id}"):
+                        st.session_state[f"edit_{item_id}"] = False
+                        st.rerun()
+        
+        if st.session_state.get(f"thr_{item_id}", False):
+            with st.container():
+                st.write("---")
+                new_thr = st.number_input("Новый порог", min_value=0, step=1, value=int(threshold), key=f"new_thr_{item_id}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("✅ Сохранить", key=f"save_thr_{item_id}"):
+                        update_threshold(item_id, new_thr)
+                        st.session_state[f"thr_{item_id}"] = False
+                        st.rerun()
+                with col2:
+                    if st.button("❌ Отмена", key=f"cancel_thr_{item_id}"):
+                        st.session_state[f"thr_{item_id}"] = False
+                        st.rerun()
+        
+        if st.session_state.get(f"cons_{item_id}", False):
+            with st.container():
+                st.write("---")
+                st.caption(f"Доступно: {qty} {unit}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    consume_qty = st.number_input("Количество для списания", min_value=0.0, step=0.5, max_value=float(qty), value=min(1.0, float(qty)), key=f"cons_qty_{item_id}")
+                with col2:
+                    park_names = get_park_names()
+                    if park_names:
+                        object_name = st.selectbox("Объект", park_names, key=f"cons_obj_{item_id}")
+                    else:
+                        object_name = st.text_input("Объект*", key=f"cons_obj_{item_id}")
+                user = st.text_input("Кто списывает", value=OWNER_NAME, key=f"cons_user_{item_id}")
+                note = st.text_area("Примечание", key=f"cons_note_{item_id}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("✅ Списать", key=f"save_cons_{item_id}"):
+                        if consume_qty <= 0:
+                            st.error("Количество должно быть > 0")
+                        elif not object_name:
+                            st.error("Укажите объект")
+                        else:
+                            success, message = consume_item(item_id, consume_qty, object_name, user, note)
+                            if success:
+                                st.success(message)
+                                st.session_state[f"cons_{item_id}"] = False
+                                st.rerun()
+                            else:
+                                st.error(message)
+                with col2:
+                    if st.button("❌ Отмена", key=f"cancel_cons_{item_id}"):
+                        st.session_state[f"cons_{item_id}"] = False
+                        st.rerun()
+        
+        if st.session_state.get(f"qr_{item_id}", False):
+            with st.container():
+                st.write("---")
+                app_url = "https://garage-app-2-fcfztptpvqdfqmrh3vczif.streamlit.app"
+                qr_data = f"{app_url}?search={item_id}"
+                qr = qrcode.make(qr_data)
+                buf = BytesIO()
+                qr.save(buf, format="PNG")
+                st.image(buf, caption=f"QR для {name}", use_container_width=True)
+                st.download_button(
+                    label="⬇️ Скачать QR",
+                    data=buf.getvalue(),
+                    file_name=f"qr_{name}_{item_id}.png",
+                    mime="image/png"
+                )
+                if st.button("❌ Закрыть QR", key=f"close_qr_{item_id}"):
+                    st.session_state[f"qr_{item_id}"] = False
+                    st.rerun()
 
 # --- СТАТИСТИКА ---
 total_items, total_rooms, low_stock_count, top_categories, total_consumed, total_park = get_statistics()
@@ -644,7 +723,6 @@ with tab2:
     if not all_items:
         st.info("В базе пока нет вещей. Добавьте первую вещь через боковое меню!")
     else:
-        # Показываем таблицу
         data = []
         for item in all_items:
             try:
@@ -669,7 +747,6 @@ with tab2:
         df = pd.DataFrame(data)
         st.dataframe(df, use_container_width=True)
         
-        # Кнопка для скачивания таблицы
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📥 Скачать таблицу (CSV)",
@@ -677,82 +754,3 @@ with tab2:
             file_name=f"все_вещи_{datetime.now().strftime('%Y-%m-%d')}.csv",
             mime="text/csv"
         )
-
-# --- ДИАЛОГИ ---
-@st.dialog("✏️ Изменение количества")
-def quantity_dialog(item_id, current_name, current_quantity, current_unit):
-    st.write(f"Изменяем количество для **{current_name}**")
-    new_q = st.number_input(f"Новое количество ({current_unit})", min_value=0.0, step=0.5, value=float(current_quantity))
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("✅ Сохранить"):
-            update_quantity(item_id, new_q)
-            st.rerun()
-    with col2:
-        if st.button("❌ Отмена"):
-            st.rerun()
-
-@st.dialog("⚙️ Настройка порога")
-def threshold_dialog(item_id, current_name, current_threshold):
-    st.write(f"Настраиваем порог для **{current_name}**")
-    new_thr = st.number_input("Минимальное количество для уведомления", min_value=0, step=1, value=current_threshold)
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("✅ Сохранить"):
-            update_threshold(item_id, new_thr)
-            st.rerun()
-    with col2:
-        if st.button("❌ Отмена"):
-            st.rerun()
-
-@st.dialog("📤 Списание на объект")
-def consume_dialog(item_id, item_name, current_quantity, unit):
-    st.write(f"Списание **{item_name}**")
-    st.caption(f"Доступно: {current_quantity} {unit}")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        qty = st.number_input("Количество", min_value=0.0, step=0.5, max_value=float(current_quantity), value=min(1.0, float(current_quantity)))
-    with col2:
-        park_names = get_park_names()
-        if park_names:
-            object_name = st.selectbox("Объект списания", park_names)
-        else:
-            object_name = st.text_input("Объект*")
-    
-    user = st.text_input("Кто списывает", value=OWNER_NAME)
-    note = st.text_area("Примечание")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("✅ Списать", use_container_width=True):
-            if qty <= 0:
-                st.error("Количество должно быть > 0")
-            elif not object_name:
-                st.error("Укажите объект")
-            else:
-                success, message = consume_item(item_id, qty, object_name, user, note)
-                if success:
-                    st.success(message)
-                    st.rerun()
-                else:
-                    st.error(message)
-    with col2:
-        if st.button("❌ Отмена", use_container_width=True):
-            st.rerun()
-
-@st.dialog("📷 QR-код")
-def qr_dialog(item_id, item_name):
-    st.write(f"QR-код для **{item_name}**")
-    app_url = "https://garage-app-2-fcfztptpvqdfqmrh3vczif.streamlit.app"
-    qr_data = f"{app_url}?search={item_id}"
-    qr = qrcode.make(qr_data)
-    buf = BytesIO()
-    qr.save(buf, format="PNG")
-    st.image(buf, caption=f"QR для {item_name}", use_container_width=True)
-    st.download_button(
-        label="⬇️ Скачать QR",
-        data=buf.getvalue(),
-        file_name=f"qr_{item_name}_{item_id}.png",
-        mime="image/png"
-    )
