@@ -744,3 +744,4 @@ def qr_dialog(item_id, item_name):
         mime="image/png"
     )
     
+    
