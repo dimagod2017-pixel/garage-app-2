@@ -201,28 +201,40 @@ else:
                     st.write(f"📝 {description}")
                 st.caption(f"🕒 Добавлено: {date_added}")
                 
-                # Кнопки управления
+                # --- КНОПКИ УПРАВЛЕНИЯ (исправленная логика) ---
                 col_btn1, col_btn2 = st.columns(2)
+                
+                # Кнопка "Изменить количество" с использованием формы
                 with col_btn1:
-                    if st.button("✏️ Кол-во", key=f"edit_{item_id}"):
-                        st.session_state[f"edit_{item_id}"] = True
+                    if st.button("✏️ Кол-во", key=f"btn_edit_{item_id}"):
+                        # Используем отдельный ключ для режима редактирования
+                        st.session_state[f"edit_mode_{item_id}"] = not st.session_state.get(f"edit_mode_{item_id}", False)
+                        st.rerun()
+                
+                # Кнопка "Удалить"
                 with col_btn2:
-                    if st.button("🗑️", key=f"del_{item_id}"):
+                    if st.button("🗑️", key=f"btn_del_{item_id}"):
                         delete_item(item_id)
                         st.rerun()
                 
-                # Диалог изменения количества
-                if st.session_state.get(f"edit_{item_id}", False):
-                    with st.container():
-                        st.write("---")
-                        new_q = st.number_input(f"Новое количество ({unit})", min_value=0.0, step=0.5, value=float(qty), key=f"new_q_{item_id}")
+                # --- РЕЖИМ РЕДАКТИРОВАНИЯ КОЛИЧЕСТВА (отображается отдельно) ---
+                if st.session_state.get(f"edit_mode_{item_id}", False):
+                    with st.container(border=True):
+                        st.write(f"**Изменение количества для {name}**")
+                        new_q = st.number_input(
+                            f"Новое количество ({unit})", 
+                            min_value=0.0, 
+                            step=0.5, 
+                            value=float(qty),
+                            key=f"input_q_{item_id}"
+                        )
                         col1, col2 = st.columns(2)
                         with col1:
                             if st.button("✅ Сохранить", key=f"save_q_{item_id}"):
                                 update_quantity(item_id, new_q)
-                                st.session_state[f"edit_{item_id}"] = False
+                                st.session_state[f"edit_mode_{item_id}"] = False
                                 st.rerun()
                         with col2:
                             if st.button("❌ Отмена", key=f"cancel_q_{item_id}"):
-                                st.session_state[f"edit_{item_id}"] = False
+                                st.session_state[f"edit_mode_{item_id}"] = False
                                 st.rerun()
