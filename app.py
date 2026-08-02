@@ -42,161 +42,78 @@ st.markdown(f"""
         .main-header h1 {{ margin: 0; font-size: 2.5rem; font-weight: 700; }}
         .main-header p {{ margin: 0; font-size: 1.2rem; opacity: 0.95; }}
         
-        /* --- ВЕРТИКАЛЬНЫЕ КНОПКИ С ИКОНКАМИ ПО ЦЕНТРУ --- */
-        @media (min-width: 769px) {{
-            .vertical-btn-wrap {{
-                display: flex !important;
-                flex-direction: column !important;
-                gap: 0.3rem !important;
-                width: 100% !important;
-            }}
-            .vertical-btn-wrap .stButton {{
-                width: 100% !important;
-            }}
-            .vertical-btn-wrap .stButton button {{
-                width: 100% !important;
-                padding: 0.5rem 0.5rem !important;
-                font-size: 1.4rem !important;
-                min-height: 44px !important;
-                border-radius: 8px !important;
-                line-height: 1 !important;
-                display: flex !important;
-                justify-content: center !important;
-                align-items: center !important;
-                text-align: center !important;
-            }}
-        }}
-        @media (max-width: 768px) {{
-            .vertical-btn-wrap {{
-                display: flex !important;
-                flex-direction: row !important;
-                flex-wrap: wrap !important;
-                gap: 0.15rem !important;
-            }}
-            .vertical-btn-wrap .stButton {{
-                flex: 1 !important;
-                min-width: 35px !important;
-            }}
-            .vertical-btn-wrap .stButton button {{
-                padding: 0.2rem 0.2rem !important;
-                font-size: 1rem !important;
-                min-height: 32px !important;
-                border-radius: 5px !important;
-                line-height: 1 !important;
-                display: flex !important;
-                justify-content: center !important;
-                align-items: center !important;
-                text-align: center !important;
-            }}
-        }}
-        
-        /* --- ЦВЕТНЫЕ КНОПКИ С ИКОНКАМИ --- */
-        .btn-edit .stButton button {{ 
-            background-color: #4CAF50 !important; 
-            color: white !important;
-            box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
-        }}
-        .btn-edit .stButton button:hover {{ 
-            background-color: #388E3C !important;
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
-        }}
-        .btn-threshold .stButton button {{ 
-            background-color: #FF9800 !important; 
-            color: white !important;
-            box-shadow: 0 2px 6px rgba(255, 152, 0, 0.3);
-        }}
-        .btn-threshold .stButton button:hover {{ 
-            background-color: #F57C00 !important;
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
-        }}
-        .btn-consume .stButton button {{ 
-            background-color: #2196F3 !important; 
-            color: white !important;
-            box-shadow: 0 2px 6px rgba(33, 150, 243, 0.3);
-        }}
-        .btn-consume .stButton button:hover {{ 
-            background-color: #1976D2 !important;
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
-        }}
-        .btn-qr .stButton button {{ 
-            background-color: #9C27B0 !important; 
-            color: white !important;
-            box-shadow: 0 2px 6px rgba(156, 39, 176, 0.3);
-        }}
-        .btn-qr .stButton button:hover {{ 
-            background-color: #7B1FA2 !important;
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(156, 39, 176, 0.4);
-        }}
-        .btn-move .stButton button {{ 
-            background-color: #FF5722 !important; 
-            color: white !important;
-            box-shadow: 0 2px 6px rgba(255, 87, 34, 0.3);
-        }}
-        .btn-move .stButton button:hover {{ 
-            background-color: #E64A19 !important;
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(255, 87, 34, 0.4);
-        }}
-        .btn-delete .stButton button {{ 
-            background-color: #f44336 !important; 
-            color: white !important;
-            box-shadow: 0 2px 6px rgba(244, 67, 54, 0.3);
-        }}
-        .btn-delete .stButton button:hover {{ 
-            background-color: #c62828 !important;
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
-        }}
-        
-        /* --- Tooltip при наведении --- */
-        .stButton button[title]:hover::after {{
-            content: attr(title);
-            position: absolute;
-            bottom: calc(100% + 8px);
-            left: 50%;
-            transform: translateX(-50%);
-            background: #1a1a1a;
-            color: #fff;
-            padding: 0.3rem 0.7rem;
-            border-radius: 6px;
-            font-size: 0.7rem;
-            white-space: nowrap;
-            z-index: 1000;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }}
-        .stButton button[title]:hover::before {{
-            content: '';
-            position: absolute;
-            bottom: calc(100% + 4px);
-            left: 50%;
-            transform: translateX(-50%);
-            border-left: 5px solid transparent;
-            border-right: 5px solid transparent;
-            border-top: 5px solid #1a1a1a;
-            z-index: 1000;
-        }}
-        .stButton button {{
+        /* --- Карточка вещи --- */
+        .item-card {{
+            background: white;
+            border-radius: 12px;
+            padding: 1rem;
+            border: 2px solid #e8f5e9;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            transition: all 0.3s;
             position: relative;
         }}
+        .item-card:hover {{
+            border-color: {SECONDARY_COLOR};
+            box-shadow: 0 4px 20px rgba(46, 125, 50, 0.15);
+        }}
         
-        /* --- Тёмная тема для цветных кнопок --- */
-        .dark-mode .btn-edit .stButton button {{ background-color: #2E7D32 !important; }}
-        .dark-mode .btn-edit .stButton button:hover {{ background-color: #1B5E20 !important; }}
-        .dark-mode .btn-threshold .stButton button {{ background-color: #E65100 !important; }}
-        .dark-mode .btn-threshold .stButton button:hover {{ background-color: #BF360C !important; }}
-        .dark-mode .btn-consume .stButton button {{ background-color: #0D47A1 !important; }}
-        .dark-mode .btn-consume .stButton button:hover {{ background-color: #0D47A1 !important; }}
-        .dark-mode .btn-qr .stButton button {{ background-color: #4A148C !important; }}
-        .dark-mode .btn-qr .stButton button:hover {{ background-color: #4A148C !important; }}
-        .dark-mode .btn-move .stButton button {{ background-color: #BF360C !important; }}
-        .dark-mode .btn-move .stButton button:hover {{ background-color: #BF360C !important; }}
-        .dark-mode .btn-delete .stButton button {{ background-color: #B71C1C !important; }}
-        .dark-mode .btn-delete .stButton button:hover {{ background-color: #B71C1C !important; }}
+        /* --- Кнопка трёх точек --- */
+        .three-dots {{
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #888;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            transition: all 0.2s;
+            z-index: 10;
+        }}
+        .three-dots:hover {{
+            background: #f0f0f0;
+            color: #333;
+        }}
         
+        /* --- Вертикальные кнопки --- */
+        .vertical-btn-wrap {{
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 0.3rem;
+            margin-top: 0.5rem;
+        }}
+        .vertical-btn-wrap .stButton {{
+            flex: 1;
+            min-width: 50px;
+        }}
+        .vertical-btn-wrap .stButton button {{
+            padding: 0.3rem 0.5rem !important;
+            font-size: 0.8rem !important;
+            min-height: 36px !important;
+            border-radius: 6px !important;
+            white-space: nowrap !important;
+        }}
+        
+        @media (min-width: 769px) {{
+            .vertical-btn-wrap {{
+                flex-direction: column;
+                gap: 0.3rem;
+            }}
+            .vertical-btn-wrap .stButton {{
+                flex: none;
+                width: 100%;
+            }}
+            .vertical-btn-wrap .stButton button {{
+                padding: 0.5rem 0.8rem !important;
+                font-size: 0.85rem !important;
+                min-height: 40px !important;
+            }}
+        }}
+        
+        /* --- Боковая панель --- */
         div[data-testid="stSidebar"] {{
             background: linear-gradient(180deg, #f5faf5, #e8f5e9);
             border-right: 2px solid {SECONDARY_COLOR};
@@ -218,7 +135,6 @@ st.markdown(f"""
             margin-bottom: 1rem;
         }}
         
-        /* --- Статистика --- */
         .stat-btn-wrap {{
             background: white;
             border: 2px solid #e8f5e9;
@@ -252,6 +168,7 @@ st.markdown(f"""
             .stat-number {{ font-size: 1.6rem; }}
             .stat-label {{ font-size: 0.65rem; }}
             .stat-btn-wrap {{ min-height: 65px; padding: 0.4rem 0.2rem; }}
+            .three-dots {{ font-size: 1.2rem; }}
         }}
     </style>
 """, unsafe_allow_html=True)
@@ -281,6 +198,69 @@ with st.sidebar:
     if dark_mode_toggle != st.session_state.dark_mode:
         st.session_state.dark_mode = dark_mode_toggle
         st.rerun()
+
+if st.session_state.dark_mode:
+    st.markdown("""
+        <style>
+            .stApp { background-color: #0d1a0d; color: #d4e8d4; }
+            .stMarkdown, .stMarkdown p, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4 {
+                color: #d4e8d4 !important;
+            }
+            .stTextInput label, .stSelectbox label, .stNumberInput label, .stTextArea label {
+                color: #b8d9b8 !important;
+            }
+            .stTextInput input, .stSelectbox select, .stNumberInput input, .stTextArea textarea {
+                background-color: #1a2a1a !important;
+                color: #d4e8d4 !important;
+                border-color: #2e5a2e !important;
+                border-radius: 8px;
+            }
+            .stButton button {
+                background-color: #4CAF50 !important;
+                color: #ffffff !important;
+                border-radius: 8px;
+                font-weight: bold;
+            }
+            .stButton button:hover {
+                background-color: #2E7D32 !important;
+                color: #ffffff !important;
+            }
+            .stCaption, .stCaption p { color: #9acd9a !important; }
+            .stInfo, .stWarning, .stError, .stSuccess {
+                background-color: #1a2a1a !important;
+                color: #d4e8d4 !important;
+            }
+            .stAlert { background-color: #1a2a1a !important; }
+            .element-container, .stContainer, .stColumn { background-color: transparent !important; }
+            div[data-testid="stSidebar"] { 
+                background: linear-gradient(180deg, #0d1a0d, #1a2a1a) !important;
+                border-right: 2px solid #2e5a2e !important;
+            }
+            div[data-testid="stSidebar"] * { color: #d4e8d4 !important; }
+            div[data-testid="stSidebar"] .stTextInput input { 
+                background-color: #1a2a1a !important; 
+                color: #d4e8d4 !important;
+                border-color: #2e5a2e !important;
+            }
+            .main-header {
+                background: linear-gradient(135deg, #1B5E20, #2E7D32) !important;
+            }
+            .stat-btn-wrap {
+                background: #1a2a1a !important;
+                border-color: #2e5a2e !important;
+                color: #d4e8d4 !important;
+            }
+            .stat-btn-wrap:hover {
+                border-color: #4CAF50 !important;
+            }
+            .stat-number { color: #4CAF50 !important; }
+            .stat-label { color: #9acd9a !important; }
+            .item-card { background: #1a2a1a !important; border-color: #2e5a2e !important; }
+            .item-card:hover { border-color: #4CAF50 !important; }
+            .three-dots { color: #9acd9a !important; }
+            .three-dots:hover { background: #2a3a2a !important; color: #d4e8d4 !important; }
+        </style>
+    """, unsafe_allow_html=True)
 
 # --- ПАПКА ДЛЯ ФОТО ---
 if not os.path.exists("images"):
@@ -526,6 +506,28 @@ def add_item(name, category, location, room, description, item_photo_path, locat
     conn.close()
     return item_id
 
+def update_item(item_id, name, category, location, room, description, application, equipment_id, unit_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("""
+        UPDATE items 
+        SET name = ?, category = ?, location = ?, room = ?, description = ?, application = ?, equipment_id = ?, unit_id = ?
+        WHERE id = ?
+    """, (name, category, location, room, description, application, equipment_id, unit_id, item_id))
+    conn.commit()
+    conn.close()
+
+def update_item_photos(item_id, item_photo_path, location_photo_path, installed_photo_path):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("""
+        UPDATE items 
+        SET item_photo = ?, location_photo = ?, installed_photo = ?
+        WHERE id = ?
+    """, (item_photo_path, location_photo_path, installed_photo_path, item_id))
+    conn.commit()
+    conn.close()
+
 def update_quantity(item_id, new_quantity):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -670,71 +672,31 @@ init_db()
 total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list, total_consumption = get_statistics()
 
 col1, col2, col3, col4, col5, col6 = st.columns(6)
-
 with col1:
-    if st.button(
-        "📦\n" + str(total_items) + "\nВещи",
-        use_container_width=True,
-        key="stat_items",
-        help="Показать все вещи"
-    ):
+    if st.button("📦\n" + str(total_items) + "\nВещи", use_container_width=True, key="stat_items"):
         st.session_state.active_tab = 1
         st.session_state.selected_room = None
-        st.session_state.show_low_stock = False
         st.rerun()
-
 with col2:
-    if st.button(
-        "🏠\n" + str(total_rooms_list) + "\nПомещения",
-        use_container_width=True,
-        key="stat_rooms",
-        help="Показать помещения"
-    ):
+    if st.button("🏠\n" + str(total_rooms_list) + "\nПомещения", use_container_width=True, key="stat_rooms"):
         st.session_state.active_tab = 4
         st.session_state.selected_room = None
-        st.session_state.show_low_stock = False
         st.rerun()
-
 with col3:
-    if st.button(
-        "⚠️\n" + str(low_stock_count) + "\nПополнить",
-        use_container_width=True,
-        key="stat_low_stock",
-        help="Показать что нужно пополнить"
-    ):
+    if st.button("⚠️\n" + str(low_stock_count) + "\nПополнить", use_container_width=True, key="stat_low_stock"):
         st.session_state.active_tab = 0
         st.session_state.show_low_stock = True
-        st.session_state.selected_room = None
         st.rerun()
-
 with col4:
     top_cat_str = "\n".join([f"{cat}" for cat, count in top_categories[:2]]) if top_categories else "—"
-    st.button(
-        "🏆\nТоп\n" + top_cat_str,
-        use_container_width=True,
-        key="stat_top",
-        disabled=True,
-        help="Топ категорий (неактивно)"
-    )
-
+    st.button("🏆\nТоп\n" + top_cat_str, use_container_width=True, key="stat_top", disabled=True)
 with col5:
-    if st.button(
-        "🚜\n" + str(total_equipment) + "\nТехника",
-        use_container_width=True,
-        key="stat_equipment",
-        help="Показать технику"
-    ):
+    if st.button("🚜\n" + str(total_equipment) + "\nТехника", use_container_width=True, key="stat_equipment"):
         st.session_state.active_tab = 2
         st.session_state.selected_equipment = None
         st.rerun()
-
 with col6:
-    if st.button(
-        "📤\n" + str(total_consumption) + "\nСписано",
-        use_container_width=True,
-        key="stat_consumption",
-        help="Показать историю списаний"
-    ):
+    if st.button("📤\n" + str(total_consumption) + "\nСписано", use_container_width=True, key="stat_consumption"):
         st.session_state.active_tab = 3
         st.rerun()
 
@@ -760,7 +722,6 @@ if low_stock:
 # --- БОКОВАЯ ПАНЕЛЬ ---
 with st.sidebar:
     st.markdown("### 🌿 Управление")
-    
     st.header("➕ Добавить вещь")
     room_names = get_room_names()
     if not room_names:
@@ -800,7 +761,6 @@ with st.sidebar:
             st.info("Сначала добавьте технику в разделе '🚜 Парк'")
             eq_id = None
             unit_id = None
-        
         application = st.text_area("🔧 Область применения", placeholder="Например: ремень генератора трактора МТЗ-80")
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -816,24 +776,19 @@ with st.sidebar:
         installed_pic = st.file_uploader("📷 Фото установки на агрегате", type=["jpg", "jpeg", "png"], key="installed")
         submitted = st.form_submit_button("💾 Сохранить")
         if submitted and name and location and room and room != "— Сначала добавьте помещение —":
-            item_path = ""
-            loc_path = ""
-            installed_path = ""
+            item_path = ""; loc_path = ""; installed_path = ""
             if item_pic:
                 ext = item_pic.name.split('.')[-1]
                 item_path = f"images/{uuid.uuid4()}_item.{ext}"
-                with open(item_path, "wb") as f:
-                    f.write(item_pic.getbuffer())
+                with open(item_path, "wb") as f: f.write(item_pic.getbuffer())
             if location_pic:
                 ext = location_pic.name.split('.')[-1]
                 loc_path = f"images/{uuid.uuid4()}_loc.{ext}"
-                with open(loc_path, "wb") as f:
-                    f.write(location_pic.getbuffer())
+                with open(loc_path, "wb") as f: f.write(location_pic.getbuffer())
             if installed_pic:
                 ext = installed_pic.name.split('.')[-1]
                 installed_path = f"images/{uuid.uuid4()}_installed.{ext}"
-                with open(installed_path, "wb") as f:
-                    f.write(installed_pic.getbuffer())
+                with open(installed_path, "wb") as f: f.write(installed_pic.getbuffer())
             add_item(name, category, location, room, description, item_path, loc_path, quantity, unit, threshold, application, installed_path, eq_id, unit_id)
             st.success(f"✅ Добавлено {quantity} {unit} '{name}'")
             st.rerun()
@@ -843,59 +798,32 @@ with st.sidebar:
     st.divider()
     st.header("📥 Импорт Excel")
     uploaded_file = st.file_uploader("Выберите Excel-файл", type=["xlsx", "xls"])
-    if uploaded_file:
-        if st.button("📤 Импортировать"):
-            st.success("Импорт пока в разработке")
-    
+    if uploaded_file and st.button("📤 Импортировать"):
+        st.success("Импорт пока в разработке")
     st.header("📤 Экспорт Excel")
     if st.button("📥 Скачать Excel", use_container_width=True):
         excel_data = export_to_excel()
-        st.download_button(
-            label="⬇️ Скачать",
-            data=excel_data,
-            file_name=f"инвентарь_{datetime.now().strftime('%Y-%m-%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
+        st.download_button(label="⬇️ Скачать", data=excel_data, file_name=f"инвентарь_{datetime.now().strftime('%Y-%m-%d')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
 # --- ОСНОВНАЯ ОБЛАСТЬ: ВКЛАДКИ ---
-active_tab = st.session_state.get("active_tab", 0)
-show_low_stock = st.session_state.get("show_low_stock", False)
-selected_room = st.session_state.get("selected_room", None)
-selected_equipment = st.session_state.get("selected_equipment", None)
-
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Поиск", "📋 Все вещи", "🚜 Парк", "📤 История списаний", "🏠 Помещения"])
 
 with tab1:
     col_search, col_btn = st.columns([5, 1])
     with col_search:
-        search_query = st.text_input(
-            "🔍 Что ищем?", 
-            placeholder="Введите название, категорию, место...", 
-            key="search_input",
-            value=""
-        )
-        if search_query and len(search_query) > 0:
-            if search_query[0].islower():
-                if len(search_query) > 1:
-                    search_query = search_query[0].upper() + search_query[1:]
-                else:
-                    search_query = search_query.upper()
-    
+        search_query = st.text_input("🔍 Что ищем?", placeholder="Введите название, категорию, место...", key="search_input", value="")
+        if search_query and len(search_query) > 0 and search_query[0].islower():
+            search_query = search_query[0].upper() + search_query[1:] if len(search_query) > 1 else search_query.upper()
     with col_btn:
         st.write("")
         search_clicked = st.button("🔍 Найти", use_container_width=True)
     
-    if show_low_stock:
+    if st.session_state.get("show_low_stock", False):
         st.info("📋 **Вещи, которые нужно пополнить:**")
         low_items = get_low_stock_items()
         if low_items:
             for item in low_items:
-                qty = item[9]
-                name = item[1]
-                unit = item[10]
-                room = item[4]
-                threshold = item[11]
+                qty = item[9]; name = item[1]; unit = item[10]; room = item[4]; threshold = item[11]
                 st.write(f"• **{name}** — {qty} {unit} (порог: {threshold}) в **{room}**")
         else:
             st.success("✅ Все вещи в норме!")
@@ -905,12 +833,7 @@ with tab1:
     rooms = ["Все помещения"] + get_room_names()
     room_filter = st.selectbox("🏠 Помещение", rooms, key="room_filter_tab1")
     
-    if search_query:
-        st.caption(f"🔎 Ищем: **{search_query}**")
-        items = search_items(search_query, room_filter)
-    else:
-        items = get_all_items(room_filter)
-    
+    items = search_items(search_query, room_filter) if search_query else get_all_items(room_filter)
     st.subheader(f"📌 Найдено: {len(items)}")
 
     if not items:
@@ -923,29 +846,21 @@ with tab1:
                     item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo, equipment_id, unit_id = item[:16]
                 elif len(item) >= 14:
                     item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo = item[:14]
-                    equipment_id = None
-                    unit_id = None
+                    equipment_id = None; unit_id = None
                 else:
                     item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item[:12]
-                    application = ""
-                    installed_photo = ""
-                    equipment_id = None
-                    unit_id = None
+                    application = ""; installed_photo = ""; equipment_id = None; unit_id = None
                 
-                eq_name = ""
-                unit_name = ""
+                eq_name = ""; unit_name = ""
                 if equipment_id:
                     eq = get_equipment_by_id(equipment_id)
                     if eq:
-                        eq_name = eq[1]
-                        if eq[2]:
-                            eq_name += f" ({eq[2]})"
+                        eq_name = eq[1] + (f" ({eq[2]})" if eq[2] else "")
                 if unit_id and equipment_id:
                     units = get_units(equipment_id)
                     for u in units:
                         if u[0] == unit_id:
-                            unit_name = u[1]
-                            break
+                            unit_name = u[1]; break
                 
                 try:
                     qty = float(quantity)
@@ -953,354 +868,263 @@ with tab1:
                     qty = 0
                 
                 if qty <= 0:
-                    status_emoji = "🔴"
-                    status_text = "КРИТИЧНО!"
+                    status_emoji = "🔴"; status_text = "КРИТИЧНО!"
                 elif qty <= threshold:
-                    status_emoji = "🟡"
-                    status_text = f"Скоро закончится (≤ {threshold})"
+                    status_emoji = "🟡"; status_text = f"Скоро закончится (≤ {threshold})"
                 else:
-                    status_emoji = "🟢"
-                    status_text = "В норме"
+                    status_emoji = "🟢"; status_text = "В норме"
                 
-                with st.container(border=True):
-                    st.markdown(f"**{status_emoji} {name}**")
-                    if category:
-                        st.caption(f"📂 {category}")
-                    st.caption(f"🏠 {room} → 📍 {location}")
-                    if eq_name:
-                        st.caption(f"🚜 **Техника:** {eq_name}")
-                    if unit_name:
-                        st.caption(f"🔧 **Агрегат:** {unit_name}")
-                    if application:
-                        st.caption(f"📝 **Область применения:** {application}")
-                    st.caption(f"📦 Количество: **{qty} {unit}**")
-                    st.caption(f"📊 Статус: **{status_text}**")
-                    
-                    c1, c2, c3 = st.columns(3)
-                    with c1:
-                        if item_photo and os.path.exists(item_photo):
-                            st.image(item_photo, caption="Вещь", use_container_width=True)
-                        else:
-                            st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
-                    with c2:
-                        if location_photo and os.path.exists(location_photo):
-                            st.image(location_photo, caption="Место", use_container_width=True)
-                        else:
-                            st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
-                    with c3:
-                        if installed_photo and os.path.exists(installed_photo):
-                            st.image(installed_photo, caption="Установка", use_container_width=True)
-                        else:
-                            st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
-                    
-                    if description:
-                        st.write(f"📝 {description}")
-                    st.caption(f"🕒 Добавлено: {date_added}")
-                    
-                    # --- ВЕРТИКАЛЬНЫЕ ЦВЕТНЫЕ КНОПКИ С ИКОНКАМИ ПО ЦЕНТРУ ---
-                    st.markdown("""
-                        <style>
-                            @media (min-width: 769px) {
-                                .vertical-btn-wrap {
-                                    display: flex !important;
-                                    flex-direction: column !important;
-                                    gap: 0.3rem !important;
-                                    width: 100% !important;
-                                }
-                                .vertical-btn-wrap .stButton {
-                                    width: 100% !important;
-                                }
-                                .vertical-btn-wrap .stButton button {
-                                    width: 100% !important;
-                                    padding: 0.5rem 0.5rem !important;
-                                    font-size: 1.4rem !important;
-                                    min-height: 44px !important;
-                                    border-radius: 8px !important;
-                                    line-height: 1 !important;
-                                    display: flex !important;
-                                    justify-content: center !important;
-                                    align-items: center !important;
-                                    text-align: center !important;
-                                }
-                            }
-                            @media (max-width: 768px) {
-                                .vertical-btn-wrap {
-                                    display: flex !important;
-                                    flex-direction: row !important;
-                                    flex-wrap: wrap !important;
-                                    gap: 0.15rem !important;
-                                }
-                                .vertical-btn-wrap .stButton {
-                                    flex: 1 !important;
-                                    min-width: 35px !important;
-                                }
-                                .vertical-btn-wrap .stButton button {
-                                    padding: 0.2rem 0.2rem !important;
-                                    font-size: 1rem !important;
-                                    min-height: 32px !important;
-                                    border-radius: 5px !important;
-                                    line-height: 1 !important;
-                                    display: flex !important;
-                                    justify-content: center !important;
-                                    align-items: center !important;
-                                    text-align: center !important;
-                                }
-                            }
-                            .btn-edit .stButton button { background-color: #4CAF50 !important; color: white !important; }
-                            .btn-edit .stButton button:hover { background-color: #388E3C !important; transform: scale(1.05); }
-                            .btn-threshold .stButton button { background-color: #FF9800 !important; color: white !important; }
-                            .btn-threshold .stButton button:hover { background-color: #F57C00 !important; transform: scale(1.05); }
-                            .btn-consume .stButton button { background-color: #2196F3 !important; color: white !important; }
-                            .btn-consume .stButton button:hover { background-color: #1976D2 !important; transform: scale(1.05); }
-                            .btn-qr .stButton button { background-color: #9C27B0 !important; color: white !important; }
-                            .btn-qr .stButton button:hover { background-color: #7B1FA2 !important; transform: scale(1.05); }
-                            .btn-move .stButton button { background-color: #FF5722 !important; color: white !important; }
-                            .btn-move .stButton button:hover { background-color: #E64A19 !important; transform: scale(1.05); }
-                            .btn-delete .stButton button { background-color: #f44336 !important; color: white !important; }
-                            .btn-delete .stButton button:hover { background-color: #c62828 !important; transform: scale(1.05); }
-                        </style>
-                    """, unsafe_allow_html=True)
-                    
-                    st.markdown('<div class="vertical-btn-wrap">', unsafe_allow_html=True)
-                    
-                    col_btn1, col_btn2, col_btn3, col_btn4, col_btn5, col_btn6 = st.columns(6)
-                    with col_btn1:
-                        st.markdown('<div class="btn-edit">', unsafe_allow_html=True)
-                        if st.button(
-                            "✏️", 
-                            key=f"edit_{item_id}", 
-                            use_container_width=True,
-                            help="Изменить количество"
-                        ):
-                            st.session_state[f"edit_mode_{item_id}"] = True
-                            st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    with col_btn2:
-                        st.markdown('<div class="btn-threshold">', unsafe_allow_html=True)
-                        if st.button(
-                            "⚙️", 
-                            key=f"thr_{item_id}", 
-                            use_container_width=True,
-                            help="Настроить порог"
-                        ):
-                            st.session_state[f"thr_mode_{item_id}"] = True
-                            st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    with col_btn3:
-                        st.markdown('<div class="btn-consume">', unsafe_allow_html=True)
-                        if st.button(
-                            "📤", 
-                            key=f"cons_{item_id}", 
-                            use_container_width=True,
-                            help="Списать на объект"
-                        ):
-                            st.session_state[f"cons_mode_{item_id}"] = True
-                            st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    with col_btn4:
-                        st.markdown('<div class="btn-qr">', unsafe_allow_html=True)
-                        if st.button(
-                            "📷", 
-                            key=f"qr_{item_id}", 
-                            use_container_width=True,
-                            help="Сгенерировать QR"
-                        ):
-                            st.session_state[f"qr_mode_{item_id}"] = True
-                            st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    with col_btn5:
-                        st.markdown('<div class="btn-move">', unsafe_allow_html=True)
-                        if st.button(
-                            "🚚", 
-                            key=f"move_{item_id}", 
-                            use_container_width=True,
-                            help="Переместить"
-                        ):
-                            st.session_state[f"move_mode_{item_id}"] = True
-                            st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    with col_btn6:
-                        st.markdown('<div class="btn-delete">', unsafe_allow_html=True)
-                        if st.button(
-                            "🗑️", 
-                            key=f"del_{item_id}", 
-                            use_container_width=True,
-                            help="Удалить вещь"
-                        ):
-                            delete_item(item_id)
-                            st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    if st.session_state.get(f"edit_mode_{item_id}", False):
-                        with st.container(border=True):
-                            st.write(f"**Изменение количества для {name}**")
-                            new_q = st.number_input(f"Новое количество ({unit})", min_value=0.0, step=0.5, value=float(qty), key=f"input_q_{item_id}")
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("✅ Сохранить", key=f"save_q_{item_id}"):
-                                    update_quantity(item_id, new_q)
-                                    st.session_state[f"edit_mode_{item_id}"] = False
-                                    st.rerun()
-                            with col2:
-                                if st.button("❌ Отмена", key=f"cancel_q_{item_id}"):
-                                    st.session_state[f"edit_mode_{item_id}"] = False
-                                    st.rerun()
-                    
-                    if st.session_state.get(f"thr_mode_{item_id}", False):
-                        with st.container(border=True):
-                            st.write(f"**Настройка порога для {name}**")
-                            new_thr = st.number_input("Минимальное количество для уведомления", min_value=0, step=1, value=int(threshold), key=f"input_thr_{item_id}")
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("✅ Сохранить", key=f"save_thr_{item_id}"):
-                                    update_threshold(item_id, new_thr)
-                                    st.session_state[f"thr_mode_{item_id}"] = False
-                                    st.rerun()
-                            with col2:
-                                if st.button("❌ Отмена", key=f"cancel_thr_{item_id}"):
-                                    st.session_state[f"thr_mode_{item_id}"] = False
-                                    st.rerun()
-                    
-                    if st.session_state.get(f"cons_mode_{item_id}", False):
-                        with st.container(border=True):
-                            st.write(f"**Списание {name}**")
-                            st.caption(f"Доступно: {qty} {unit}")
-                            
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                consume_qty = st.number_input("Количество", min_value=0.0, step=0.5, max_value=float(qty), value=min(1.0, float(qty)), key=f"cons_qty_{item_id}")
-                            with col2:
-                                equipment_list = get_equipment()
-                                search_options = ["Другое"]
-                                for eq in equipment_list:
-                                    eq_name = eq[1]
-                                    if eq[2]:
-                                        eq_name += f" ({eq[2]})"
-                                    search_options.append(eq_name)
-                                    units = get_units(eq[0])
-                                    for unit in units:
-                                        search_options.append(f"{eq_name} → {unit[1]}")
-                                
-                                search_equipment = st.text_input("🔍 Поиск техники или агрегата", placeholder="Начните вводить название...", key=f"search_eq_{item_id}")
-                                
-                                if search_equipment:
-                                    filtered_eq = [opt for opt in search_options if search_equipment.lower() in opt.lower()]
-                                else:
-                                    filtered_eq = search_options
-                                
-                                if filtered_eq:
-                                    selected_eq = st.selectbox("Выберите технику или агрегат", filtered_eq, key=f"sel_eq_{item_id}")
-                                    if selected_eq == "Другое":
-                                        object_name = st.text_input("Введите название объекта*", key=f"custom_obj_{item_id}")
-                                    else:
-                                        object_name = selected_eq
-                                else:
-                                    st.warning("Ничего не найдено. Выберите 'Другое' или добавьте технику в разделе '🚜 Парк'")
-                                    object_name = st.text_input("Введите название объекта*", key=f"custom_obj_{item_id}")
-                            
-                            user = st.text_input("Кто списывает", value="Пользователь", key=f"cons_user_{item_id}")
-                            note = st.text_area("Примечание", key=f"cons_note_{item_id}")
-                            
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("✅ Списать", key=f"save_cons_{item_id}"):
-                                    if consume_qty <= 0:
-                                        st.error("Количество должно быть > 0")
-                                    elif not object_name:
-                                        st.error("Укажите объект")
-                                    else:
-                                        success, message = consume_item(item_id, consume_qty, object_name, user, note)
-                                        if success:
-                                            st.success(message)
-                                            st.session_state[f"cons_mode_{item_id}"] = False
-                                            st.rerun()
-                                        else:
-                                            st.error(message)
-                            with col2:
-                                if st.button("❌ Отмена", key=f"cancel_cons_{item_id}"):
-                                    st.session_state[f"cons_mode_{item_id}"] = False
-                                    st.rerun()
-                    
-                    if st.session_state.get(f"move_mode_{item_id}", False):
-                        with st.container(border=True):
-                            st.write(f"**Перемещение {name}**")
-                            st.caption(f"Текущее помещение: **{room}**")
-                            
-                            room_names = get_room_names()
-                            available_rooms = [r for r in room_names if r != room]
-                            
-                            if available_rooms:
-                                new_room = st.selectbox("Выберите новое помещение", available_rooms, key=f"new_room_{item_id}")
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    if st.button("✅ Переместить", key=f"save_move_{item_id}"):
-                                        update_item_room(item_id, new_room)
-                                        st.session_state[f"move_mode_{item_id}"] = False
-                                        st.success(f"✅ Вещь перемещена в '{new_room}'")
-                                        st.rerun()
-                                with col2:
-                                    if st.button("❌ Отмена", key=f"cancel_move_{item_id}"):
-                                        st.session_state[f"move_mode_{item_id}"] = False
-                                        st.rerun()
+                # --- КАРТОЧКА ВЕЩИ С ТРЕМЯ ТОЧКАМИ ---
+                st.markdown(f"""
+                    <div class="item-card">
+                        <button class="three-dots" id="menu_{item_id}" onclick="document.getElementById('menu_{item_id}').style.display='none'">⋮</button>
+                        <div style="margin-top: 0.5rem;">
+                            <strong>{status_emoji} {name}</strong>
+                            {f'<br><span style="color:#888;font-size:0.85rem;">📂 {category}</span>' if category else ''}
+                            <br><span style="color:#666;font-size:0.85rem;">🏠 {room} → 📍 {location}</span>
+                            {f'<br><span style="color:#666;font-size:0.85rem;">🚜 {eq_name}</span>' if eq_name else ''}
+                            {f'<br><span style="color:#666;font-size:0.85rem;">🔧 {unit_name}</span>' if unit_name else ''}
+                            {f'<br><span style="color:#666;font-size:0.85rem;">📝 {application}</span>' if application else ''}
+                            <br><span style="color:#666;font-size:0.85rem;">📦 {qty} {unit} | 📊 {status_text}</span>
+                            {f'<br><span style="color:#999;font-size:0.75rem;">🕒 {date_added}</span>' if date_added else ''}
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                # --- КНОПКИ УПРАВЛЕНИЯ ---
+                col1, col2, col3, col4, col5, col6 = st.columns(6)
+                with col1:
+                    if st.button("✏️", key=f"edit_{item_id}", use_container_width=True, help="Редактировать"):
+                        st.session_state[f"edit_mode_{item_id}"] = True
+                        st.rerun()
+                with col2:
+                    if st.button("📷", key=f"photo_{item_id}", use_container_width=True, help="Изменить фото"):
+                        st.session_state[f"photo_mode_{item_id}"] = True
+                        st.rerun()
+                with col3:
+                    if st.button("📤", key=f"cons_{item_id}", use_container_width=True, help="Списать"):
+                        st.session_state[f"cons_mode_{item_id}"] = True
+                        st.rerun()
+                with col4:
+                    if st.button("📷", key=f"qr_{item_id}", use_container_width=True, help="QR-код"):
+                        st.session_state[f"qr_mode_{item_id}"] = True
+                        st.rerun()
+                with col5:
+                    if st.button("🚚", key=f"move_{item_id}", use_container_width=True, help="Переместить"):
+                        st.session_state[f"move_mode_{item_id}"] = True
+                        st.rerun()
+                with col6:
+                    if st.button("🗑️", key=f"del_{item_id}", use_container_width=True, help="Удалить"):
+                        delete_item(item_id)
+                        st.rerun()
+                
+                # --- РЕДАКТИРОВАНИЕ ---
+                if st.session_state.get(f"edit_mode_{item_id}", False):
+                    with st.container(border=True):
+                        st.write(f"**Редактирование {name}**")
+                        new_name = st.text_input("Название", value=name, key=f"new_name_{item_id}")
+                        new_category = st.text_input("Категория", value=category or "", key=f"new_cat_{item_id}")
+                        new_description = st.text_area("Описание", value=description or "", key=f"new_desc_{item_id}")
+                        new_application = st.text_area("Область применения", value=application or "", key=f"new_app_{item_id}")
+                        # Выбор помещения
+                        room_names = get_room_names()
+                        new_room = st.selectbox("Помещение", room_names, index=room_names.index(room) if room in room_names else 0, key=f"new_room_{item_id}")
+                        # Выбор техники
+                        equipment_list = get_equipment()
+                        eq_names = ["Не выбрано"] + [eq[1] for eq in equipment_list]
+                        current_eq = eq_names[0]
+                        if equipment_id:
+                            eq = get_equipment_by_id(equipment_id)
+                            if eq:
+                                current_eq = eq[1]
+                        new_eq = st.selectbox("Техника", eq_names, index=eq_names.index(current_eq) if current_eq in eq_names else 0, key=f"new_eq_{item_id}")
+                        new_eq_id = None
+                        if new_eq != "Не выбрано":
+                            for eq in equipment_list:
+                                if eq[1] == new_eq:
+                                    new_eq_id = eq[0]; break
+                        # Выбор агрегата
+                        unit_names = ["Не выбрано"]
+                        if new_eq_id:
+                            units = get_units(new_eq_id)
+                            unit_names += [u[1] for u in units]
+                        current_unit = unit_names[0]
+                        if unit_id:
+                            units = get_units(equipment_id)
+                            for u in units:
+                                if u[0] == unit_id:
+                                    current_unit = u[1]; break
+                        new_unit = st.selectbox("Агрегат", unit_names, index=unit_names.index(current_unit) if current_unit in unit_names else 0, key=f"new_unit_{item_id}")
+                        new_unit_id = None
+                        if new_unit != "Не выбрано" and new_eq_id:
+                            units = get_units(new_eq_id)
+                            for u in units:
+                                if u[1] == new_unit:
+                                    new_unit_id = u[0]; break
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("✅ Сохранить", key=f"save_edit_{item_id}"):
+                                update_item(item_id, new_name, new_category, location, new_room, new_description, new_application, new_eq_id, new_unit_id)
+                                st.session_state[f"edit_mode_{item_id}"] = False
+                                st.success("✅ Изменения сохранены!")
+                                st.rerun()
+                        with col2:
+                            if st.button("❌ Отмена", key=f"cancel_edit_{item_id}"):
+                                st.session_state[f"edit_mode_{item_id}"] = False
+                                st.rerun()
+                
+                # --- ИЗМЕНЕНИЕ ФОТО ---
+                if st.session_state.get(f"photo_mode_{item_id}", False):
+                    with st.container(border=True):
+                        st.write(f"**Изменение фото для {name}**")
+                        new_item_pic = st.file_uploader("📷 Фото вещи", type=["jpg", "jpeg", "png"], key=f"new_item_{item_id}")
+                        new_location_pic = st.file_uploader("📷 Фото места", type=["jpg", "jpeg", "png"], key=f"new_loc_{item_id}")
+                        new_installed_pic = st.file_uploader("📷 Фото установки", type=["jpg", "jpeg", "png"], key=f"new_inst_{item_id}")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("✅ Сохранить фото", key=f"save_photo_{item_id}"):
+                                item_path = item_photo or ""; loc_path = location_photo or ""; installed_path = installed_photo or ""
+                                if new_item_pic:
+                                    ext = new_item_pic.name.split('.')[-1]
+                                    # Удаляем старое фото
+                                    if item_path and os.path.exists(item_path):
+                                        os.remove(item_path)
+                                    item_path = f"images/{uuid.uuid4()}_item.{ext}"
+                                    with open(item_path, "wb") as f: f.write(new_item_pic.getbuffer())
+                                if new_location_pic:
+                                    ext = new_location_pic.name.split('.')[-1]
+                                    if loc_path and os.path.exists(loc_path):
+                                        os.remove(loc_path)
+                                    loc_path = f"images/{uuid.uuid4()}_loc.{ext}"
+                                    with open(loc_path, "wb") as f: f.write(new_location_pic.getbuffer())
+                                if new_installed_pic:
+                                    ext = new_installed_pic.name.split('.')[-1]
+                                    if installed_path and os.path.exists(installed_path):
+                                        os.remove(installed_path)
+                                    installed_path = f"images/{uuid.uuid4()}_installed.{ext}"
+                                    with open(installed_path, "wb") as f: f.write(new_installed_pic.getbuffer())
+                                update_item_photos(item_id, item_path, loc_path, installed_path)
+                                st.session_state[f"photo_mode_{item_id}"] = False
+                                st.success("✅ Фото обновлены!")
+                                st.rerun()
+                        with col2:
+                            if st.button("❌ Отмена", key=f"cancel_photo_{item_id}"):
+                                st.session_state[f"photo_mode_{item_id}"] = False
+                                st.rerun()
+                
+                # --- СПИСАНИЕ ---
+                if st.session_state.get(f"cons_mode_{item_id}", False):
+                    with st.container(border=True):
+                        st.write(f"**Списание {name}**")
+                        st.caption(f"Доступно: {qty} {unit}")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            consume_qty = st.number_input("Количество", min_value=0.0, step=0.5, max_value=float(qty), value=min(1.0, float(qty)), key=f"cons_qty_{item_id}")
+                        with col2:
+                            equipment_list = get_equipment()
+                            search_options = ["Другое"]
+                            for eq in equipment_list:
+                                eq_name = eq[1] + (f" ({eq[2]})" if eq[2] else "")
+                                search_options.append(eq_name)
+                                units = get_units(eq[0])
+                                for unit in units:
+                                    search_options.append(f"{eq_name} → {unit[1]}")
+                            search_equipment = st.text_input("🔍 Поиск техники или агрегата", placeholder="Начните вводить...", key=f"search_eq_{item_id}")
+                            filtered_eq = [opt for opt in search_options if search_equipment.lower() in opt.lower()] if search_equipment else search_options
+                            if filtered_eq:
+                                selected_eq = st.selectbox("Выберите объект", filtered_eq, key=f"sel_eq_{item_id}")
+                                object_name = st.text_input("Введите название объекта*", key=f"custom_obj_{item_id}") if selected_eq == "Другое" else selected_eq
                             else:
-                                st.warning("Нет доступных помещений для перемещения. Сначала добавьте их в разделе 'Помещения'.")
-                                if st.button("❌ Закрыть", key=f"close_move_{item_id}"):
+                                st.warning("Ничего не найдено")
+                                object_name = st.text_input("Введите название объекта*", key=f"custom_obj_{item_id}")
+                        user = st.text_input("Кто списывает", value="Пользователь", key=f"cons_user_{item_id}")
+                        note = st.text_area("Примечание", key=f"cons_note_{item_id}")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("✅ Списать", key=f"save_cons_{item_id}"):
+                                if consume_qty <= 0:
+                                    st.error("Количество > 0")
+                                elif not object_name:
+                                    st.error("Укажите объект")
+                                else:
+                                    success, message = consume_item(item_id, consume_qty, object_name, user, note)
+                                    if success:
+                                        st.success(message)
+                                        st.session_state[f"cons_mode_{item_id}"] = False
+                                        st.rerun()
+                                    else:
+                                        st.error(message)
+                        with col2:
+                            if st.button("❌ Отмена", key=f"cancel_cons_{item_id}"):
+                                st.session_state[f"cons_mode_{item_id}"] = False
+                                st.rerun()
+                
+                # --- ПЕРЕМЕЩЕНИЕ ---
+                if st.session_state.get(f"move_mode_{item_id}", False):
+                    with st.container(border=True):
+                        st.write(f"**Перемещение {name}**")
+                        st.caption(f"Текущее: **{room}**")
+                        room_names = get_room_names()
+                        available_rooms = [r for r in room_names if r != room]
+                        if available_rooms:
+                            new_room = st.selectbox("Новое помещение", available_rooms, key=f"new_room_move_{item_id}")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("✅ Переместить", key=f"save_move_{item_id}"):
+                                    update_item_room(item_id, new_room)
+                                    st.session_state[f"move_mode_{item_id}"] = False
+                                    st.success(f"✅ Перемещено в '{new_room}'")
+                                    st.rerun()
+                            with col2:
+                                if st.button("❌ Отмена", key=f"cancel_move_{item_id}"):
                                     st.session_state[f"move_mode_{item_id}"] = False
                                     st.rerun()
-                    
-                    if st.session_state.get(f"qr_mode_{item_id}", False):
-                        with st.container(border=True):
-                            st.write(f"**QR-код для {name}**")
-                            app_url = "https://garage-app-2-fcfztptpvqdfqmrh3vczif.streamlit.app"
-                            qr_data = f"{app_url}?search={item_id}"
-                            qr = qrcode.make(qr_data)
-                            buf = BytesIO()
-                            qr.save(buf, format="PNG")
-                            st.image(buf, caption=f"QR для {name}", use_container_width=True)
-                            st.download_button(
-                                label="⬇️ Скачать QR",
-                                data=buf.getvalue(),
-                                file_name=f"qr_{name}_{item_id}.png",
-                                mime="image/png"
-                            )
-                            if st.button("❌ Закрыть QR", key=f"close_qr_{item_id}"):
-                                st.session_state[f"qr_mode_{item_id}"] = False
+                        else:
+                            st.warning("Нет доступных помещений")
+                            if st.button("❌ Закрыть", key=f"close_move_{item_id}"):
+                                st.session_state[f"move_mode_{item_id}"] = False
                                 st.rerun()
+                
+                # --- QR-КОД ---
+                if st.session_state.get(f"qr_mode_{item_id}", False):
+                    with st.container(border=True):
+                        st.write(f"**QR-код для {name}**")
+                        app_url = "https://garage-app-2-fcfztptpvqdfqmrh3vczif.streamlit.app"
+                        qr_data = f"{app_url}?search={item_id}"
+                        qr = qrcode.make(qr_data)
+                        buf = BytesIO()
+                        qr.save(buf, format="PNG")
+                        st.image(buf, caption=f"QR для {name}", use_container_width=True)
+                        st.download_button(label="⬇️ Скачать QR", data=buf.getvalue(), file_name=f"qr_{name}_{item_id}.png", mime="image/png")
+                        if st.button("❌ Закрыть QR", key=f"close_qr_{item_id}"):
+                            st.session_state[f"qr_mode_{item_id}"] = False
+                            st.rerun()
 
 with tab2:
     st.subheader("📋 Все вещи в базе данных")
     all_items = get_all_items()
     if not all_items:
-        st.info("🌱 В базе пока нет вещей. Добавьте первую вещь через боковое меню!")
+        st.info("🌱 В базе пока нет вещей")
     else:
         data = []
         for item in all_items:
             if len(item) >= 14:
                 item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo = item[:14]
-                equipment_id = None
-                unit_id = None
+                equipment_id = None; unit_id = None
             else:
                 item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item[:12]
-                application = ""
-                installed_photo = ""
-                equipment_id = None
-                unit_id = None
-            eq_name = ""
-            unit_name = ""
+                application = ""; installed_photo = ""; equipment_id = None; unit_id = None
+            eq_name = ""; unit_name = ""
             if equipment_id:
                 eq = get_equipment_by_id(equipment_id)
                 if eq:
-                    eq_name = eq[1]
-                    if eq[2]:
-                        eq_name += f" ({eq[2]})"
+                    eq_name = eq[1] + (f" ({eq[2]})" if eq[2] else "")
             if unit_id and equipment_id:
                 units = get_units(equipment_id)
                 for u in units:
                     if u[0] == unit_id:
-                        unit_name = u[1]
-                        break
+                        unit_name = u[1]; break
             try:
                 qty = float(quantity)
             except:
@@ -1320,26 +1144,21 @@ with tab2:
         df = pd.DataFrame(data)
         st.dataframe(df, use_container_width=True)
         csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Скачать таблицу (CSV)",
-            data=csv,
-            file_name=f"все_вещи_{datetime.now().strftime('%Y-%m-%d')}.csv",
-            mime="text/csv"
-        )
+        st.download_button(label="📥 Скачать таблицу (CSV)", data=csv, file_name=f"все_вещи_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
 
 with tab3:
     st.subheader("🚜 Управление техникой")
-    
-    if selected_equipment:
-        st.markdown(f"### 🔧 История списаний на **{selected_equipment}**")
-        consumptions = get_consumption_by_equipment(selected_equipment)
+    if st.session_state.get("selected_equipment"):
+        eq_name = st.session_state.selected_equipment
+        st.markdown(f"### 🔧 История списаний на **{eq_name}**")
+        consumptions = get_consumption_by_equipment(eq_name)
         if consumptions:
             for c in consumptions:
                 record_id, item_id, qty, unit, obj_name, user, date, item_name = c
                 st.write(f"• **{item_name}** → {qty} {unit} (списал {user}, {date})")
         else:
-            st.info(f"🌱 Нет списаний на '{selected_equipment}'")
-        if st.button("⬅️ Назад к списку техники"):
+            st.info(f"🌱 Нет списаний на '{eq_name}'")
+        if st.button("⬅️ Назад"):
             st.session_state.selected_equipment = None
             st.rerun()
         st.divider()
@@ -1352,35 +1171,27 @@ with tab3:
             with col2:
                 eq_number = st.text_input("Госномер", placeholder="А123ВС")
             with col3:
-                st.write("")
-                st.write("")
-                add_eq_btn = st.form_submit_button("➕ Добавить")
+                st.write(""); st.write(""); add_eq_btn = st.form_submit_button("➕ Добавить")
             if add_eq_btn and eq_name:
                 success, msg = add_equipment(eq_name, eq_number)
                 if success:
-                    st.success(msg)
-                    st.rerun()
+                    st.success(msg); st.rerun()
                 else:
                     st.error(msg)
     
     equipment_list = get_equipment()
     if not equipment_list:
-        st.info("🌱 Пока нет техники. Добавьте первую!")
+        st.info("🌱 Пока нет техники")
     else:
         st.caption(f"Всего техники: {len(equipment_list)}")
         for eq in equipment_list:
             eq_id, eq_name, eq_number, eq_date = eq
             cons = get_consumption_by_equipment(eq_name)
             cons_count = len(cons)
-            
             col1, col2, col3 = st.columns([4, 1, 1])
             with col1:
-                display_name = f"🚜 {eq_name}"
-                if eq_number:
-                    display_name += f" ({eq_number})"
-                if cons_count > 0:
-                    display_name += f" — {cons_count} списаний"
-                st.markdown(f"**{display_name}**")
+                display = f"🚜 {eq_name}" + (f" ({eq_number})" if eq_number else "") + (f" — {cons_count} списаний" if cons_count > 0 else "")
+                st.markdown(f"**{display}**")
                 st.caption(f"Добавлено: {eq_date[:10]}")
             with col2:
                 if st.button("📊 История", key=f"eq_history_{eq_id}"):
@@ -1393,43 +1204,37 @@ with tab3:
 
 with tab4:
     st.subheader("📤 История списаний")
-    
     all_consumption = get_all_consumption()
     if not all_consumption:
         st.info("🌱 Пока нет списаний")
     else:
         st.caption(f"Всего записей: {len(all_consumption)}")
-        
         objects = list(set([c[4] for c in all_consumption]))
         filter_obj = st.selectbox("🔍 Фильтр по объекту", ["Все"] + objects)
-        
         filtered = [c for c in all_consumption if filter_obj == "Все" or c[4] == filter_obj]
-        
         for c in filtered:
             record_id, item_id, qty, unit, obj_name, user, date, item_name = c
-            
             col1, col2, col3 = st.columns([8, 1, 1])
             with col1:
                 st.write(f"• **{item_name}** → {qty} {unit} на **{obj_name}** (списал {user}, {date})")
             with col2:
                 if st.button("🗑️", key=f"del_cons_{record_id}", help="Удалить запись"):
                     delete_consumption_record(record_id)
-                    st.success(f"✅ Запись удалена! Количество '{item_name}' восстановлено на складе.")
+                    st.success(f"✅ Запись удалена! Количество '{item_name}' восстановлено.")
                     st.rerun()
             with col3:
                 if st.button("↩️", key=f"restore_cons_{record_id}", help="Вернуть на склад"):
                     delete_consumption_record(record_id)
-                    st.success(f"✅ Запись удалена! Количество '{item_name}' восстановлено на складе.")
+                    st.success(f"✅ Запись удалена! Количество '{item_name}' восстановлено.")
                     st.rerun()
-        
         st.caption("🗑️ — удалить запись и вернуть количество на склад")
 
 with tab5:
     st.subheader("🏠 Управление помещениями")
-    
-    if selected_room:
-        st.markdown(f"### 📦 Содержимое помещения **{selected_room}**")
-        items_in_room = get_items_by_room(selected_room)
+    if st.session_state.get("selected_room"):
+        room_name = st.session_state.selected_room
+        st.markdown(f"### 📦 Содержимое помещения **{room_name}**")
+        items_in_room = get_items_by_room(room_name)
         if items_in_room:
             for item in items_in_room:
                 if len(item) >= 14:
@@ -1442,12 +1247,10 @@ with tab5:
                 except:
                     qty = 0
                 status = "🔴" if qty <= 0 else "🟡" if qty <= threshold else "🟢"
-                st.write(f"{status} **{name}** — {qty} {unit} ({location})")
-                if application:
-                    st.caption(f"  📝 {application}")
+                st.write(f"{status} **{name}** — {qty} {unit} ({location})" + (f"  📝 {application}" if application else ""))
         else:
-            st.info(f"🌱 В помещении '{selected_room}' пока нет вещей")
-        if st.button("⬅️ Назад к списку помещений"):
+            st.info(f"🌱 В помещении '{room_name}' пока нет вещей")
+        if st.button("⬅️ Назад"):
             st.session_state.selected_room = None
             st.rerun()
         st.divider()
@@ -1457,28 +1260,22 @@ with tab5:
         with col1:
             new_room = st.text_input("Название нового помещения", placeholder="Гараж, Склад, Мастерская...")
         with col2:
-            st.write("")
-            st.write("")
-            add_room_btn = st.form_submit_button("➕ Добавить")
+            st.write(""); st.write(""); add_room_btn = st.form_submit_button("➕ Добавить")
         if add_room_btn and new_room:
             success, msg = add_room(new_room)
             if success:
-                st.success(msg)
-                st.rerun()
+                st.success(msg); st.rerun()
             else:
                 st.error(msg)
-    
     st.divider()
-    
     rooms = get_rooms()
     if not rooms:
-        st.info("🌱 Пока нет помещений. Добавьте первое!")
+        st.info("🌱 Пока нет помещений")
     else:
         st.caption(f"Всего помещений: {len(rooms)}")
         for room_id, room_name, room_date in rooms:
             items_in_room = get_items_by_room(room_name)
             count = len(items_in_room)
-            
             col1, col2, col3 = st.columns([4, 1, 1])
             with col1:
                 st.markdown(f"🏠 **{room_name}** — {count} вещей")
