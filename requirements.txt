@@ -1,7 +1,6 @@
 streamlit
-sqlite3
-Pillow
+pillow
 pandas
 openpyxl
-qrcode[pil]
+qrcode
 requests
