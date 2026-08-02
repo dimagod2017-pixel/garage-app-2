@@ -336,42 +336,28 @@ def search_items(query, room_filter=None):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     
-    # Подготавливаем запрос для поиска
-    query_like = f"%{query}%"
+    # Приводим запрос к нижнему регистру
     query_lower = f"%{query.lower()}%"
     
     if room_filter and room_filter != "Все помещения":
         c.execute("""
             SELECT * FROM items 
-            WHERE (name LIKE ? 
-                   OR category LIKE ? 
-                   OR location LIKE ? 
-                   OR description LIKE ? 
-                   OR application LIKE ?
-                   OR LOWER(name) LIKE ? 
-                   OR LOWER(category) LIKE ? 
-                   OR LOWER(location) LIKE ? 
-                   OR LOWER(description) LIKE ? 
-                   OR LOWER(application) LIKE ?)
+            WHERE (LOWER(COALESCE(name, '')) LIKE ? 
+                   OR LOWER(COALESCE(category, '')) LIKE ? 
+                   OR LOWER(COALESCE(location, '')) LIKE ? 
+                   OR LOWER(COALESCE(description, '')) LIKE ? 
+                   OR LOWER(COALESCE(application, '')) LIKE ?)
             AND room = ?
-        """, (query_like, query_like, query_like, query_like, query_like, 
-              query_lower, query_lower, query_lower, query_lower, query_lower,
-              room_filter))
+        """, (query_lower, query_lower, query_lower, query_lower, query_lower, room_filter))
     else:
         c.execute("""
             SELECT * FROM items 
-            WHERE name LIKE ? 
-               OR category LIKE ? 
-               OR location LIKE ? 
-               OR description LIKE ? 
-               OR application LIKE ?
-               OR LOWER(name) LIKE ? 
-               OR LOWER(category) LIKE ? 
-               OR LOWER(location) LIKE ? 
-               OR LOWER(description) LIKE ? 
-               OR LOWER(application) LIKE ?
-        """, (query_like, query_like, query_like, query_like, query_like,
-              query_lower, query_lower, query_lower, query_lower, query_lower))
+            WHERE LOWER(COALESCE(name, '')) LIKE ? 
+               OR LOWER(COALESCE(category, '')) LIKE ? 
+               OR LOWER(COALESCE(location, '')) LIKE ? 
+               OR LOWER(COALESCE(description, '')) LIKE ? 
+               OR LOWER(COALESCE(application, '')) LIKE ?
+        """, (query_lower, query_lower, query_lower, query_lower, query_lower))
     
     results = c.fetchall()
     conn.close()
