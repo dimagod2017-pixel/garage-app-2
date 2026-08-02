@@ -335,36 +335,43 @@ def delete_item(item_id):
 def search_items(query, room_filter=None):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    query_lower = query.lower()
     
-    # Сначала проверим, есть ли вообще данные в таблице
-    c.execute("SELECT COUNT(*) FROM items")
-    total = c.fetchone()[0]
+    # Подготавливаем запрос для поиска
+    query_like = f"%{query}%"
+    query_lower = f"%{query.lower()}%"
     
-    if total == 0:
-        conn.close()
-        return []
-    
-    # Упрощаем поиск — ищем только по name и category (самые важные поля)
     if room_filter and room_filter != "Все помещения":
         c.execute("""
             SELECT * FROM items 
-            WHERE (LOWER(COALESCE(name, '')) LIKE ? 
-                   OR LOWER(COALESCE(category, '')) LIKE ? 
-                   OR LOWER(COALESCE(location, '')) LIKE ? 
-                   OR LOWER(COALESCE(description, '')) LIKE ? 
-                   OR LOWER(COALESCE(application, '')) LIKE ?)
+            WHERE (name LIKE ? 
+                   OR category LIKE ? 
+                   OR location LIKE ? 
+                   OR description LIKE ? 
+                   OR application LIKE ?
+                   OR LOWER(name) LIKE ? 
+                   OR LOWER(category) LIKE ? 
+                   OR LOWER(location) LIKE ? 
+                   OR LOWER(description) LIKE ? 
+                   OR LOWER(application) LIKE ?)
             AND room = ?
-        """, (f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', room_filter))
+        """, (query_like, query_like, query_like, query_like, query_like, 
+              query_lower, query_lower, query_lower, query_lower, query_lower,
+              room_filter))
     else:
         c.execute("""
             SELECT * FROM items 
-            WHERE LOWER(COALESCE(name, '')) LIKE ? 
-               OR LOWER(COALESCE(category, '')) LIKE ? 
-               OR LOWER(COALESCE(location, '')) LIKE ? 
-               OR LOWER(COALESCE(description, '')) LIKE ? 
-               OR LOWER(COALESCE(application, '')) LIKE ?
-        """, (f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%'))
+            WHERE name LIKE ? 
+               OR category LIKE ? 
+               OR location LIKE ? 
+               OR description LIKE ? 
+               OR application LIKE ?
+               OR LOWER(name) LIKE ? 
+               OR LOWER(category) LIKE ? 
+               OR LOWER(location) LIKE ? 
+               OR LOWER(description) LIKE ? 
+               OR LOWER(application) LIKE ?
+        """, (query_like, query_like, query_like, query_like, query_like,
+              query_lower, query_lower, query_lower, query_lower, query_lower))
     
     results = c.fetchall()
     conn.close()
@@ -571,7 +578,6 @@ with tab1:
     rooms = ["Все помещения"] + get_room_names()
     room_filter = st.selectbox("🏠 Помещение", rooms, key="room_filter_tab1")
     
-    # --- ОТЛАДКА: показываем, что ищем ---
     if search_query:
         st.caption(f"🔎 Ищем: **{search_query}**")
         items = search_items(search_query, room_filter)
