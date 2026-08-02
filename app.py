@@ -42,35 +42,38 @@ st.markdown(f"""
         .main-header h1 {{ margin: 0; font-size: 2.5rem; font-weight: 700; }}
         .main-header p {{ margin: 0; font-size: 1.2rem; opacity: 0.95; }}
         
-        /* Интерактивные карточки статистики */
-        .stat-card {{
-            background: white;
-            padding: 1.2rem;
-            border-radius: 12px;
-            text-align: center;
-            border: 2px solid #e8f5e9;
-            margin-bottom: 1rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            cursor: pointer;
-            transition: all 0.3s;
+        /* Стиль для кнопок-карточек статистики */
+        .stat-btn {{
+            background: white !important;
+            border: 2px solid #e8f5e9 !important;
+            border-radius: 12px !important;
+            padding: 0.8rem 0.5rem !important;
+            text-align: center !important;
+            color: #1e3a1e !important;
+            transition: all 0.3s !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+            height: 100% !important;
         }}
-        .stat-card:hover {{
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(46, 125, 50, 0.2);
-            border-color: {SECONDARY_COLOR};
-        }}
-        .stat-card:active {{
-            transform: scale(0.95);
+        .stat-btn:hover {{
+            transform: translateY(-5px) !important;
+            box-shadow: 0 8px 25px rgba(46, 125, 50, 0.2) !important;
+            border-color: {SECONDARY_COLOR} !important;
         }}
         .stat-number {{
             font-size: 2.5rem;
             font-weight: bold;
             color: {PRIMARY_COLOR};
+            display: block;
         }}
         .stat-label {{
             color: #555;
             font-size: 1rem;
             font-weight: 500;
+        }}
+        .stat-label-small {{
+            color: #777;
+            font-size: 0.75rem;
+            font-weight: 400;
         }}
         
         .stButton > button {{
@@ -108,7 +111,6 @@ st.markdown(f"""
             margin-bottom: 1rem;
         }}
         
-        /* Стиль для карточек в списке */
         .clickable-card {{
             background: white;
             padding: 0.8rem 1.2rem;
@@ -117,14 +119,10 @@ st.markdown(f"""
             border: 2px solid #e8f5e9;
             cursor: pointer;
             transition: all 0.2s;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }}
         .clickable-card:hover {{
             border-color: {SECONDARY_COLOR};
             box-shadow: 0 4px 15px rgba(46, 125, 50, 0.15);
-            transform: translateX(5px);
         }}
     </style>
 """, unsafe_allow_html=True)
@@ -146,6 +144,8 @@ if "selected_room" not in st.session_state:
     st.session_state.selected_room = None
 if "selected_equipment" not in st.session_state:
     st.session_state.selected_equipment = None
+if "show_low_stock" not in st.session_state:
+    st.session_state.show_low_stock = False
 
 with st.sidebar:
     dark_mode_toggle = st.toggle("🌙 Тёмная тема", value=st.session_state.dark_mode)
@@ -199,11 +199,16 @@ if st.session_state.dark_mode:
             .main-header {
                 background: linear-gradient(135deg, #1B5E20, #2E7D32) !important;
             }
-            .stat-card {
+            .stat-btn {
                 background: #1a2a1a !important;
                 border-color: #2e5a2e !important;
+                color: #d4e8d4 !important;
+            }
+            .stat-btn:hover {
+                border-color: #4CAF50 !important;
             }
             .stat-number { color: #4CAF50 !important; }
+            .stat-label { color: #9acd9a !important; }
             .clickable-card {
                 background: #1a2a1a !important;
                 border-color: #2e5a2e !important;
@@ -604,107 +609,137 @@ def export_to_excel():
 
 init_db()
 
-# --- СТАТИСТИКА ---
+# --- СТАТИСТИКА (РАБОЧИЕ КНОПКИ) ---
 total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list, total_consumption = get_statistics()
 
-# --- ИНТЕРАКТИВНЫЕ КАРТОЧКИ СТАТИСТИКИ ---
+# Стиль для кнопок
+st.markdown("""
+    <style>
+        .stButton button {
+            background: white !important;
+            border: 2px solid #e8f5e9 !important;
+            border-radius: 12px !important;
+            padding: 1rem 0.5rem !important;
+            text-align: center !important;
+            color: #1e3a1e !important;
+            transition: all 0.3s !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+            height: auto !important;
+            min-height: 80px !important;
+            white-space: normal !important;
+            line-height: 1.4 !important;
+        }
+        .stButton button:hover {
+            transform: translateY(-5px) !important;
+            box-shadow: 0 8px 25px rgba(46, 125, 50, 0.2) !important;
+            border-color: #4CAF50 !important;
+        }
+        .stButton button:active {
+            transform: scale(0.95) !important;
+        }
+        .stButton button .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #2E7D32;
+            display: block;
+        }
+        .stButton button .stat-label {
+            color: #555;
+            font-size: 1rem;
+            font-weight: 500;
+            display: block;
+        }
+        .stButton button .stat-label-small {
+            color: #777;
+            font-size: 0.75rem;
+            font-weight: 400;
+            display: block;
+        }
+        /* Тёмная тема для кнопок */
+        .dark-mode .stButton button {
+            background: #1a2a1a !important;
+            border-color: #2e5a2e !important;
+            color: #d4e8d4 !important;
+        }
+        .dark-mode .stButton button .stat-number {
+            color: #4CAF50 !important;
+        }
+        .dark-mode .stButton button .stat-label {
+            color: #9acd9a !important;
+        }
+        .dark-mode .stButton button .stat-label-small {
+            color: #6a8a6a !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Создаём 6 колонок для статистики
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 
-# Функция для создания интерактивной карточки
-def make_stat_card(col, number, label, icon, action_key):
-    with col:
-        # Используем HTML с обработчиком onclick через st.markdown + JavaScript
-        st.markdown(f"""
-            <div class="stat-card" onclick="document.querySelector('[data-testid=\\"stMarkdown\\"]')?.click()">
-                <div class="stat-number">{number}</div>
-                <div class="stat-label">{icon} {label}</div>
-            </div>
-        """, unsafe_allow_html=True)
-        # Кнопка-триггер (скрытая)
-        if st.button(f"", key=f"stat_{action_key}", use_container_width=True):
-            if action_key == "items":
-                st.session_state.active_tab = 1
-            elif action_key == "rooms":
-                st.session_state.active_tab = 4
-                st.session_state.selected_room = None
-            elif action_key == "low_stock":
-                st.session_state.active_tab = 0
-                st.session_state.show_low_stock = True
-            elif action_key == "equipment":
-                st.session_state.active_tab = 2
-                st.session_state.selected_equipment = None
-            elif action_key == "consumption":
-                st.session_state.active_tab = 3
-            st.rerun()
-
-# Создаём карточки
 with col1:
-    st.markdown(f"""
-        <div class="stat-card" style="cursor:pointer;" onclick="this.style.transform='scale(0.95)'">
-            <div class="stat-number">{total_items}</div>
-            <div class="stat-label">📦 Вещей</div>
-        </div>
-    """, unsafe_allow_html=True)
-    if st.button("", key="stat_items", use_container_width=True):
+    if st.button(
+        f"📦\n{total_items}\nВещей",
+        use_container_width=True,
+        key="stat_items",
+        help="Показать все вещи"
+    ):
         st.session_state.active_tab = 1
         st.session_state.selected_room = None
+        st.session_state.show_low_stock = False
         st.rerun()
 
 with col2:
-    st.markdown(f"""
-        <div class="stat-card" style="cursor:pointer;">
-            <div class="stat-number">{total_rooms_list}</div>
-            <div class="stat-label">🏠 Помещ.</div>
-        </div>
-    """, unsafe_allow_html=True)
-    if st.button("", key="stat_rooms", use_container_width=True):
+    if st.button(
+        f"🏠\n{total_rooms_list}\nПомещ.",
+        use_container_width=True,
+        key="stat_rooms",
+        help="Показать помещения"
+    ):
         st.session_state.active_tab = 4
         st.session_state.selected_room = None
         st.session_state.show_low_stock = False
         st.rerun()
 
 with col3:
-    st.markdown(f"""
-        <div class="stat-card" style="cursor:pointer; border-left-color: #f44336;">
-            <div class="stat-number" style="color: #f44336;">{low_stock_count}</div>
-            <div class="stat-label">⚠️ Пополнить</div>
-        </div>
-    """, unsafe_allow_html=True)
-    if st.button("", key="stat_low_stock", use_container_width=True):
+    if st.button(
+        f"⚠️\n{low_stock_count}\nПополнить",
+        use_container_width=True,
+        key="stat_low_stock",
+        help="Показать что нужно пополнить"
+    ):
         st.session_state.active_tab = 0
         st.session_state.show_low_stock = True
         st.session_state.selected_room = None
         st.rerun()
 
 with col4:
-    top_cat_str = ", ".join([f"{cat}" for cat, count in top_categories[:2]]) if top_categories else "—"
-    st.markdown(f"""
-        <div class="stat-card" style="cursor:pointer;">
-            <div class="stat-number">🏆</div>
-            <div class="stat-label">{top_cat_str}</div>
-        </div>
-    """, unsafe_allow_html=True)
+    top_cat_str = "\n".join([f"{cat}" for cat, count in top_categories[:2]]) if top_categories else "—"
+    st.button(
+        f"🏆\nТоп\n{top_cat_str}",
+        use_container_width=True,
+        key="stat_top",
+        disabled=True,
+        help="Топ категорий (неактивно)"
+    )
 
 with col5:
-    st.markdown(f"""
-        <div class="stat-card" style="cursor:pointer; border-left-color: #2196F3;">
-            <div class="stat-number" style="color: #2196F3;">{total_equipment}</div>
-            <div class="stat-label">🚜 Техники</div>
-        </div>
-    """, unsafe_allow_html=True)
-    if st.button("", key="stat_equipment", use_container_width=True):
+    if st.button(
+        f"🚜\n{total_equipment}\nТехники",
+        use_container_width=True,
+        key="stat_equipment",
+        help="Показать технику"
+    ):
         st.session_state.active_tab = 2
         st.session_state.selected_equipment = None
         st.rerun()
 
 with col6:
-    st.markdown(f"""
-        <div class="stat-card" style="cursor:pointer; border-left-color: #9C27B0;">
-            <div class="stat-number" style="color: #9C27B0;">{total_consumption}</div>
-            <div class="stat-label">📤 Списано</div>
-        </div>
-    """, unsafe_allow_html=True)
-    if st.button("", key="stat_consumption", use_container_width=True):
+    if st.button(
+        f"📤\n{total_consumption}\nСписано",
+        use_container_width=True,
+        key="stat_consumption",
+        help="Показать историю списаний"
+    ):
         st.session_state.active_tab = 3
         st.rerun()
 
@@ -829,7 +864,6 @@ with st.sidebar:
         )
 
 # --- ОСНОВНАЯ ОБЛАСТЬ: ВКЛАДКИ ---
-# Получаем активную вкладку из session_state
 active_tab = st.session_state.get("active_tab", 0)
 show_low_stock = st.session_state.get("show_low_stock", False)
 selected_room = st.session_state.get("selected_room", None)
@@ -837,18 +871,6 @@ selected_equipment = st.session_state.get("selected_equipment", None)
 
 tab_labels = ["🔍 Поиск", "📋 Все вещи", "🚜 Парк", "📤 История списаний", "🏠 Помещения"]
 tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_labels)
-
-# Если есть активная вкладка — переключаем
-if active_tab == 0:
-    pass
-elif active_tab == 1:
-    st.query_params.update({"tab": "all_items"})
-elif active_tab == 2:
-    st.query_params.update({"tab": "equipment"})
-elif active_tab == 3:
-    st.query_params.update({"tab": "consumption"})
-elif active_tab == 4:
-    st.query_params.update({"tab": "rooms"})
 
 with tab1:
     col_search, col_btn = st.columns([5, 1])
@@ -1247,11 +1269,9 @@ with tab3:
         st.caption(f"Всего техники: {len(equipment_list)}")
         for eq in equipment_list:
             eq_id, eq_name, eq_number, eq_date = eq
-            # Проверяем, есть ли списания на эту технику
             cons = get_consumption_by_equipment(eq_name)
             cons_count = len(cons)
             
-            # Карточка техники
             col1, col2, col3 = st.columns([4, 1, 1])
             with col1:
                 display_name = f"🚜 {eq_name}"
@@ -1279,7 +1299,6 @@ with tab4:
     else:
         st.caption(f"Всего записей: {len(all_consumption)}")
         
-        # Фильтр по объекту
         objects = list(set([c[4] for c in all_consumption]))
         filter_obj = st.selectbox("🔍 Фильтр по объекту", ["Все"] + objects)
         
@@ -1359,7 +1378,6 @@ with tab5:
     else:
         st.caption(f"Всего помещений: {len(rooms)}")
         for room_id, room_name, room_date in rooms:
-            # Считаем количество вещей в помещении
             items_in_room = get_items_by_room(room_name)
             count = len(items_in_room)
             
