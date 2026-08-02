@@ -16,28 +16,21 @@ if user_pass != PASSWORD:
     st.sidebar.warning("⚠️ Неверный пароль!")
     st.stop()
 
-# --- НАСТРОЙКА СТРАНИЦЫ (зелёная тема) ---
+# --- НАСТРОЙКА СТРАНИЦЫ ---
 st.set_page_config(page_title="Мой Склад", page_icon="🌿", layout="wide")
 
 # --- ЗЕЛЁНАЯ ЦВЕТОВАЯ СХЕМА ---
-PRIMARY_COLOR = "#2E7D32"      # Тёмно-зелёный
-SECONDARY_COLOR = "#4CAF50"    # Светло-зелёный
-ACCENT_COLOR = "#66BB6A"       # Акцентный зелёный
-LIGHT_GREEN = "#E8F5E9"        # Очень светлый зелёный
-DARK_GREEN = "#1B5E20"         # Очень тёмный зелёный
+PRIMARY_COLOR = "#2E7D32"
+SECONDARY_COLOR = "#4CAF50"
+LIGHT_GREEN = "#E8F5E9"
 
 st.title("🌿 Мой Склад")
 st.caption("Добро пожаловать! Храните и находите вещи легко.")
 
-# --- КАСТОМНЫЙ CSS (зелёная тема) ---
+# --- КАСТОМНЫЙ CSS ---
 st.markdown(f"""
     <style>
-        /* Основной фон */
-        .stApp {{
-            background-color: #f0f7f0;
-        }}
-        
-        /* Заголовок */
+        .stApp {{ background-color: #f0f7f0; }}
         .main-header {{
             background: linear-gradient(135deg, {PRIMARY_COLOR}, {SECONDARY_COLOR});
             padding: 1.5rem;
@@ -47,19 +40,8 @@ st.markdown(f"""
             margin-bottom: 2rem;
             box-shadow: 0 4px 15px rgba(46, 125, 50, 0.3);
         }}
-        .main-header h1 {{
-            margin: 0;
-            font-size: 2.5rem;
-            font-weight: 700;
-        }}
-        .main-header p {{
-            margin: 0;
-            font-size: 1.2rem;
-            opacity: 0.95;
-            font-weight: 300;
-        }}
-        
-        /* Карточки статистики */
+        .main-header h1 {{ margin: 0; font-size: 2.5rem; font-weight: 700; }}
+        .main-header p {{ margin: 0; font-size: 1.2rem; opacity: 0.95; }}
         .stat-card {{
             background: white;
             padding: 1.2rem;
@@ -68,38 +50,9 @@ st.markdown(f"""
             border-left: 5px solid {SECONDARY_COLOR};
             margin-bottom: 1rem;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            transition: transform 0.2s;
         }}
-        .stat-card:hover {{
-            transform: translateY(-3px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.12);
-        }}
-        .stat-number {{
-            font-size: 2.2rem;
-            font-weight: bold;
-            color: {PRIMARY_COLOR};
-        }}
-        .stat-label {{
-            color: #555;
-            font-size: 0.9rem;
-        }}
-        
-        /* Карточки вещей */
-        .item-card {{
-            background: white;
-            padding: 1rem;
-            border-radius: 12px;
-            margin-bottom: 1rem;
-            border: 1px solid #e0e0e0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            transition: all 0.2s;
-        }}
-        .item-card:hover {{
-            box-shadow: 0 4px 20px rgba(46, 125, 50, 0.15);
-            border-color: {SECONDARY_COLOR};
-        }}
-        
-        /* Кнопки */
+        .stat-number {{ font-size: 2.2rem; font-weight: bold; color: {PRIMARY_COLOR}; }}
+        .stat-label {{ color: #555; font-size: 0.9rem; }}
         .stButton > button {{
             background-color: {SECONDARY_COLOR} !important;
             color: white !important;
@@ -107,66 +60,17 @@ st.markdown(f"""
             border: none !important;
             padding: 0.5rem 1.2rem !important;
             font-weight: 600 !important;
-            transition: all 0.3s !important;
             box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
         }}
         .stButton > button:hover {{
             background-color: {PRIMARY_COLOR} !important;
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(46, 125, 50, 0.4);
         }}
-        
-        /* Боковая панель */
         div[data-testid="stSidebar"] {{
             background: linear-gradient(180deg, #f5faf5, #e8f5e9);
             border-right: 2px solid {SECONDARY_COLOR};
         }}
-        div[data-testid="stSidebar"] * {{
-            color: #1e3a1e !important;
-        }}
-        div[data-testid="stSidebar"] .stTextInput input {{
-            background-color: white !important;
-            border: 2px solid {LIGHT_GREEN} !important;
-            border-radius: 8px !important;
-        }}
-        div[data-testid="stSidebar"] .stTextInput input:focus {{
-            border-color: {SECONDARY_COLOR} !important;
-            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2) !important;
-        }}
-        
-        /* Вкладки */
-        .stTabs [data-baseweb="tab-list"] {{
-            gap: 8px;
-        }}
-        .stTabs [data-baseweb="tab"] {{
-            background-color: transparent;
-            border-radius: 8px 8px 0 0;
-            padding: 0.5rem 1rem;
-            font-weight: 500;
-        }}
-        .stTabs [data-baseweb="tab"][aria-selected="true"] {{
-            background-color: {SECONDARY_COLOR};
-            color: white !important;
-        }}
-        
-        /* Инпуты и селекты */
-        .stTextInput input, .stSelectbox select, .stNumberInput input, .stTextArea textarea {{
-            border: 2px solid #e0e0e0 !important;
-            border-radius: 8px !important;
-            transition: border-color 0.3s !important;
-        }}
-        .stTextInput input:focus, .stSelectbox select:focus, .stNumberInput input:focus, .stTextArea textarea:focus {{
-            border-color: {SECONDARY_COLOR} !important;
-            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.15) !important;
-        }}
-        
-        /* Уведомления */
-        .stAlert {{
-            border-radius: 10px !important;
-            border-left: 5px solid {SECONDARY_COLOR} !important;
-        }}
-        
-        /* Критические уведомления */
+        div[data-testid="stSidebar"] * {{ color: #1e3a1e !important; }}
         .critical-warning {{
             background: linear-gradient(135deg, #ffebee, #ffcdd2);
             border-left: 5px solid #f44336;
@@ -181,28 +85,23 @@ st.markdown(f"""
             border-radius: 10px;
             margin-bottom: 1rem;
         }}
-        
-        /* Тёмная тема для зелёного стиля */
-        .dark-mode .stApp {{
-            background-color: #1a2a1a;
-        }}
-        .dark-mode .item-card {{
-            background-color: #1e3a1e;
-            border-color: #2e5a2e;
-        }}
-        .dark-mode .stat-card {{
-            background-color: #1e3a1e;
-        }}
-        .dark-mode div[data-testid="stSidebar"] {{
-            background: linear-gradient(180deg, #1a2a1a, #0d1a0d);
+        .consumption-record {{
+            background: white;
+            padding: 0.8rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            border-left: 4px solid {SECONDARY_COLOR};
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }}
     </style>
 """, unsafe_allow_html=True)
 
-# --- ШАПКА С ЗЕЛЁНЫМ ГРАДИЕНТОМ ---
+# --- ШАПКА ---
 st.markdown(f"""
     <div class="main-header">
-        <h1>🌿 {st.session_state.get('garage_name', 'Мой Склад')}</h1>
+        <h1>🌿 Мой Склад</h1>
         <p>👋 Добро пожаловать!</p>
     </div>
 """, unsafe_allow_html=True)
@@ -243,9 +142,7 @@ if st.session_state.dark_mode:
                 background-color: #2E7D32 !important;
                 color: #ffffff !important;
             }
-            .stCaption, .stCaption p {
-                color: #9acd9a !important;
-            }
+            .stCaption, .stCaption p { color: #9acd9a !important; }
             .stInfo, .stWarning, .stError, .stSuccess {
                 background-color: #1a2a1a !important;
                 color: #d4e8d4 !important;
@@ -270,6 +167,10 @@ if st.session_state.dark_mode:
                 border-left-color: #4CAF50 !important;
             }
             .stat-number { color: #4CAF50 !important; }
+            .consumption-record {
+                background: #1a2a1a !important;
+                border-left-color: #4CAF50 !important;
+            }
             div[data-testid="stDialog"] { background-color: #1a2a1a !important; }
             div[data-testid="stDialog"] * { color: #d4e8d4 !important; }
             div[data-testid="stDialog"] input, div[data-testid="stDialog"] textarea {
@@ -457,7 +358,7 @@ def get_units(equipment_id=None):
     conn.close()
     return results
 
-# --- ФУНКЦИИ ДЛЯ РАСХОДА ---
+# --- ФУНКЦИИ ДЛЯ РАСХОДА (С УДАЛЕНИЕМ) ---
 def consume_item(item_id, quantity, object_name, user="Пользователь", note=""):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -477,6 +378,22 @@ def consume_item(item_id, quantity, object_name, user="Пользователь"
     conn.commit()
     conn.close()
     return True, f"Списано {quantity} {unit} на '{object_name}'"
+
+def delete_consumption_record(record_id):
+    """Удаление отдельной записи из истории списаний"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    # Получаем данные записи перед удалением
+    c.execute("SELECT item_id, quantity FROM consumption WHERE id = ?", (record_id,))
+    result = c.fetchone()
+    if result:
+        item_id, quantity = result
+        # Возвращаем количество обратно на склад
+        c.execute("UPDATE items SET quantity = quantity + ? WHERE id = ?", (quantity, item_id))
+    c.execute("DELETE FROM consumption WHERE id = ?", (record_id,))
+    conn.commit()
+    conn.close()
+    return True
 
 def get_all_consumption():
     conn = sqlite3.connect('storage.db')
@@ -629,11 +546,10 @@ def export_to_excel():
 
 init_db()
 
-# --- СТАТИСТИКА (ЗЕЛЁНЫЙ СТИЛЬ) ---
+# --- СТАТИСТИКА ---
 total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list = get_statistics()
 
 col1, col2, col3, col4, col5, col6 = st.columns(6)
-
 with col1:
     st.markdown(f"""
         <div class="stat-card">
@@ -641,7 +557,6 @@ with col1:
             <div class="stat-label">📦 Вещей</div>
         </div>
     """, unsafe_allow_html=True)
-
 with col2:
     st.markdown(f"""
         <div class="stat-card">
@@ -649,7 +564,6 @@ with col2:
             <div class="stat-label">🏠 Помещ.</div>
         </div>
     """, unsafe_allow_html=True)
-
 with col3:
     st.markdown(f"""
         <div class="stat-card" style="border-left-color: #f44336;">
@@ -657,7 +571,6 @@ with col3:
             <div class="stat-label">⚠️ Пополнить</div>
         </div>
     """, unsafe_allow_html=True)
-
 with col4:
     top_cat_str = ", ".join([f"{cat}" for cat, count in top_categories[:2]]) if top_categories else "—"
     st.markdown(f"""
@@ -666,7 +579,6 @@ with col4:
             <div class="stat-label">{top_cat_str}</div>
         </div>
     """, unsafe_allow_html=True)
-
 with col5:
     st.markdown(f"""
         <div class="stat-card" style="border-left-color: #2196F3;">
@@ -674,7 +586,6 @@ with col5:
             <div class="stat-label">🚜 Техники</div>
         </div>
     """, unsafe_allow_html=True)
-
 with col6:
     st.markdown(f"""
         <div class="stat-card" style="border-left-color: #9C27B0;">
@@ -702,7 +613,7 @@ if low_stock:
                 st.write(f"- {item[1]} ({item[9]} {item[10]}) в {item[4]}")
     st.divider()
 
-# --- БОКОВАЯ ПАНЕЛЬ (ЗЕЛЁНАЯ) ---
+# --- БОКОВАЯ ПАНЕЛЬ ---
 with st.sidebar:
     st.markdown("### 🌿 Управление")
     
@@ -1217,15 +1128,38 @@ with tab3:
                     st.rerun()
 
 with tab4:
-    st.subheader("🚗 История списаний по объектам")
+    st.subheader("🚗 История списаний")
+    
     all_consumption = get_all_consumption()
     if not all_consumption:
         st.info("🌱 Пока нет списаний")
     else:
-        for c in all_consumption[:50]:
-            st.write(f"• **{c[7]}** → {c[2]} {c[3]} на **{c[4]}** (списал {c[5]}, {c[6]})")
-        if len(all_consumption) > 50:
-            st.caption("... показаны последние 50 записей")
+        st.caption(f"Всего записей: {len(all_consumption)}")
+        
+        # Формируем красивый список с кнопками удаления
+        for c in all_consumption:
+            # c = (id, item_id, quantity, unit, object_name, user, date, item_name)
+            record_id, item_id, qty, unit, obj_name, user, date, item_name = c
+            
+            # Создаём строку с информацией
+            col1, col2, col3 = st.columns([8, 1, 1])
+            with col1:
+                st.write(f"• **{item_name}** → {qty} {unit} на **{obj_name}** (списал {user}, {date})")
+            with col2:
+                # Кнопка удаления записи
+                if st.button("🗑️", key=f"del_cons_{record_id}", help="Удалить эту запись"):
+                    delete_consumption_record(record_id)
+                    st.success(f"✅ Запись удалена! Количество '{item_name}' восстановлено на складе.")
+                    st.rerun()
+            with col3:
+                # Кнопка восстановления (возврат на склад)
+                if st.button("↩️", key=f"restore_cons_{record_id}", help="Вернуть на склад"):
+                    delete_consumption_record(record_id)
+                    st.success(f"✅ Запись удалена! Количество '{item_name}' восстановлено на складе.")
+                    st.rerun()
+        
+        # Итоговая строка
+        st.caption("🗑️ — удалить запись и вернуть количество на склад")
 
 with tab5:
     st.subheader("🏠 Управление помещениями")
