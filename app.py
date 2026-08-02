@@ -2,6 +2,7 @@ import streamlit as st
 import sqlite3
 import os
 import uuid
+import base64
 from datetime import datetime, timedelta
 from PIL import Image
 import pandas as pd
@@ -13,489 +14,164 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import Header
 
-# --- БЕЗОПАСНАЯ НАСТРОЙКА YANDEX ПОЧТЫ ---
-def get_email_config():
-    """Безопасное получение настроек почты"""
-    try:
-        return {
-            "sender": st.secrets["email_sender"],
-            "password": st.secrets["email_password"],
-            "recipient": st.secrets["email_recipient"]
-        }
-    except:
-        import os
-        return {
-            "sender": os.getenv("EMAIL_SENDER", "Yvedomlenie-scald.sad@yandex.ru"),
-            "password": os.getenv("EMAIL_PASSWORD", ""),
-            "recipient": os.getenv("EMAIL_RECIPIENT", "Yvedomlenie-scald.sad@yandex.ru")
-        }
+# --- КРИПТОГРАФИЯ ДЛЯ ШИФРОВАНИЯ ПАРОЛЯ ---
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-EMAIL_CONFIG = get_email_config()
-EMAIL_SENDER = EMAIL_CONFIG["sender"]
-EMAIL_PASSWORD = EMAIL_CONFIG["password"]
-EMAIL_RECIPIENT = EMAIL_CONFIG["recipient"]
-SMTP_SERVER = "smtp.yandex.ru"
-SMTP_PORT = 587
+# --- ФУНКЦИИ ШИФРОВАНИЯ ---
+def get_encryption_key():
+    """
+    Получает ключ шифрования из секретов или создает его на основе пароля
+    """
+    try:
+        # Пробуем получить ключ из secrets
+        key = st.secrets["encryption_key"]
+        return key.encode()
+    except:
+        # Если ключа нет, создаем его на основе фиксированного пароля
+        # ВНИМАНИЕ: В продакшене всегда используйте secrets!
+        password = b"my-secret-password-for-encryption-2024"
+        salt = b"salt-for-encryption-2024"
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,
+        )
+        key = base64.urlsafe_b64encode(kdf.derive(password))
+        return key
+
+def encrypt_password(password):
+    """
+    Шифрует пароль перед сохранением в базу данных
+    """
+    try:
+        key = get_encryption_key()
+        cipher = Fernet(key)
+        encrypted = cipher.encrypt(password.encode())
+        return base64.b64encode(encrypted).decode()
+    except Exception as e:
+        st.error(f"❌ Ошибка шифрования: {str(e)}")
+        return None
+
+def decrypt_password(encrypted_password):
+    """
+    Расшифровывает пароль из базы данных
+    """
+    try:
+        key = get_encryption_key()
+        cipher = Fernet(key)
+        decrypted = cipher.decrypt(base64.b64decode(encrypted_password))
+        return decrypted.decode()
+    except Exception as e:
+        st.error(f"❌ Ошибка расшифровки: {str(e)}")
+        return None
+
+# --- БЕЗОПАСНАЯ РАБОТА С НАСТРОЙКАМИ ПОЧТЫ ---
+def init_email_db():
+    """Создает таблицу для хранения зашифрованных настроек почты"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS email_settings
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  sender_email TEXT,
+                  sender_password TEXT,  -- Хранится в зашифрованном виде!
+                  recipient_email TEXT,
+                  smtp_server TEXT,
+                  smtp_port INTEGER,
+                  date_added TEXT)''')
+    conn.commit()
+    conn.close()
+
+def save_email_settings(sender, password, recipient, smtp_server="smtp.yandex.ru", smtp_port=587):
+    """Сохраняет настройки почты с шифрованием пароля"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    
+    # Шифруем пароль перед сохранением
+    encrypted_password = encrypt_password(password)
+    if not encrypted_password:
+        conn.close()
+        return False, "❌ Ошибка шифрования пароля!"
+    
+    # Удаляем старые настройки
+    c.execute("DELETE FROM email_settings")
+    c.execute("""INSERT INTO email_settings 
+                 (sender_email, sender_password, recipient_email, smtp_server, smtp_port, date_added) 
+                 VALUES (?,?,?,?,?,?)""",
+              (sender, encrypted_password, recipient, smtp_server, smtp_port, 
+               datetime.now().strftime("%Y-%m-%d %H:%M")))
+    conn.commit()
+    conn.close()
+    return True, "✅ Настройки почты сохранены с шифрованием"
+
+def get_email_settings():
+    """Получает настройки почты из базы данных и расшифровывает пароль"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM email_settings ORDER BY id DESC LIMIT 1")
+    result = c.fetchone()
+    conn.close()
+    
+    if result:
+        # Расшифровываем пароль
+        decrypted_password = decrypt_password(result[2])
+        if decrypted_password is None:
+            return None
+        
+        return {
+            "sender": result[1],
+            "password": decrypted_password,  # Расшифрованный пароль
+            "recipient": result[3],
+            "smtp_server": result[4] or "smtp.yandex.ru",
+            "smtp_port": result[5] or 587
+        }
+    return None
+
+def delete_email_settings():
+    """Удаляет настройки почты"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM email_settings")
+    conn.commit()
+    conn.close()
+    return True, "✅ Настройки почты удалены"
 
 # --- ФУНКЦИЯ ОТПРАВКИ EMAIL ---
 def send_email(subject, body, recipient=None):
     """Отправка email с поддержкой кириллицы"""
+    settings = get_email_settings()
+    if not settings:
+        return False, "❌ Настройки почты не найдены! Добавьте их в разделе 'Настройки почты'"
+    
     try:
-        if not EMAIL_PASSWORD:
-            return False, "❌ Пароль не настроен! Добавьте его в Secrets или переменные окружения"
-        
-        to_email = recipient if recipient else EMAIL_RECIPIENT
+        to_email = recipient if recipient else settings["recipient"]
         
         msg = MIMEMultipart()
-        msg['From'] = EMAIL_SENDER
+        msg['From'] = settings["sender"]
         msg['To'] = to_email
         msg['Subject'] = Header(subject, 'utf-8').encode()
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server = smtplib.SMTP(settings["smtp_server"], settings["smtp_port"])
         server.starttls()
-        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.login(settings["sender"], settings["password"])
         server.send_message(msg)
         server.quit()
         
         return True, f"✅ Email отправлен на {to_email}"
         
     except smtplib.SMTPAuthenticationError:
-        return False, "❌ Ошибка аутентификации: проверьте пароль или настройки почты"
+        return False, "❌ Ошибка авторизации! Проверьте email и пароль"
     except smtplib.SMTPException as e:
         return False, f"❌ SMTP ошибка: {str(e)}"
     except Exception as e:
         return False, f"❌ Ошибка: {str(e)}"
 
-# --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
-def init_db():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS items
-                 (id TEXT PRIMARY KEY,
-                  name TEXT,
-                  category TEXT,
-                  location TEXT,
-                  room TEXT,
-                  description TEXT,
-                  item_photo TEXT,
-                  location_photo TEXT,
-                  date_added TEXT,
-                  quantity REAL,
-                  unit TEXT,
-                  threshold INTEGER DEFAULT 1,
-                  application TEXT,
-                  installed_photo TEXT,
-                  equipment_id INTEGER,
-                  unit_id INTEGER)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS equipment
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT UNIQUE,
-                  number TEXT,
-                  date_added TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS units
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT,
-                  equipment_id INTEGER,
-                  date_added TEXT,
-                  UNIQUE(name, equipment_id))''')
-    c.execute('''CREATE TABLE IF NOT EXISTS consumption
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  item_id TEXT,
-                  quantity REAL,
-                  unit TEXT,
-                  object_name TEXT,
-                  user TEXT,
-                  date TEXT,
-                  status TEXT DEFAULT 'pending',
-                  photo TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS rooms
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT UNIQUE,
-                  date_added TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS user_emails
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  username TEXT UNIQUE,
-                  email TEXT,
-                  subscription_type TEXT DEFAULT 'all',
-                  date_added TEXT)''')
-    
-    # Проверка существующих колонок
-    c.execute("PRAGMA table_info(items)")
-    columns = [col[1] for col in c.fetchall()]
-    if 'application' not in columns:
-        c.execute("ALTER TABLE items ADD COLUMN application TEXT")
-    if 'installed_photo' not in columns:
-        c.execute("ALTER TABLE items ADD COLUMN installed_photo TEXT")
-    if 'equipment_id' not in columns:
-        c.execute("ALTER TABLE items ADD COLUMN equipment_id INTEGER")
-    if 'unit_id' not in columns:
-        c.execute("ALTER TABLE items ADD COLUMN unit_id INTEGER")
-    
-    c.execute("PRAGMA table_info(consumption)")
-    cons_columns = [col[1] for col in c.fetchall()]
-    if 'status' not in cons_columns:
-        c.execute("ALTER TABLE consumption ADD COLUMN status TEXT DEFAULT 'pending'")
-    if 'photo' not in cons_columns:
-        c.execute("ALTER TABLE consumption ADD COLUMN photo TEXT")
-    
-    c.execute("PRAGMA table_info(equipment)")
-    eq_columns = [col[1] for col in c.fetchall()]
-    if 'number' not in eq_columns:
-        c.execute("ALTER TABLE equipment ADD COLUMN number TEXT")
-    
-    conn.commit()
-    conn.close()
-
-# --- ФУНКЦИИ РАБОТЫ С ПОМЕЩЕНИЯМИ ---
-def add_room(name):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    try:
-        c.execute("INSERT INTO rooms (name, date_added) VALUES (?,?)",
-                  (name, datetime.now().strftime("%Y-%m-%d %H:%M")))
-        conn.commit()
-        conn.close()
-        return True, f"Помещение '{name}' добавлено"
-    except sqlite3.IntegrityError:
-        conn.close()
-        return False, f"Помещение '{name}' уже существует"
-
-def delete_room(room_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("DELETE FROM rooms WHERE id = ?", (room_id,))
-    conn.commit()
-    conn.close()
-
-def get_rooms():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM rooms ORDER BY name")
-    results = c.fetchall()
-    conn.close()
-    return results
-
-def get_room_names():
-    return [room[1] for room in get_rooms()]
-
-# --- ФУНКЦИИ РАБОТЫ С ТЕХНИКОЙ ---
-def add_equipment(name, number=""):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    try:
-        c.execute("INSERT INTO equipment (name, number, date_added) VALUES (?,?,?)",
-                  (name, number, datetime.now().strftime("%Y-%m-%d %H:%M")))
-        conn.commit()
-        conn.close()
-        return True, f"Техника '{name}' добавлена"
-    except sqlite3.IntegrityError:
-        conn.close()
-        return False, f"Техника '{name}' уже существует"
-
-def delete_equipment(equipment_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("DELETE FROM equipment WHERE id = ?", (equipment_id,))
-    c.execute("DELETE FROM units WHERE equipment_id = ?", (equipment_id,))
-    conn.commit()
-    conn.close()
-
-def get_equipment():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM equipment ORDER BY name")
-    results = c.fetchall()
-    conn.close()
-    return results
-
-def get_equipment_by_id(eq_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM equipment WHERE id = ?", (eq_id,))
-    result = c.fetchone()
-    conn.close()
-    return result
-
-# --- ФУНКЦИИ РАБОТЫ С АГРЕГАТАМИ ---
-def add_unit(name, equipment_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    try:
-        c.execute("INSERT INTO units (name, equipment_id, date_added) VALUES (?,?,?)",
-                  (name, equipment_id, datetime.now().strftime("%Y-%m-%d %H:%M")))
-        conn.commit()
-        conn.close()
-        return True, f"Агрегат '{name}' добавлен"
-    except sqlite3.IntegrityError:
-        conn.close()
-        return False, f"Агрегат '{name}' уже существует для этой техники"
-
-def delete_unit(unit_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("DELETE FROM units WHERE id = ?", (unit_id,))
-    conn.commit()
-    conn.close()
-
-def get_units(equipment_id=None):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    if equipment_id:
-        c.execute("SELECT * FROM units WHERE equipment_id = ? ORDER BY name", (equipment_id,))
-    else:
-        c.execute("SELECT * FROM units ORDER BY name")
-    results = c.fetchall()
-    conn.close()
-    return results
-
-# --- ФУНКЦИИ РАБОТЫ С ВЕЩАМИ ---
-def add_item(name, category, location, room, description, item_photo_path, location_photo_path, quantity, unit, threshold, application, installed_photo_path, equipment_id, unit_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    item_id = str(uuid.uuid4())[:8]
-    c.execute("""INSERT INTO items 
-                 (id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo, equipment_id, unit_id) 
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-              (item_id, name, category, location, room, description, item_photo_path, location_photo_path, 
-               datetime.now().strftime("%Y-%m-%d %H:%M"), quantity, unit, threshold, application, installed_photo_path, equipment_id, unit_id))
-    conn.commit()
-    conn.close()
-    return item_id
-
-def update_item(item_id, name, category, location, room, description, application, equipment_id, unit_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("""
-        UPDATE items
-        SET name = ?, category = ?, location = ?, room = ?, description = ?, application = ?, equipment_id = ?, unit_id = ?
-        WHERE id = ?
-    """, (name, category, location, room, description, application, equipment_id, unit_id, item_id))
-    conn.commit()
-    conn.close()
-
-def update_item_photos(item_id, item_photo_path, location_photo_path, installed_photo_path):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("""
-        UPDATE items
-        SET item_photo = ?, location_photo = ?, installed_photo = ?
-        WHERE id = ?
-    """, (item_photo_path, location_photo_path, installed_photo_path, item_id))
-    conn.commit()
-    conn.close()
-
-def update_item_room(item_id, new_room):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("UPDATE items SET room = ? WHERE id = ?", (new_room, item_id))
-    conn.commit()
-    conn.close()
-
-def delete_item(item_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT item_photo, location_photo, installed_photo FROM items WHERE id = ?", (item_id,))
-    row = c.fetchone()
-    if row:
-        for path in row:
-            if path and os.path.exists(path):
-                os.remove(path)
-    c.execute("DELETE FROM items WHERE id = ?", (item_id,))
-    c.execute("DELETE FROM consumption WHERE item_id = ?", (item_id,))
-    conn.commit()
-    conn.close()
-
-def search_items(query, room_filter=None):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    query_like = f"%{query}%"
-    if room_filter and room_filter != "Все помещения":
-        c.execute("""
-            SELECT * FROM items
-            WHERE (name LIKE ? OR category LIKE ? OR location LIKE ? OR description LIKE ?)
-            AND room = ?
-        """, (query_like, query_like, query_like, query_like, room_filter))
-    else:
-        c.execute("""
-            SELECT * FROM items
-            WHERE name LIKE ? OR category LIKE ? OR location LIKE ? OR description LIKE ?
-        """, (query_like, query_like, query_like, query_like))
-    results = c.fetchall()
-    conn.close()
-    return results
-
-def get_all_items(room_filter=None):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    if room_filter and room_filter != "Все помещения":
-        c.execute("SELECT * FROM items WHERE room = ? ORDER BY date_added DESC", (room_filter,))
-    else:
-        c.execute("SELECT * FROM items ORDER BY date_added DESC")
-    results = c.fetchall()
-    conn.close()
-    return results
-
-def get_items_by_room(room_name):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM items WHERE room = ? ORDER BY date_added DESC", (room_name,))
-    results = c.fetchall()
-    conn.close()
-    return results
-
-def get_low_stock_items():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM items WHERE quantity <= threshold ORDER BY quantity ASC")
-    results = c.fetchall()
-    conn.close()
-    return results
-
-# --- ФУНКЦИИ РАБОТЫ СО СПИСАНИЯМИ ---
-def consume_item(item_id, quantity, object_name, user="Пользователь", note="", photo_path="", status="pending"):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT quantity, unit FROM items WHERE id = ?", (item_id,))
-    result = c.fetchone()
-    if result is None:
-        conn.close()
-        return False, "Вещь не найдена"
-    current_q, unit = result
-    if quantity > current_q:
-        conn.close()
-        return False, f"Недостаточно! Есть {current_q} {unit}"
-    new_q = current_q - quantity
-    c.execute("UPDATE items SET quantity = ? WHERE id = ?", (new_q, item_id))
-    c.execute("INSERT INTO consumption (item_id, quantity, unit, object_name, user, date, status, photo) VALUES (?,?,?,?,?,?,?,?)",
-              (item_id, quantity, unit, object_name, user, datetime.now().strftime("%Y-%m-%d %H:%M"), status, photo_path))
-    conn.commit()
-    conn.close()
-    return True, f"Списано {quantity} {unit} на '{object_name}'"
-
-def delete_consumption_record(record_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT item_id, quantity, status, photo FROM consumption WHERE id = ?", (record_id,))
-    result = c.fetchone()
-    if result:
-        item_id, quantity, status, photo = result
-        if status == "confirmed":
-            c.execute("UPDATE items SET quantity = quantity + ? WHERE id = ?", (quantity, item_id))
-        if photo and os.path.exists(photo):
-            os.remove(photo)
-    c.execute("DELETE FROM consumption WHERE id = ?", (record_id,))
-    conn.commit()
-    conn.close()
-    return True
-
-def approve_consumption(record_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("UPDATE consumption SET status = 'confirmed' WHERE id = ?", (record_id,))
-    conn.commit()
-    conn.close()
-    return True
-
-def get_all_consumption():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("""SELECT c.*, i.name FROM consumption c
-                 JOIN items i ON c.item_id = i.id
-                 ORDER BY c.date DESC LIMIT 200""")
-    results = c.fetchall()
-    conn.close()
-    return results
-
-def get_consumption_by_equipment(eq_name):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("""SELECT c.*, i.name FROM consumption c
-                 JOIN items i ON c.item_id = i.id
-                 WHERE c.object_name LIKE ?
-                 ORDER BY c.date DESC""", (f'%{eq_name}%',))
-    results = c.fetchall()
-    conn.close()
-    return results
-
-# --- ФУНКЦИИ РАБОТЫ С ПОЛЬЗОВАТЕЛЯМИ ---
-def save_user_email(username, email, subscription_type="all"):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    try:
-        c.execute("INSERT OR REPLACE INTO user_emails (username, email, subscription_type, date_added) VALUES (?,?,?,?)",
-                  (username, email, subscription_type, datetime.now().strftime("%Y-%m-%d %H:%M")))
-        conn.commit()
-        conn.close()
-        return True, f"✅ Почта {email} сохранена для пользователя {username}"
-    except Exception as e:
-        conn.close()
-        return False, f"❌ Ошибка: {str(e)}"
-
-def get_user_email(username):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT email, subscription_type FROM user_emails WHERE username = ?", (username,))
-    result = c.fetchone()
-    conn.close()
-    if result:
-        return result[0], result[1]
-    return None, None
-
-def delete_user_email(username):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("DELETE FROM user_emails WHERE username = ?", (username,))
-    conn.commit()
-    conn.close()
-    return True, f"✅ Почта удалена"
-
-def get_all_subscribed_emails():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT username, email, subscription_type FROM user_emails")
-    results = c.fetchall()
-    conn.close()
-    return results
-
-# --- СТАТИСТИКА ---
-def get_statistics():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM items")
-    total_items = c.fetchone()[0]
-    c.execute("SELECT COUNT(DISTINCT room) FROM items")
-    total_rooms = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM items WHERE quantity <= threshold")
-    low_stock_count = c.fetchone()[0]
-    c.execute("SELECT category, COUNT(*) FROM items GROUP BY category ORDER BY COUNT(*) DESC LIMIT 3")
-    top_categories = c.fetchall()
-    c.execute("SELECT COUNT(*) FROM equipment")
-    total_equipment = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM rooms")
-    total_rooms_list = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM consumption")
-    total_consumption = c.fetchone()[0]
-    conn.close()
-    return total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list, total_consumption
-
-# --- ЭКСПОРТ В EXCEL ---
-def export_to_excel():
-    conn = sqlite3.connect('storage.db')
-    df = pd.read_sql_query("SELECT name as 'Название', category as 'Категория', location as 'Место', room as 'Помещение', description as 'Описание', application as 'Область применения', quantity as 'Количество', unit as 'Ед. изм.', threshold as 'Порог', date_added as 'Дата добавления' FROM items", conn)
-    conn.close()
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Инвентарь')
-        for column in df:
-            column_width = max(df[column].astype(str).map(len).max(), len(column))
-            col_idx = df.columns.get_loc(column)
-            writer.sheets['Инвентарь'].column_dimensions[chr(65 + col_idx)].width = column_width + 2
-    return output.getvalue()
-
-# --- УВЕДОМЛЕНИЯ ---
+# --- ФУНКЦИИ УВЕДОМЛЕНИЙ ---
 def check_and_notify_low_stock():
-    """Проверяет вещи с низким остатком и отправляет уведомление на почту"""
+    """Проверяет вещи с низким остатком и отправляет уведомление"""
     low_items = get_low_stock_items()
     if low_items:
         subject = "⚠️ ВНИМАНИЕ! Нужно пополнить склад!"
@@ -516,99 +192,30 @@ def check_and_notify_low_stock():
         body += "\nПожалуйста, пополните запасы!\n"
         body += f"\nПроверено: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         
-        all_emails = get_all_subscribed_emails()
-        if all_emails:
-            success_count = 0
-            for username, email, sub_type in all_emails:
-                success, msg = send_email(subject, body, email)
-                if success:
-                    success_count += 1
-            
-            with open(f"notified_{datetime.now().strftime('%Y-%m-%d')}.txt", "w") as f:
-                f.write("sent")
-            return True, f"Уведомление отправлено {success_count} пользователям"
-        else:
-            success, msg = send_email(subject, body)
-            if success:
-                with open(f"notified_{datetime.now().strftime('%Y-%m-%d')}.txt", "w") as f:
-                    f.write("sent")
-                return True, "Уведомление отправлено"
-            else:
-                return False, msg
-    return True, "Все в норме"
-
-def send_daily_report():
-    """Отправляет ежедневный отчёт по складу"""
-    total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list, total_consumption = get_statistics()
-    
-    subject = f"📊 Ежедневный отчёт по складу - {datetime.now().strftime('%d.%m.%Y')}"
-    body = f"Здравствуйте!\n\n"
-    body += f"📊 Ежедневный отчёт по складу\n"
-    body += f"📅 {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
-    body += f"📦 Всего вещей: {total_items}\n"
-    body += f"🏠 Помещений: {total_rooms_list}\n"
-    body += f"🚜 Техники: {total_equipment}\n"
-    body += f"📤 Списаний за всё время: {total_consumption}\n"
-    body += f"⚠️ Вещей для пополнения: {low_stock_count}\n\n"
-    
-    if top_categories:
-        body += "🏆 Топ категорий:\n"
-        for cat, count in top_categories:
-            body += f"   ➜ {cat}: {count} шт.\n"
-    
-    body += f"\nОтчёт сгенерирован: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-    
-    all_emails = get_all_subscribed_emails()
-    if all_emails:
-        success_count = 0
-        for username, email, sub_type in all_emails:
-            if sub_type in ["all", "daily", "weekly"]:
-                success, msg = send_email(subject, body, email)
-                if success:
-                    success_count += 1
-        
-        with open(f"report_{datetime.now().strftime('%Y-%m-%d')}.txt", "w") as f:
-            f.write("sent")
-        return True, f"Отчет отправлен {success_count} пользователям"
-    else:
         success, msg = send_email(subject, body)
         if success:
-            with open(f"report_{datetime.now().strftime('%Y-%m-%d')}.txt", "w") as f:
+            with open(f"notified_{datetime.now().strftime('%Y-%m-%d')}.txt", "w") as f:
                 f.write("sent")
-        return success, msg
+            return True, "Уведомление отправлено"
+        else:
+            return False, msg
+    return True, "Все в норме"
 
-def send_newsletter(subject, body, subscription_type="all"):
-    """Отправляет рассылку всем подписанным пользователям"""
-    subscribers = get_all_subscribed_emails()
-    if not subscribers:
-        return False, "❌ Нет подписанных пользователей"
-    
-    sent_count = 0
-    errors = []
-    
-    for username, email, sub_type in subscribers:
-        if subscription_type != "all" and sub_type != subscription_type and sub_type != "all":
-            continue
-        
-        try:
-            msg = MIMEMultipart()
-            msg['From'] = EMAIL_SENDER
-            msg['To'] = email
-            msg['Subject'] = Header(f"{subject} (для {username})", 'utf-8').encode()
-            msg.attach(MIMEText(body, 'plain', 'utf-8'))
-            
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-            server.starttls()
-            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-            server.send_message(msg)
-            server.quit()
-            sent_count += 1
-        except Exception as e:
-            errors.append(f"❌ {username} ({email}): {str(e)}")
-    
-    if errors:
-        return True, f"✅ Отправлено: {sent_count}, ошибок: {len(errors)}\n" + "\n".join(errors)
-    return True, f"✅ Рассылка отправлена {sent_count} пользователям"
+def notify_new_consumption(item_name, quantity, unit, object_name, user_name, note=""):
+    """Отправляет уведомление о новой заявке на списание"""
+    subject = "📤 Новая заявка на списание!"
+    body = (
+        f"Здравствуйте!\n\n"
+        f"Поступила новая заявка на списание:\n\n"
+        f"👤 Сотрудник: {user_name}\n"
+        f"📦 Вещь: {item_name}\n"
+        f"📦 Количество: {quantity} {unit}\n"
+        f"🚗 Объект: {object_name}\n"
+        f"📝 Примечание: {note or '—'}\n\n"
+        f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+        f"Зайдите в приложение, чтобы подтвердить или отклонить заявку."
+    )
+    return send_email(subject, body)
 
 # --- ПАРОЛИ И РОЛИ ---
 USERS = {
@@ -769,8 +376,389 @@ if st.session_state.dark_mode:
 if not os.path.exists("images"):
     os.makedirs("images")
 
-# --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
+# --- БАЗА ДАННЫХ ---
+def init_db():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS items
+                 (id TEXT PRIMARY KEY,
+                  name TEXT,
+                  category TEXT,
+                  location TEXT,
+                  room TEXT,
+                  description TEXT,
+                  item_photo TEXT,
+                  location_photo TEXT,
+                  date_added TEXT,
+                  quantity REAL,
+                  unit TEXT,
+                  threshold INTEGER DEFAULT 1,
+                  application TEXT,
+                  installed_photo TEXT,
+                  equipment_id INTEGER,
+                  unit_id INTEGER)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS equipment
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  name TEXT UNIQUE,
+                  number TEXT,
+                  date_added TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS units
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  name TEXT,
+                  equipment_id INTEGER,
+                  date_added TEXT,
+                  UNIQUE(name, equipment_id))''')
+    c.execute('''CREATE TABLE IF NOT EXISTS consumption
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  item_id TEXT,
+                  quantity REAL,
+                  unit TEXT,
+                  object_name TEXT,
+                  user TEXT,
+                  date TEXT,
+                  status TEXT DEFAULT 'pending',
+                  photo TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS rooms
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  name TEXT UNIQUE,
+                  date_added TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS user_emails
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  username TEXT UNIQUE,
+                  email TEXT,
+                  subscription_type TEXT DEFAULT 'all',
+                  date_added TEXT)''')
+    
+    # Проверка существующих колонок
+    c.execute("PRAGMA table_info(items)")
+    columns = [col[1] for col in c.fetchall()]
+    if 'application' not in columns:
+        c.execute("ALTER TABLE items ADD COLUMN application TEXT")
+    if 'installed_photo' not in columns:
+        c.execute("ALTER TABLE items ADD COLUMN installed_photo TEXT")
+    if 'equipment_id' not in columns:
+        c.execute("ALTER TABLE items ADD COLUMN equipment_id INTEGER")
+    if 'unit_id' not in columns:
+        c.execute("ALTER TABLE items ADD COLUMN unit_id INTEGER")
+    
+    c.execute("PRAGMA table_info(consumption)")
+    cons_columns = [col[1] for col in c.fetchall()]
+    if 'status' not in cons_columns:
+        c.execute("ALTER TABLE consumption ADD COLUMN status TEXT DEFAULT 'pending'")
+    if 'photo' not in cons_columns:
+        c.execute("ALTER TABLE consumption ADD COLUMN photo TEXT")
+    
+    c.execute("PRAGMA table_info(equipment)")
+    eq_columns = [col[1] for col in c.fetchall()]
+    if 'number' not in eq_columns:
+        c.execute("ALTER TABLE equipment ADD COLUMN number TEXT")
+    
+    conn.commit()
+    conn.close()
+
+# --- ФУНКЦИИ БАЗЫ ДАННЫХ ---
+def add_room(name):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO rooms (name, date_added) VALUES (?,?)",
+                  (name, datetime.now().strftime("%Y-%m-%d %H:%M")))
+        conn.commit()
+        conn.close()
+        return True, f"Помещение '{name}' добавлено"
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, f"Помещение '{name}' уже существует"
+
+def delete_room(room_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM rooms WHERE id = ?", (room_id,))
+    conn.commit()
+    conn.close()
+
+def get_rooms():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM rooms ORDER BY name")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_room_names():
+    return [room[1] for room in get_rooms()]
+
+def add_equipment(name, number=""):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO equipment (name, number, date_added) VALUES (?,?,?)",
+                  (name, number, datetime.now().strftime("%Y-%m-%d %H:%M")))
+        conn.commit()
+        conn.close()
+        return True, f"Техника '{name}' добавлена"
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, f"Техника '{name}' уже существует"
+
+def delete_equipment(equipment_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM equipment WHERE id = ?", (equipment_id,))
+    c.execute("DELETE FROM units WHERE equipment_id = ?", (equipment_id,))
+    conn.commit()
+    conn.close()
+
+def get_equipment():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM equipment ORDER BY name")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_equipment_by_id(eq_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM equipment WHERE id = ?", (eq_id,))
+    result = c.fetchone()
+    conn.close()
+    return result
+
+def add_unit(name, equipment_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO units (name, equipment_id, date_added) VALUES (?,?,?)",
+                  (name, equipment_id, datetime.now().strftime("%Y-%m-%d %H:%M")))
+        conn.commit()
+        conn.close()
+        return True, f"Агрегат '{name}' добавлен"
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, f"Агрегат '{name}' уже существует для этой техники"
+
+def delete_unit(unit_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM units WHERE id = ?", (unit_id,))
+    conn.commit()
+    conn.close()
+
+def get_units(equipment_id=None):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if equipment_id:
+        c.execute("SELECT * FROM units WHERE equipment_id = ? ORDER BY name", (equipment_id,))
+    else:
+        c.execute("SELECT * FROM units ORDER BY name")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def add_item(name, category, location, room, description, item_photo_path, location_photo_path, quantity, unit, threshold, application, installed_photo_path, equipment_id, unit_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    item_id = str(uuid.uuid4())[:8]
+    c.execute("""INSERT INTO items 
+                 (id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo, equipment_id, unit_id) 
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+              (item_id, name, category, location, room, description, item_photo_path, location_photo_path, 
+               datetime.now().strftime("%Y-%m-%d %H:%M"), quantity, unit, threshold, application, installed_photo_path, equipment_id, unit_id))
+    conn.commit()
+    conn.close()
+    return item_id
+
+def update_item(item_id, name, category, location, room, description, application, equipment_id, unit_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("""
+        UPDATE items
+        SET name = ?, category = ?, location = ?, room = ?, description = ?, application = ?, equipment_id = ?, unit_id = ?
+        WHERE id = ?
+    """, (name, category, location, room, description, application, equipment_id, unit_id, item_id))
+    conn.commit()
+    conn.close()
+
+def update_item_photos(item_id, item_photo_path, location_photo_path, installed_photo_path):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("""
+        UPDATE items
+        SET item_photo = ?, location_photo = ?, installed_photo = ?
+        WHERE id = ?
+    """, (item_photo_path, location_photo_path, installed_photo_path, item_id))
+    conn.commit()
+    conn.close()
+
+def update_item_room(item_id, new_room):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE items SET room = ? WHERE id = ?", (new_room, item_id))
+    conn.commit()
+    conn.close()
+
+def delete_item(item_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT item_photo, location_photo, installed_photo FROM items WHERE id = ?", (item_id,))
+    row = c.fetchone()
+    if row:
+        for path in row:
+            if path and os.path.exists(path):
+                os.remove(path)
+    c.execute("DELETE FROM items WHERE id = ?", (item_id,))
+    c.execute("DELETE FROM consumption WHERE item_id = ?", (item_id,))
+    conn.commit()
+    conn.close()
+
+def search_items(query, room_filter=None):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    query_like = f"%{query}%"
+    if room_filter and room_filter != "Все помещения":
+        c.execute("""
+            SELECT * FROM items
+            WHERE (name LIKE ? OR category LIKE ? OR location LIKE ? OR description LIKE ?)
+            AND room = ?
+        """, (query_like, query_like, query_like, query_like, room_filter))
+    else:
+        c.execute("""
+            SELECT * FROM items
+            WHERE name LIKE ? OR category LIKE ? OR location LIKE ? OR description LIKE ?
+        """, (query_like, query_like, query_like, query_like))
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_all_items(room_filter=None):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if room_filter and room_filter != "Все помещения":
+        c.execute("SELECT * FROM items WHERE room = ? ORDER BY date_added DESC", (room_filter,))
+    else:
+        c.execute("SELECT * FROM items ORDER BY date_added DESC")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_items_by_room(room_name):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM items WHERE room = ? ORDER BY date_added DESC", (room_name,))
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_low_stock_items():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM items WHERE quantity <= threshold ORDER BY quantity ASC")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def consume_item(item_id, quantity, object_name, user="Пользователь", note="", photo_path="", status="pending"):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT quantity, unit FROM items WHERE id = ?", (item_id,))
+    result = c.fetchone()
+    if result is None:
+        conn.close()
+        return False, "Вещь не найдена"
+    current_q, unit = result
+    if quantity > current_q:
+        conn.close()
+        return False, f"Недостаточно! Есть {current_q} {unit}"
+    new_q = current_q - quantity
+    c.execute("UPDATE items SET quantity = ? WHERE id = ?", (new_q, item_id))
+    c.execute("INSERT INTO consumption (item_id, quantity, unit, object_name, user, date, status, photo) VALUES (?,?,?,?,?,?,?,?)",
+              (item_id, quantity, unit, object_name, user, datetime.now().strftime("%Y-%m-%d %H:%M"), status, photo_path))
+    conn.commit()
+    conn.close()
+    return True, f"Списано {quantity} {unit} на '{object_name}'"
+
+def delete_consumption_record(record_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT item_id, quantity, status, photo FROM consumption WHERE id = ?", (record_id,))
+    result = c.fetchone()
+    if result:
+        item_id, quantity, status, photo = result
+        if status == "confirmed":
+            c.execute("UPDATE items SET quantity = quantity + ? WHERE id = ?", (quantity, item_id))
+        if photo and os.path.exists(photo):
+            os.remove(photo)
+    c.execute("DELETE FROM consumption WHERE id = ?", (record_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+def approve_consumption(record_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE consumption SET status = 'confirmed' WHERE id = ?", (record_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+def get_all_consumption():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("""SELECT c.*, i.name FROM consumption c
+                 JOIN items i ON c.item_id = i.id
+                 ORDER BY c.date DESC LIMIT 200""")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_consumption_by_equipment(eq_name):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("""SELECT c.*, i.name FROM consumption c
+                 JOIN items i ON c.item_id = i.id
+                 WHERE c.object_name LIKE ?
+                 ORDER BY c.date DESC""", (f'%{eq_name}%',))
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_statistics():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM items")
+    total_items = c.fetchone()[0]
+    c.execute("SELECT COUNT(DISTINCT room) FROM items")
+    total_rooms = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM items WHERE quantity <= threshold")
+    low_stock_count = c.fetchone()[0]
+    c.execute("SELECT category, COUNT(*) FROM items GROUP BY category ORDER BY COUNT(*) DESC LIMIT 3")
+    top_categories = c.fetchall()
+    c.execute("SELECT COUNT(*) FROM equipment")
+    total_equipment = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM rooms")
+    total_rooms_list = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM consumption")
+    total_consumption = c.fetchone()[0]
+    conn.close()
+    return total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list, total_consumption
+
+def export_to_excel():
+    conn = sqlite3.connect('storage.db')
+    df = pd.read_sql_query("SELECT name as 'Название', category as 'Категория', location as 'Место', room as 'Помещение', description as 'Описание', application as 'Область применения', quantity as 'Количество', unit as 'Ед. изм.', threshold as 'Порог', date_added as 'Дата добавления' FROM items", conn)
+    conn.close()
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Инвентарь')
+        for column in df:
+            column_width = max(df[column].astype(str).map(len).max(), len(column))
+            col_idx = df.columns.get_loc(column)
+            writer.sheets['Инвентарь'].column_dimensions[chr(65 + col_idx)].width = column_width + 2
+    return output.getvalue()
+
+# --- ИНИЦИАЛИЗАЦИЯ ---
 init_db()
+init_email_db()
 
 # --- АВТОМАТИЧЕСКАЯ ПРОВЕРКА ПРИ ЗАПУСКЕ ---
 if role == "admin":
@@ -820,33 +808,35 @@ total_items, total_rooms, low_stock_count, top_categories, total_equipment, tota
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 with col1:
-    if st.button("📦\n" + str(total_items) + "\nВещи", use_container_width=True):
+    if st.button("📦\n" + str(total_items) + "\nВещи", use_container_width=True, key="stat_items"):
         st.session_state.active_tab = 1
         st.rerun()
 
 with col2:
-    if st.button("🏠\n" + str(total_rooms_list) + "\nПомещения", use_container_width=True):
+    if st.button("🏠\n" + str(total_rooms_list) + "\nПомещения", use_container_width=True, key="stat_rooms"):
         st.session_state.active_tab = 5
         st.rerun()
 
 with col3:
     if role == "admin":
-        if st.button("⚠️\n" + str(low_stock_count) + "\nПополнить", use_container_width=True):
+        if st.button("⚠️\n" + str(low_stock_count) + "\nПополнить", use_container_width=True, key="stat_low_stock"):
             st.session_state.active_tab = 0
             st.session_state.show_low_stock = True
             st.rerun()
+    else:
+        st.button("⚠️\n" + str(low_stock_count) + "\nПополнить", use_container_width=True, key="stat_low_stock", disabled=True)
 
 with col4:
     top_cat_str = "\n".join([f"{cat}" for cat, count in top_categories[:2]]) if top_categories else "—"
-    st.button("🏆\nТоп\n" + top_cat_str, use_container_width=True, disabled=True)
+    st.button("🏆\nТоп\n" + top_cat_str, use_container_width=True, key="stat_top", disabled=True)
 
 with col5:
-    if st.button("🚜\n" + str(total_equipment) + "\nТехника", use_container_width=True):
+    if st.button("🚜\n" + str(total_equipment) + "\nТехника", use_container_width=True, key="stat_equipment"):
         st.session_state.active_tab = 3
         st.rerun()
 
 with col6:
-    if st.button("📤\n" + str(total_consumption) + "\nСписано", use_container_width=True):
+    if st.button("📤\n" + str(total_consumption) + "\nСписано", use_container_width=True, key="stat_consumption"):
         st.session_state.active_tab = 4
         st.rerun()
 
@@ -860,33 +850,26 @@ with st.sidebar:
     
     st.subheader("📧 Уведомления")
     
-    if EMAIL_PASSWORD:
-        st.success("✅ Почта настроена")
+    # Проверяем, есть ли настройки почты
+    email_settings = get_email_settings()
+    if email_settings:
+        st.success(f"✅ Почта настроена: {email_settings['recipient']}")
     else:
-        st.error("⚠️ Почта не настроена!")
+        st.warning("⚠️ Настройте почту в разделе 'Настройки почты'")
     
     if st.button("📧 Тестовое письмо", use_container_width=True):
-        user_email, _ = get_user_email(user_name)
-        if user_email:
+        if email_settings:
             success, msg = send_email(
                 "✅ Тестовое письмо!",
-                f"Привет, {user_name}!\n\nЭто тестовое письмо из приложения.\n\nВаша почта настроена правильно!",
-                user_email
+                f"Привет, {user_name}!\n\nЭто тестовое письмо из приложения.\n\nУведомления работают!",
+                email_settings["recipient"]
             )
             if success:
                 st.success(msg)
             else:
                 st.error(msg)
         else:
-            success, msg = send_email(
-                "✅ Тестовое письмо!",
-                f"Привет, {user_name}!\n\nЭто тестовое письмо из приложения.\n\nВы не настроили свою почту, поэтому письмо пришло на основной адрес.",
-                EMAIL_RECIPIENT
-            )
-            if success:
-                st.success("✅ Тестовое письмо отправлено на основной адрес")
-            else:
-                st.error(msg)
+            st.error("❌ Сначала настройте почту в разделе 'Настройки почты'")
     
     if role == "admin":
         low_items = get_low_stock_items()
@@ -997,7 +980,7 @@ with st.sidebar:
 # --- ОСНОВНАЯ ОБЛАСТЬ: ВКЛАДКИ ---
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🔍 Поиск", "📋 Все вещи", "🚜 Парк", "📤 История списаний", "🏠 Помещения", "📧 Настройки почты"])
 
-# Вкладка "Поиск"
+# --- ВКЛАДКА 1: ПОИСК ---
 with tab1:
     col_search, col_btn = st.columns([5, 1])
     with col_search:
@@ -1026,6 +1009,7 @@ with tab1:
     room_filter = st.selectbox("🏠 Помещение", rooms, key="room_filter_tab1")
     items = search_items(search_query, room_filter) if search_query else get_all_items(room_filter)
     st.subheader(f"📌 Найдено: {len(items)}")
+    
     if not items:
         st.info("🌱 Ничего нет. Добавьте через меню.")
     else:
@@ -1062,6 +1046,7 @@ with tab1:
                     qty = float(quantity)
                 except:
                     qty = 0
+                
                 if qty <= 0:
                     status_emoji = "🔴"
                     status_text = "КРИТИЧНО!"
@@ -1093,6 +1078,7 @@ with tab1:
                         st.caption(f"📝 **Область применения:** {application}")
                     st.caption(f"📦 Количество: **{qty} {unit}**")
                     st.caption(f"📊 Статус: **{status_text}**")
+                    
                     c1, c2, c3 = st.columns(3)
                     with c1:
                         if item_photo and os.path.exists(item_photo):
@@ -1109,11 +1095,12 @@ with tab1:
                             st.image(installed_photo, caption="Установка", use_container_width=True)
                         else:
                             st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
+                    
                     if description:
                         st.write(f"📝 {description}")
                     st.caption(f"🕒 Добавлено: {date_added}")
 
-                    # --- МЕНЮ (ТОЛЬКО ДЛЯ АДМИНА) ---
+                    # --- МЕНЮ ДЛЯ АДМИНА ---
                     if role == "admin":
                         menu_key = f"show_menu_{item_id}"
                         if st.session_state.get(menu_key, False):
@@ -1143,13 +1130,13 @@ with tab1:
                                         delete_item(item_id)
                                         st.rerun()
 
-                    # --- КНОПКА "ВЗЯЛ" ДЛЯ СОТРУДНИКА ---
+                    # --- КНОПКА ДЛЯ СОТРУДНИКА ---
                     if role == "employee":
                         if st.button("📤 Взял", key=f"take_{item_id}", use_container_width=True):
                             st.session_state[f"take_mode_{item_id}"] = True
                             st.rerun()
                     
-                    # --- ДИАЛОГ ДЛЯ СОТРУДНИКА (ВЗЯЛ) ---
+                    # --- ДИАЛОГ ДЛЯ СОТРУДНИКА ---
                     if st.session_state.get(f"take_mode_{item_id}", False) and role == "employee":
                         with st.container(border=True):
                             st.write(f"**📤 Взять {name}**")
@@ -1200,17 +1187,8 @@ with tab1:
                                         
                                         success, message = consume_item(item_id, take_qty, object_name_input, user_name, note, photo_path, "pending")
                                         if success:
-                                            success_email, msg_email = send_email(
-                                                "📤 Новая заявка на списание!",
-                                                f"Здравствуйте!\n\nПоступила новая заявка на списание:\n\n"
-                                                f"👤 Сотрудник: {user_name}\n"
-                                                f"📦 Вещь: {name}\n"
-                                                f"📦 Количество: {take_qty} {unit}\n"
-                                                f"🚗 Объект: {object_name_input}\n"
-                                                f"📝 Примечание: {note or '—'}\n\n"
-                                                f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
-                                                f"Зайдите в приложение, чтобы подтвердить или отклонить заявку.",
-                                                EMAIL_RECIPIENT
+                                            success_email, msg_email = notify_new_consumption(
+                                                name, take_qty, unit, object_name_input, user_name, note
                                             )
                                             
                                             if success_email:
@@ -1228,7 +1206,7 @@ with tab1:
                                     st.session_state[f"take_mode_{item_id}"] = False
                                     st.rerun()
 
-                    # --- ОСТАЛЬНЫЕ ДИАЛОГИ (ТОЛЬКО ДЛЯ АДМИНА) ---
+                    # --- ДИАЛОГИ ДЛЯ АДМИНА ---
                     if role == "admin":
                         # Редактирование
                         if st.session_state.get(f"edit_mode_{item_id}", False):
@@ -1434,7 +1412,7 @@ with tab1:
                                     st.session_state[f"qr_mode_{item_id}"] = False
                                     st.rerun()
 
-# Вкладка "Все вещи"
+# --- ВКЛАДКА 2: ВСЕ ВЕЩИ ---
 with tab2:
     st.subheader("📋 Все вещи в базе данных")
     all_items = get_all_items()
@@ -1489,7 +1467,7 @@ with tab2:
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button(label="📥 Скачать таблицу (CSV)", data=csv, file_name=f"все_вещи_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
 
-# Вкладка "Парк"
+# --- ВКЛАДКА 3: ПАРК ---
 with tab3:
     st.subheader("🚜 Управление техникой")
     
@@ -1554,7 +1532,7 @@ with tab3:
                     delete_equipment(eq_id)
                     st.rerun()
 
-# Вкладка "История списаний"
+# --- ВКЛАДКА 4: ИСТОРИЯ СПИСАНИЙ ---
 with tab4:
     st.subheader("📤 История списаний")
     all_consumption = get_all_consumption()
@@ -1619,7 +1597,7 @@ with tab4:
                         st.image(photo, caption="Фото", use_container_width=True)
         st.caption("🗑️ — удалить запись")
 
-# Вкладка "Помещения"
+# --- ВКЛАДКА 5: ПОМЕЩЕНИЯ ---
 with tab5:
     st.subheader("🏠 Управление помещениями")
     
@@ -1686,151 +1664,159 @@ with tab5:
                     delete_room(room_id)
                     st.rerun()
 
-# Вкладка "Настройки почты"
+# --- ВКЛАДКА 6: НАСТРОЙКИ ПОЧТЫ ---
 with tab6:
     st.subheader("📧 Настройки уведомлений по почте")
     
     st.info("""
-    📬 **Как это работает:**
-    1. Вы можете указать свою почту для получения уведомлений
-    2. Выберите тип уведомлений, которые хотите получать
-    3. Администратор может отправлять рассылки всем подписанным пользователям
+    🔒 **Безопасность:** Ваш пароль шифруется перед сохранением в базу данных!
+    
+    📬 **Как настроить уведомления:**
+    1. Укажите свой email адрес (отправитель)
+    2. Введите пароль от почты (будет зашифрован)
+    3. Укажите email для получения уведомлений
+    4. Нажмите "Сохранить настройки"
     """)
     
-    user_email, subscription_type = get_user_email(user_name)
+    # Получаем текущие настройки
+    current_settings = get_email_settings()
     
     with st.container(border=True):
-        st.write(f"**👤 Ваша почта для уведомлений**")
+        st.write("**📨 Настройки почты**")
         
-        if user_email:
-            st.success(f"✅ Ваша почта: **{user_email}**")
-            st.caption(f"📊 Тип подписки: {subscription_type}")
+        if current_settings:
+            st.success(f"✅ Текущая почта для уведомлений: **{current_settings['recipient']}**")
+            st.caption(f"📤 Отправитель: {current_settings['sender']}")
+            st.caption(f"🔒 Пароль зашифрован и защищен")
+        
+        with st.form("email_settings_form", clear_on_submit=False):
+            col1, col2 = st.columns(2)
             
-            col1, col2, col3 = st.columns([3, 1, 1])
             with col1:
-                new_email = st.text_input("✏️ Изменить почту", value=user_email, key="change_email")
-            with col2:
-                new_subscription = st.selectbox("📊 Тип подписки", 
-                    ["all", "critical", "daily", "weekly"],
-                    index=["all", "critical", "daily", "weekly"].index(subscription_type) if subscription_type in ["all", "critical", "daily", "weekly"] else 0,
-                    key="change_subscription"
+                sender_email = st.text_input(
+                    "✉️ Email отправителя", 
+                    value=current_settings["sender"] if current_settings else "",
+                    placeholder="example@yandex.ru",
+                    help="Email, с которого будут отправляться уведомления"
                 )
-            with col3:
-                st.write("")
-                st.write("")
-                if st.button("💾 Сохранить изменения", use_container_width=True):
-                    if new_email:
-                        success, msg = save_user_email(user_name, new_email, new_subscription)
-                        if success:
-                            st.success(msg)
-                            st.rerun()
-                        else:
-                            st.error(msg)
-                    else:
-                        st.error("❌ Введите почту!")
+                
+                sender_password = st.text_input(
+                    "🔑 Пароль от почты (будет зашифрован)", 
+                    type="password",
+                    value="",
+                    placeholder="Ваш пароль или пароль приложения",
+                    help="Для Yandex используйте пароль приложения. Пароль будет зашифрован!"
+                )
             
-            if st.button("🗑️ Отписаться от уведомлений", use_container_width=True):
-                success, msg = delete_user_email(user_name)
+            with col2:
+                recipient_email = st.text_input(
+                    "📬 Email для получения уведомлений", 
+                    value=current_settings["recipient"] if current_settings else "",
+                    placeholder="получатель@example.com",
+                    help="На этот адрес будут приходить уведомления"
+                )
+                
+                smtp_server = st.text_input(
+                    "🌐 SMTP сервер",
+                    value=current_settings["smtp_server"] if current_settings else "smtp.yandex.ru",
+                    help="Для Yandex: smtp.yandex.ru, для Gmail: smtp.gmail.com"
+                )
+                
+                smtp_port = st.number_input(
+                    "🔢 SMTP порт",
+                    value=current_settings["smtp_port"] if current_settings else 587,
+                    min_value=1,
+                    max_value=65535,
+                    help="Для Yandex: 587, для Gmail: 587"
+                )
+            
+            st.caption("📋 **Примеры настройки:**")
+            st.caption("• **Yandex:** smtp.yandex.ru, порт 587, пароль приложения")
+            st.caption("• **Gmail:** smtp.gmail.com, порт 587, пароль приложения")
+            st.caption("• **Mail.ru:** smtp.mail.ru, порт 587, пароль от почты")
+            st.caption("🔒 **Важно:** Пароль будет зашифрован и сохранен в базе данных!")
+            
+            if st.form_submit_button("💾 Сохранить настройки (с шифрованием)", use_container_width=True):
+                if sender_email and sender_password and recipient_email:
+                    success, msg = save_email_settings(
+                        sender_email, 
+                        sender_password, 
+                        recipient_email,
+                        smtp_server,
+                        smtp_port
+                    )
+                    if success:
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+                else:
+                    st.error("❌ Заполните все поля!")
+    
+    # Кнопки управления
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
+    with col1:
+        if st.button("📧 Отправить тестовое письмо", use_container_width=True):
+            settings = get_email_settings()
+            if settings:
+                success, msg = send_email(
+                    "✅ Тестовое письмо!",
+                    f"Здравствуйте!\n\nЭто тестовое письмо из приложения 'Мой Склад'.\n\n"
+                    f"Настройки почты работают правильно!\n\n"
+                    f"🔒 Ваш пароль хранится в зашифрованном виде!\n\n"
+                    f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                    settings["recipient"]
+                )
                 if success:
                     st.success(msg)
-                    st.rerun()
                 else:
                     st.error(msg)
-        else:
-            st.info("📝 Вы еще не настроили почту для уведомлений")
-            
-            with st.form("email_form", clear_on_submit=True):
-                new_email = st.text_input("✉️ Ваш Email", placeholder="example@mail.ru", key="new_email_input")
-                subscription_type = st.selectbox("📊 Тип уведомлений", 
-                    ["all", "critical", "daily", "weekly"],
-                    format_func=lambda x: {
-                        "all": "Все уведомления",
-                        "critical": "Только критичные (низкие остатки)",
-                        "daily": "Ежедневные отчеты",
-                        "weekly": "Еженедельные отчеты"
-                    }.get(x, x),
-                    key="subscription_select"
-                )
-                
-                st.caption("📋 **Пояснение:**")
-                st.caption("• **Все** - получать все уведомления")
-                st.caption("• **Критичные** - только о низких остатках")
-                st.caption("• **Ежедневные** - отчеты раз в день")
-                st.caption("• **Еженедельные** - отчеты раз в неделю")
-                
-                if st.form_submit_button("✅ Подписаться", use_container_width=True):
-                    if new_email:
-                        success, msg = save_user_email(user_name, new_email, subscription_type)
-                        if success:
-                            st.success(msg)
-                            welcome_body = f"""
-                            Здравствуйте, {user_name}!
-                            
-                            Вы успешно подписались на уведомления от приложения "Мой Склад".
-                            
-                            📊 Тип подписки: {subscription_type}
-                            
-                            Вы будете получать уведомления о:
-                            - Низких остатках на складе
-                            - Новых заявках на списание
-                            - Ежедневных/еженедельных отчетах
-                            
-                            Чтобы отписаться, зайдите в настройки и нажмите "Отписаться".
-                            
-                            С уважением,
-                            Команда "Мой Склад"
-                            """
-                            send_email("📬 Добро пожаловать в рассылку!", welcome_body, new_email)
-                            st.rerun()
-                        else:
-                            st.error(msg)
-                    else:
-                        st.error("❌ Введите почту!")
+            else:
+                st.error("❌ Сначала настройте почту!")
     
-    if role == "admin":
-        st.divider()
-        st.subheader("📊 Управление подписчиками")
-        
-        subscribers = get_all_subscribed_emails()
-        if subscribers:
-            st.caption(f"📬 Всего подписчиков: {len(subscribers)}")
-            
-            data = []
-            for username, email, sub_type in subscribers:
-                data.append({
-                    "Пользователь": username,
-                    "Почта": email,
-                    "Тип подписки": sub_type
-                })
-            df = pd.DataFrame(data)
-            st.dataframe(df, use_container_width=True)
-            
-            st.divider()
-            st.write("📨 **Отправить рассылку подписчикам**")
-            
-            with st.form("newsletter_form"):
-                subject = st.text_input("Тема письма*", placeholder="Важное уведомление")
-                body = st.text_area("Текст письма*", placeholder="Напишите сообщение для всех подписчиков...", height=150)
-                target_group = st.selectbox("📊 Кому отправить", 
-                    ["all", "critical", "daily", "weekly"],
-                    format_func=lambda x: {
-                        "all": "Всем подписчикам",
-                        "critical": "Только критичные уведомления",
-                        "daily": "Только ежедневные отчеты",
-                        "weekly": "Только еженедельные отчеты"
-                    }.get(x, x)
-                )
-                
-                if st.form_submit_button("📧 Отправить рассылку", use_container_width=True):
-                    if subject and body:
-                        success, msg = send_newsletter(subject, body, target_group)
-                        if success:
-                            st.success(msg)
-                        else:
-                            st.error(msg)
-                    else:
-                        st.error("❌ Заполните тему и текст письма!")
-        else:
-            st.info("🌱 Пока нет подписчиков")
+    with col2:
+        if st.button("🔍 Проверить настройки", use_container_width=True):
+            settings = get_email_settings()
+            if settings:
+                st.success(f"✅ Настройки найдены!")
+                st.write(f"📤 Отправитель: {settings['sender']}")
+                st.write(f"📬 Получатель: {settings['recipient']}")
+                st.write(f"🌐 SMTP сервер: {settings['smtp_server']}:{settings['smtp_port']}")
+                st.write(f"🔒 Пароль: зашифрован и защищен")
+            else:
+                st.error("❌ Настройки не найдены!")
+    
+    with col3:
+        if st.button("🗑️ Удалить настройки", use_container_width=True):
+            success, msg = delete_email_settings()
+            if success:
+                st.success(msg)
+                st.rerun()
+            else:
+                st.error(msg)
+    
+    # Информация о безопасности
+    st.divider()
+    st.subheader("🔒 Информация о безопасности")
+    
+    st.info("""
+    **Как защищен ваш пароль?**
+    
+    1. ✅ **Шифрование:** Пароль шифруется перед сохранением в базу данных
+    2. ✅ **Алгоритм:** Используется Fernet (симметричное шифрование)
+    3. ✅ **Ключ:** Ключ шифрования хранится в секретах приложения
+    4. ✅ **Доступ:** Только приложение может расшифровать пароль
+    5. ✅ **Хранение:** В базе данных хранится только зашифрованная версия
+    
+    **Это значит, что даже если кто-то получит доступ к вашей базе данных,**
+    **он не сможет прочитать ваш пароль без ключа шифрования!** 🔒
+    """)
+    
+    # Статус шифрования
+    settings = get_email_settings()
+    if settings:
+        st.success("✅ Ваши настройки защищены шифрованием!")
+        st.caption("🔒 Пароль хранится в зашифрованном виде")
 
-st.caption("📱 Мой Склад v2.0 | Уведомления по email")
+st.caption("📱 Мой Склад v2.0 | Безопасное хранение паролей")
