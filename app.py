@@ -99,11 +99,20 @@ def init_db():
                   unit TEXT,
                   threshold INTEGER DEFAULT 1,
                   application TEXT,
-                  installed_photo TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS park
+                  installed_photo TEXT,
+                  equipment_id INTEGER,
+                  unit_id INTEGER)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS equipment
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT UNIQUE,
+                  number TEXT,
                   date_added TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS units
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  name TEXT,
+                  equipment_id INTEGER,
+                  date_added TEXT,
+                  UNIQUE(name, equipment_id))''')
     c.execute('''CREATE TABLE IF NOT EXISTS consumption
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   item_id TEXT,
@@ -124,6 +133,15 @@ def init_db():
         c.execute("ALTER TABLE items ADD COLUMN application TEXT")
     if 'installed_photo' not in columns:
         c.execute("ALTER TABLE items ADD COLUMN installed_photo TEXT")
+    if 'equipment_id' not in columns:
+        c.execute("ALTER TABLE items ADD COLUMN equipment_id INTEGER")
+    if 'unit_id' not in columns:
+        c.execute("ALTER TABLE items ADD COLUMN unit_id INTEGER")
+    
+    c.execute("PRAGMA table_info(equipment)")
+    eq_columns = [col[1] for col in c.fetchall()]
+    if 'number' not in eq_columns:
+        c.execute("ALTER TABLE equipment ADD COLUMN number TEXT")
     
     conn.commit()
     conn.close()
@@ -160,55 +178,97 @@ def get_rooms():
 def get_room_names():
     return [room[1] for room in get_rooms()]
 
-# --- ФУНКЦИИ ДЛЯ ПАРКА ---
-def add_park_object(name):
+# --- ФУНКЦИИ ДЛЯ ТЕХНИКИ ---
+def add_equipment(name, number=""):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO park (name, date_added) VALUES (?,?)",
-                  (name, datetime.now().strftime("%Y-%m-%d %H:%M")))
+        c.execute("INSERT INTO equipment (name, number, date_added) VALUES (?,?,?)",
+                  (name, number, datetime.now().strftime("%Y-%m-%d %H:%M")))
         conn.commit()
         conn.close()
-        return True, f"Объект '{name}' добавлен"
+        return True, f"Техника '{name}' добавлена"
     except sqlite3.IntegrityError:
         conn.close()
-        return False, f"Объект '{name}' уже существует"
+        return False, f"Техника '{name}' уже существует"
 
-def delete_park_object(object_id):
+def update_equipment(equipment_id, name, number):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    c.execute("DELETE FROM park WHERE id = ?", (object_id,))
+    c.execute("UPDATE equipment SET name = ?, number = ? WHERE id = ?", (name, number, equipment_id))
+    conn.commit()
+    conn.close()
+    return True, "Данные обновлены"
+
+def delete_equipment(equipment_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM equipment WHERE id = ?", (equipment_id,))
+    c.execute("DELETE FROM units WHERE equipment_id = ?", (equipment_id,))
     conn.commit()
     conn.close()
 
-def get_park_objects():
+def get_equipment():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM equipment ORDER BY name")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_equipment_names():
+    return [eq[1] for eq in get_equipment()]
+
+def get_equipment_by_id(eq_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM equipment WHERE id = ?", (eq_id,))
+    result = c.fetchone()
+    conn.close()
+    return result
+
+# --- ФУНКЦИИ ДЛЯ АГРЕГАТОВ ---
+def add_unit(name, equipment_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     try:
-        c.execute("SELECT * FROM park ORDER BY name")
-        results = c.fetchall()
-    except sqlite3.OperationalError:
-        c.execute('''CREATE TABLE IF NOT EXISTS park
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      name TEXT UNIQUE,
-                      date_added TEXT)''')
-        results = []
-    conn.close()
-    
-    formatted_results = []
-    for row in results:
-        if len(row) == 3:
-            formatted_results.append(row)
-        elif len(row) == 2:
-            formatted_results.append((row[0], row[1], "—"))
-        elif len(row) == 1:
-            formatted_results.append((None, row[0], "—"))
-        else:
-            formatted_results.append((None, str(row), "—"))
-    return formatted_results
+        c.execute("INSERT INTO units (name, equipment_id, date_added) VALUES (?,?,?)",
+                  (name, equipment_id, datetime.now().strftime("%Y-%m-%d %H:%M")))
+        conn.commit()
+        conn.close()
+        return True, f"Агрегат '{name}' добавлен"
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, f"Агрегат '{name}' уже существует для этой техники"
 
-def get_park_names():
-    return [obj[1] for obj in get_park_objects()]
+def delete_unit(unit_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM units WHERE id = ?", (unit_id,))
+    conn.commit()
+    conn.close()
+
+def get_units(equipment_id=None):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if equipment_id:
+        c.execute("SELECT * FROM units WHERE equipment_id = ? ORDER BY name", (equipment_id,))
+    else:
+        c.execute("SELECT * FROM units ORDER BY name")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_unit_names(equipment_id):
+    return [unit[1] for unit in get_units(equipment_id)]
+
+def get_equipment_by_unit(unit_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT equipment_id FROM units WHERE id = ?", (unit_id,))
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result else None
 
 # --- ФУНКЦИИ ДЛЯ РАСХОДА ---
 def consume_item(item_id, quantity, object_name, user="Пользователь", note=""):
@@ -253,12 +313,12 @@ def get_all_consumption():
     return results
 
 # --- ОСНОВНЫЕ ФУНКЦИИ ---
-def add_item(name, category, location, room, description, item_photo_path, location_photo_path, quantity, unit, threshold, application, installed_photo_path):
+def add_item(name, category, location, room, description, item_photo_path, location_photo_path, quantity, unit, threshold, application, installed_photo_path, equipment_id, unit_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     item_id = str(uuid.uuid4())[:8]
-    c.execute("INSERT INTO items (id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-              (item_id, name, category, location, room, description, item_photo_path, location_photo_path, datetime.now().strftime("%Y-%m-%d %H:%M"), quantity, unit, threshold, application, installed_photo_path))
+    c.execute("INSERT INTO items (id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo, equipment_id, unit_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+              (item_id, name, category, location, room, description, item_photo_path, location_photo_path, datetime.now().strftime("%Y-%m-%d %H:%M"), quantity, unit, threshold, application, installed_photo_path, equipment_id, unit_id))
     conn.commit()
     conn.close()
     return item_id
@@ -295,14 +355,18 @@ def search_items(query, room_filter=None):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     if room_filter and room_filter != "Все помещения":
-        c.execute("""SELECT * FROM items WHERE 
-                     (name LIKE ? OR category LIKE ? OR location LIKE ? OR description LIKE ? OR application LIKE ?) 
-                     AND room = ?""", 
-                  (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', room_filter))
+        c.execute("""SELECT i.*, e.name as eq_name, u.name as unit_name FROM items i
+                     LEFT JOIN equipment e ON i.equipment_id = e.id
+                     LEFT JOIN units u ON i.unit_id = u.id
+                     WHERE (i.name LIKE ? OR i.category LIKE ? OR i.location LIKE ? OR i.description LIKE ? OR i.application LIKE ? OR e.name LIKE ? OR u.name LIKE ?) 
+                     AND i.room = ?""", 
+                  (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', room_filter))
     else:
-        c.execute("""SELECT * FROM items WHERE 
-                     name LIKE ? OR category LIKE ? OR location LIKE ? OR description LIKE ? OR application LIKE ?""", 
-                  (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%'))
+        c.execute("""SELECT i.*, e.name as eq_name, u.name as unit_name FROM items i
+                     LEFT JOIN equipment e ON i.equipment_id = e.id
+                     LEFT JOIN units u ON i.unit_id = u.id
+                     WHERE i.name LIKE ? OR i.category LIKE ? OR i.location LIKE ? OR i.description LIKE ? OR i.application LIKE ? OR e.name LIKE ? OR u.name LIKE ?""", 
+                  (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%'))
     results = c.fetchall()
     conn.close()
     return results
@@ -337,12 +401,12 @@ def get_statistics():
     low_stock_count = c.fetchone()[0]
     c.execute("SELECT category, COUNT(*) FROM items GROUP BY category ORDER BY COUNT(*) DESC LIMIT 3")
     top_categories = c.fetchall()
-    c.execute("SELECT COUNT(*) FROM park")
-    total_park = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM equipment")
+    total_equipment = c.fetchone()[0]
     c.execute("SELECT COUNT(*) FROM rooms")
     total_rooms_list = c.fetchone()[0]
     conn.close()
-    return total_items, total_rooms, low_stock_count, top_categories, total_park, total_rooms_list
+    return total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list
 
 def export_to_excel():
     conn = sqlite3.connect('storage.db')
@@ -360,7 +424,7 @@ def export_to_excel():
 init_db()
 
 # --- СТАТИСТИКА ---
-total_items, total_rooms, low_stock_count, top_categories, total_park, total_rooms_list = get_statistics()
+total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list = get_statistics()
 
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 with col1:
@@ -373,7 +437,7 @@ with col4:
     top_cat_str = ", ".join([f"{cat}" for cat, count in top_categories[:2]]) if top_categories else "—"
     st.metric("🏆 Топ", top_cat_str)
 with col5:
-    st.metric("🚗 В парке", total_park)
+    st.metric("🚜 Техники", total_equipment)
 with col6:
     st.metric("📤 Списано", 0)
 
@@ -394,39 +458,6 @@ if low_stock:
 
 # --- БОКОВАЯ ПАНЕЛЬ ---
 with st.sidebar:
-    # --- ПАРК ---
-    st.header("🚗 Парк объектов")
-    with st.form("add_park_form", clear_on_submit=True):
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            new_park_object = st.text_input("Новый объект", placeholder="Машина №5")
-        with col2:
-            st.write("")
-            st.write("")
-            add_park_btn = st.form_submit_button("➕ Добавить")
-        if add_park_btn and new_park_object:
-            success, msg = add_park_object(new_park_object)
-            if success:
-                st.success(msg)
-                st.rerun()
-            else:
-                st.error(msg)
-    
-    park_objects = get_park_objects()
-    if park_objects:
-        for obj_id, obj_name, obj_date in park_objects:
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                st.caption(f"• {obj_name}")
-            with col2:
-                if st.button("🗑️", key=f"del_park_{obj_id}"):
-                    delete_park_object(obj_id)
-                    st.rerun()
-    else:
-        st.caption("Пока нет объектов")
-    
-    st.divider()
-    
     # --- ДОБАВЛЕНИЕ ВЕЩИ ---
     st.header("➕ Добавить вещь")
     
@@ -446,7 +477,34 @@ with st.sidebar:
         location = st.text_input("Место внутри помещения*")
         description = st.text_area("Описание")
         
-        # --- НОВОЕ ПОЛЕ: Область применения ---
+        # --- Привязка к технике ---
+        st.subheader("🔧 Привязка к технике")
+        equipment_list = get_equipment()
+        if equipment_list:
+            eq_names = [eq[1] for eq in equipment_list]
+            selected_eq = st.selectbox("Техника", ["Не выбрано"] + eq_names)
+            if selected_eq != "Не выбрано":
+                eq_id = [eq[0] for eq in equipment_list if eq[1] == selected_eq][0]
+                units = get_units(eq_id)
+                if units:
+                    unit_names = [u[1] for u in units]
+                    selected_unit = st.selectbox("Агрегат/оборудование", ["Не выбрано"] + unit_names)
+                    if selected_unit != "Не выбрано":
+                        unit_id = [u[0] for u in units if u[1] == selected_unit][0]
+                    else:
+                        unit_id = None
+                else:
+                    st.caption("Нет агрегатов для этой техники")
+                    unit_id = None
+            else:
+                eq_id = None
+                unit_id = None
+        else:
+            st.info("Сначала добавьте технику в разделе '🚜 Парк'")
+            eq_id = None
+            unit_id = None
+        
+        # --- Область применения ---
         application = st.text_area("🔧 Область применения", placeholder="Например: ремень генератора трактора МТЗ-80")
         
         col1, col2, col3 = st.columns(3)
@@ -461,7 +519,6 @@ with st.sidebar:
         
         item_pic = st.file_uploader("📷 Фото вещи", type=["jpg", "jpeg", "png"], key="item")
         location_pic = st.file_uploader("📷 Фото места", type=["jpg", "jpeg", "png"], key="loc")
-        # --- НОВОЕ ПОЛЕ: Фото установки ---
         installed_pic = st.file_uploader("📷 Фото установки на агрегате", type=["jpg", "jpeg", "png"], key="installed")
         
         submitted = st.form_submit_button("💾 Сохранить")
@@ -479,7 +536,7 @@ with st.sidebar:
                 ext = installed_pic.name.split('.')[-1]
                 installed_path = f"images/{uuid.uuid4()}_installed.{ext}"
                 with open(installed_path, "wb") as f: f.write(installed_pic.getbuffer())
-            add_item(name, category, location, room, description, item_path, loc_path, quantity, unit, threshold, application, installed_path)
+            add_item(name, category, location, room, description, item_path, loc_path, quantity, unit, threshold, application, installed_path, eq_id, unit_id)
             st.success(f"✅ Добавлено {quantity} {unit} '{name}'")
             st.rerun()
         elif submitted:
@@ -506,12 +563,12 @@ with st.sidebar:
         )
 
 # --- ОСНОВНАЯ ОБЛАСТЬ: ВКЛАДКИ ---
-tab1, tab2, tab3, tab4 = st.tabs(["🔍 Поиск и управление", "📋 Все вещи", "🚗 Парк", "🏠 Помещения"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Поиск", "📋 Все вещи", "🚜 Парк", "🚗 История списаний", "🏠 Помещения"])
 
 with tab1:
     col_search, col_btn = st.columns([5, 1])
     with col_search:
-        search_query = st.text_input("🔍 Что ищем?", placeholder="Введите название, категорию, место или область применения...", key="search_input")
+        search_query = st.text_input("🔍 Что ищем?", placeholder="Введите название, категорию, технику, агрегат...", key="search_input")
     with col_btn:
         st.write("")
         search_clicked = st.button("🔍 Найти", use_container_width=True)
@@ -532,14 +589,30 @@ with tab1:
         cols = st.columns(3)
         for idx, item in enumerate(items):
             with cols[idx % 3]:
-                # Распаковка с учётом новых полей
                 try:
-                    item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo = item
+                    item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo, equipment_id, unit_id = item
                 except ValueError:
-                    # Если старые данные без новых полей
                     item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item
                     application = ""
                     installed_photo = ""
+                    equipment_id = None
+                    unit_id = None
+                
+                # Получаем названия техники и агрегата
+                eq_name = ""
+                unit_name = ""
+                if equipment_id:
+                    eq = get_equipment_by_id(equipment_id)
+                    if eq:
+                        eq_name = eq[1]
+                        if eq[2]:
+                            eq_name += f" ({eq[2]})"
+                if unit_id:
+                    units = get_units(equipment_id)
+                    for u in units:
+                        if u[0] == unit_id:
+                            unit_name = u[1]
+                            break
                 
                 try:
                     qty = float(quantity)
@@ -561,12 +634,15 @@ with tab1:
                     if category:
                         st.caption(f"📂 {category}")
                     st.caption(f"🏠 {room} → 📍 {location}")
+                    if eq_name:
+                        st.caption(f"🚜 **Техника:** {eq_name}")
+                    if unit_name:
+                        st.caption(f"🔧 **Агрегат:** {unit_name}")
                     if application:
-                        st.caption(f"🔧 **Область применения:** {application}")
+                        st.caption(f"📝 **Область применения:** {application}")
                     st.caption(f"📦 Количество: **{qty} {unit}**")
                     st.caption(f"📊 Статус: **{status_text}**")
                     
-                    # Три фото в ряд
                     c1, c2, c3 = st.columns(3)
                     with c1:
                         if item_photo and os.path.exists(item_photo):
@@ -650,12 +726,7 @@ with tab1:
                             with col1:
                                 consume_qty = st.number_input("Количество", min_value=0.0, step=0.5, max_value=float(qty), value=min(1.0, float(qty)), key=f"cons_qty_{item_id}")
                             with col2:
-                                park_names = get_park_names()
-                                if park_names:
-                                    object_name = st.selectbox("Объект списания", park_names, key=f"cons_obj_{item_id}")
-                                else:
-                                    st.warning("Сначала добавьте объекты в парк!")
-                                    object_name = st.text_input("Объект*", key=f"cons_obj_{item_id}")
+                                object_name = st.text_input("Объект списания*", key=f"cons_obj_{item_id}")
                             
                             user = st.text_input("Кто списывает", value="Пользователь", key=f"cons_user_{item_id}")
                             note = st.text_area("Примечание", key=f"cons_note_{item_id}")
@@ -709,11 +780,29 @@ with tab2:
         data = []
         for item in all_items:
             try:
-                item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo = item
+                item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo, equipment_id, unit_id = item
             except ValueError:
                 item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item
                 application = ""
                 installed_photo = ""
+                equipment_id = None
+                unit_id = None
+            
+            eq_name = ""
+            unit_name = ""
+            if equipment_id:
+                eq = get_equipment_by_id(equipment_id)
+                if eq:
+                    eq_name = eq[1]
+                    if eq[2]:
+                        eq_name += f" ({eq[2]})"
+            if unit_id:
+                units = get_units(equipment_id)
+                for u in units:
+                    if u[0] == unit_id:
+                        unit_name = u[1]
+                        break
+            
             try:
                 qty = float(quantity)
             except:
@@ -723,6 +812,8 @@ with tab2:
                 "Категория": category or "",
                 "Помещение": room,
                 "Место": location,
+                "Техника": eq_name or "",
+                "Агрегат": unit_name or "",
                 "Область применения": application or "",
                 "Количество": f"{qty} {unit}",
                 "Статус": "🔴 Критично" if qty <= 0 else "🟡 Скоро" if qty <= threshold else "🟢 Норма",
@@ -741,24 +832,95 @@ with tab2:
         )
 
 with tab3:
-    st.subheader("🚗 История списаний по объектам парка")
+    st.subheader("🚜 Управление техникой и агрегатами")
     
-    park_objects = get_park_objects()
-    if not park_objects:
-        st.info("Пока нет объектов в парке. Добавьте их через боковое меню!")
-    else:
-        for obj_id, obj_name, obj_date in park_objects:
-            with st.expander(f"🚗 {obj_name} (добавлен {obj_date[:10] if obj_date != '—' else 'неизвестно'})"):
-                consumptions = get_consumption_by_object(obj_name)
-                if not consumptions:
-                    st.caption("Нет списаний на этот объект")
+    # --- Добавление техники ---
+    with st.expander("➕ Добавить технику", expanded=True):
+        with st.form("add_equipment_form", clear_on_submit=True):
+            col1, col2, col3 = st.columns([3, 2, 1])
+            with col1:
+                eq_name = st.text_input("Название техники*", placeholder="МТЗ-82, К-700, ДОН-1500")
+            with col2:
+                eq_number = st.text_input("Госномер", placeholder="А123ВС")
+            with col3:
+                st.write("")
+                st.write("")
+                add_eq_btn = st.form_submit_button("➕ Добавить")
+            if add_eq_btn and eq_name:
+                success, msg = add_equipment(eq_name, eq_number)
+                if success:
+                    st.success(msg)
+                    st.rerun()
                 else:
-                    st.caption(f"Всего списаний: {len(consumptions)}")
-                    for c in consumptions:
-                        st.write(f"• {c[7]} → **{c[2]} {c[3]}** (списал {c[5]}, {c[6][:10]})")
+                    st.error(msg)
     
-    st.divider()
-    st.subheader("📋 Общая история списаний")
+    # --- Список техники ---
+    equipment_list = get_equipment()
+    if not equipment_list:
+        st.info("Пока нет техники. Добавьте первую!")
+    else:
+        for eq in equipment_list:
+            eq_id, eq_name, eq_number, eq_date = eq
+            with st.expander(f"🚜 {eq_name}" + (f" ({eq_number})" if eq_number else "")):
+                # --- Редактирование техники ---
+                with st.form(key=f"edit_eq_{eq_id}"):
+                    col1, col2, col3 = st.columns([3, 2, 1])
+                    with col1:
+                        new_name = st.text_input("Название", value=eq_name, key=f"eq_name_{eq_id}")
+                    with col2:
+                        new_number = st.text_input("Госномер", value=eq_number or "", key=f"eq_number_{eq_id}")
+                    with col3:
+                        st.write("")
+                        st.write("")
+                        if st.form_submit_button("💾 Сохранить"):
+                            update_equipment(eq_id, new_name, new_number)
+                            st.success("Данные обновлены")
+                            st.rerun()
+                
+                # --- Добавление агрегата ---
+                with st.form(key=f"add_unit_{eq_id}"):
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        unit_name = st.text_input("Название агрегата/оборудования", placeholder="Борона дисковая БДМ-100", key=f"unit_name_{eq_id}")
+                    with col2:
+                        st.write("")
+                        st.write("")
+                        if st.form_submit_button("➕ Добавить агрегат"):
+                            if unit_name:
+                                success, msg = add_unit(unit_name, eq_id)
+                                if success:
+                                    st.success(msg)
+                                    st.rerun()
+                                else:
+                                    st.error(msg)
+                            else:
+                                st.error("Введите название агрегата")
+                
+                # --- Список агрегатов ---
+                units = get_units(eq_id)
+                if units:
+                    st.caption(f"Закреплённые агрегаты ({len(units)})")
+                    for unit in units:
+                        unit_id, unit_name, _, _ = unit
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            st.write(f"🔧 {unit_name}")
+                        with col2:
+                            if st.button("🗑️", key=f"del_unit_{unit_id}"):
+                                delete_unit(unit_id)
+                                st.rerun()
+                else:
+                    st.caption("Нет закреплённых агрегатов")
+                
+                # --- Удаление техники ---
+                if st.button("🗑️ Удалить технику", key=f"del_eq_{eq_id}"):
+                    delete_equipment(eq_id)
+                    st.rerun()
+
+with tab4:
+    st.subheader("🚗 История списаний по объектам")
+    
+    # --- Общая история списаний ---
     all_consumption = get_all_consumption()
     if not all_consumption:
         st.info("Пока нет списаний")
@@ -768,7 +930,7 @@ with tab3:
         if len(all_consumption) > 50:
             st.caption("... показаны последние 50 записей")
 
-with tab4:
+with tab5:
     st.subheader("🏠 Управление помещениями")
     
     with st.form("add_room_form", clear_on_submit=True):
