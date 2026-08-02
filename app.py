@@ -704,7 +704,6 @@ with tab1:
                         if category:
                             st.caption(f"📂 {category}")
                     with col_dots:
-                        # Используем кнопку для переключения меню
                         menu_key = f"show_menu_{item_id}"
                         if st.button("⋮", key=f"menu_btn_{item_id}", help="Меню"):
                             st.session_state[menu_key] = not st.session_state.get(menu_key, False)
@@ -738,7 +737,7 @@ with tab1:
                         st.write(f"📝 {description}")
                     st.caption(f"🕒 Добавлено: {date_added}")
 
-                    # Меню (показывается, если включено)
+                    # --- МЕНЮ ---
                     menu_key = f"show_menu_{item_id}"
                     if st.session_state.get(menu_key, False):
                         with st.container(border=True):
@@ -747,10 +746,6 @@ with tab1:
                             with col1:
                                 if st.button("✏️ Редактировать", key=f"edit_{item_id}", use_container_width=True):
                                     st.session_state[f"edit_mode_{item_id}"] = True
-                                    st.session_state[menu_key] = False
-                                    st.rerun()
-                                if st.button("📷 Фото", key=f"photo_{item_id}", use_container_width=True):
-                                    st.session_state[f"photo_mode_{item_id}"] = True
                                     st.session_state[menu_key] = False
                                     st.rerun()
                             with col2:
@@ -771,16 +766,19 @@ with tab1:
                                     delete_item(item_id)
                                     st.rerun()
 
-                    # --- РЕДАКТИРОВАНИЕ ---
+                    # --- РЕДАКТИРОВАНИЕ (объединено с фото) ---
                     if st.session_state.get(f"edit_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**✏️ Редактирование {name}**")
+                            
                             new_name = st.text_input("Название", value=name, key=f"new_name_{item_id}")
                             new_category = st.text_input("Категория", value=category or "", key=f"new_cat_{item_id}")
                             new_description = st.text_area("Описание", value=description or "", key=f"new_desc_{item_id}")
                             new_application = st.text_area("Область применения", value=application or "", key=f"new_app_{item_id}")
+                            
                             room_names = get_room_names()
                             new_room = st.selectbox("Помещение", room_names, index=room_names.index(room) if room in room_names else 0, key=f"new_room_{item_id}")
+                            
                             equipment_list = get_equipment()
                             eq_names = ["Не выбрано"] + [eq[1] for eq in equipment_list]
                             current_eq = eq_names[0]
@@ -795,6 +793,7 @@ with tab1:
                                     if eq[1] == new_eq:
                                         new_eq_id = eq[0]
                                         break
+                            
                             unit_names = ["Не выбрано"]
                             if new_eq_id:
                                 units = get_units(new_eq_id)
@@ -814,28 +813,32 @@ with tab1:
                                     if u[1] == new_unit:
                                         new_unit_id = u[0]
                                         break
+                            
+                            st.divider()
+                            st.write("**📷 Фото:**")
+                            
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.caption("Фото вещи")
+                                if item_photo and os.path.exists(item_photo):
+                                    st.image(item_photo, use_container_width=True)
+                                new_item_pic = st.file_uploader("Заменить", type=["jpg", "jpeg", "png"], key=f"new_item_{item_id}", label_visibility="collapsed")
+                            with col2:
+                                st.caption("Фото места")
+                                if location_photo and os.path.exists(location_photo):
+                                    st.image(location_photo, use_container_width=True)
+                                new_location_pic = st.file_uploader("Заменить", type=["jpg", "jpeg", "png"], key=f"new_loc_{item_id}", label_visibility="collapsed")
+                            with col3:
+                                st.caption("Фото установки")
+                                if installed_photo and os.path.exists(installed_photo):
+                                    st.image(installed_photo, use_container_width=True)
+                                new_installed_pic = st.file_uploader("Заменить", type=["jpg", "jpeg", "png"], key=f"new_inst_{item_id}", label_visibility="collapsed")
+                            
                             col1, col2 = st.columns(2)
                             with col1:
                                 if st.button("✅ Сохранить", key=f"save_edit_{item_id}"):
                                     update_item(item_id, new_name, new_category, location, new_room, new_description, new_application, new_eq_id, new_unit_id)
-                                    st.session_state[f"edit_mode_{item_id}"] = False
-                                    st.success("✅ Изменения сохранены!")
-                                    st.rerun()
-                            with col2:
-                                if st.button("❌ Отмена", key=f"cancel_edit_{item_id}"):
-                                    st.session_state[f"edit_mode_{item_id}"] = False
-                                    st.rerun()
-
-                    # --- ИЗМЕНЕНИЕ ФОТО ---
-                    if st.session_state.get(f"photo_mode_{item_id}", False):
-                        with st.container(border=True):
-                            st.write(f"**📷 Изменение фото для {name}**")
-                            new_item_pic = st.file_uploader("📷 Фото вещи", type=["jpg", "jpeg", "png"], key=f"new_item_{item_id}")
-                            new_location_pic = st.file_uploader("📷 Фото места", type=["jpg", "jpeg", "png"], key=f"new_loc_{item_id}")
-                            new_installed_pic = st.file_uploader("📷 Фото установки", type=["jpg", "jpeg", "png"], key=f"new_inst_{item_id}")
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("✅ Сохранить фото", key=f"save_photo_{item_id}"):
+                                    
                                     item_path = item_photo or ""
                                     loc_path = location_photo or ""
                                     installed_path = installed_photo or ""
@@ -861,12 +864,13 @@ with tab1:
                                         with open(installed_path, "wb") as f:
                                             f.write(new_installed_pic.getbuffer())
                                     update_item_photos(item_id, item_path, loc_path, installed_path)
-                                    st.session_state[f"photo_mode_{item_id}"] = False
-                                    st.success("✅ Фото обновлены!")
+                                    
+                                    st.session_state[f"edit_mode_{item_id}"] = False
+                                    st.success("✅ Изменения сохранены!")
                                     st.rerun()
                             with col2:
-                                if st.button("❌ Отмена", key=f"cancel_photo_{item_id}"):
-                                    st.session_state[f"photo_mode_{item_id}"] = False
+                                if st.button("❌ Отмена", key=f"cancel_edit_{item_id}"):
+                                    st.session_state[f"edit_mode_{item_id}"] = False
                                     st.rerun()
 
                     # --- СПИСАНИЕ ---
