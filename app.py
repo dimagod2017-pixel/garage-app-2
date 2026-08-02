@@ -11,32 +11,56 @@ import requests
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from email.header import Header
+from email.header import Header  # ← ВАЖНО: для правильной кодировки заголовков
 
-# --- НАСТРОЙКА YANDEX ПОЧТЫ ---
-# ⚠️ ВАЖНО: Замените EMAIL_PASSWORD на реальный пароль приложения!
-EMAIL_SENDER = "Yvedomlenie-scald.sad@yandex.ru"
-EMAIL_PASSWORD = "ваш_реальный_пароль_здесь"  # ← ЗАМЕНИТЕ НА СВОЙ ПАРОЛЬ
-EMAIL_RECIPIENT = "Yvedomlenie-scald.sad@yandex.ru"
+# --- БЕЗОПАСНАЯ НАСТРОЙКА YANDEX ПОЧТЫ ---
+def get_email_config():
+    """Безопасное получение настроек почты"""
+    try:
+        # Пробуем получить из secrets (Streamlit Cloud)
+        return {
+            "sender": st.secrets["email_sender"],
+            "password": st.secrets["email_password"],
+            "recipient": st.secrets["email_recipient"]
+        }
+    except:
+        # Если secrets нет, пробуем из переменных окружения (локально)
+        import os
+        return {
+            "sender": os.getenv("EMAIL_SENDER", "Yvedomlenie-scald.sad@yandex.ru"),
+            "password": os.getenv("EMAIL_PASSWORD", ""),
+            "recipient": os.getenv("EMAIL_RECIPIENT", "Yvedomlenie-scald.sad@yandex.ru")
+        }
+
+# Получаем настройки
+EMAIL_CONFIG = get_email_config()
+EMAIL_SENDER = EMAIL_CONFIG["sender"]
+EMAIL_PASSWORD = EMAIL_CONFIG["password"]
+EMAIL_RECIPIENT = EMAIL_CONFIG["recipient"]
 SMTP_SERVER = "smtp.yandex.ru"
 SMTP_PORT = 587
 
-# --- ФУНКЦИИ ОТПРАВКИ EMAIL ---
 def send_email(subject, body):
     """
     Отправка email с поддержкой кириллицы
     """
     try:
+        # Проверяем наличие пароля
+        if not EMAIL_PASSWORD:
+            return False, "❌ Пароль не настроен! Добавьте его в Secrets или переменные окружения"
+        
+        # Создаем сообщение
         msg = MIMEMultipart()
         
-        # Правильная кодировка заголовков для кириллицы
+        # ПРАВИЛЬНАЯ кодировка заголовков для кириллицы
         msg['From'] = EMAIL_SENDER
         msg['To'] = EMAIL_RECIPIENT
-        msg['Subject'] = Header(subject, 'utf-8').encode()
+        msg['Subject'] = Header(subject, 'utf-8').encode()  # ← КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ!
         
         # Тело письма с явной кодировкой UTF-8
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))  # ← КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ!
         
+        # Отправка
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         server.starttls()
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
@@ -768,6 +792,12 @@ with st.sidebar:
     
     # --- УВЕДОМЛЕНИЯ ---
     st.subheader("📧 Уведомления")
+    
+    # Показываем статус почты
+    if EMAIL_PASSWORD:
+        st.success("✅ Почта настроена")
+    else:
+        st.error("⚠️ Почта не настроена! Добавьте пароль в Secrets")
     
     # Тест email
     if st.button("📧 Тестовое письмо", use_container_width=True):
