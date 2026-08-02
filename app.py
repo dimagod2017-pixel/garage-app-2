@@ -42,8 +42,62 @@ st.markdown(f"""
         .main-header h1 {{ margin: 0; font-size: 2.5rem; font-weight: 700; }}
         .main-header p {{ margin: 0; font-size: 1.2rem; opacity: 0.95; }}
         
-        /* --- АДАПТИВНЫЕ КНОПКИ-КАРТОЧКИ --- */
-        .stat-btn {{
+        /* --- АДАПТИВНЫЕ КНОПКИ В КАРТОЧКАХ --- */
+        .action-btn {{
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background-color: {SECONDARY_COLOR};
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.6rem 0.8rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
+            width: 100%;
+            white-space: nowrap;
+            min-height: 40px;
+        }}
+        .action-btn:hover {{
+            background-color: {PRIMARY_COLOR};
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(46, 125, 50, 0.4);
+        }}
+        .action-btn-danger {{
+            background-color: #f44336;
+        }}
+        .action-btn-danger:hover {{
+            background-color: #c62828;
+        }}
+        .action-btn-success {{
+            background-color: {SECONDARY_COLOR};
+        }}
+        
+        /* --- Адаптив для мобильных устройств --- */
+        @media (max-width: 768px) {{
+            .action-btn {{
+                padding: 0.3rem 0.4rem;
+                font-size: 0.6rem;
+                min-height: 30px;
+                border-radius: 6px;
+            }}
+        }}
+        
+        /* --- Адаптив для компьютера (увеличение) --- */
+        @media (min-width: 769px) {{
+            .action-btn {{
+                padding: 0.7rem 1rem;
+                font-size: 0.85rem;
+                min-height: 44px;
+                border-radius: 10px;
+            }}
+        }}
+        
+        /* --- Кнопки статистики --- */
+        .stat-btn-wrap {{
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -51,78 +105,43 @@ st.markdown(f"""
             background: white;
             border: 2px solid #e8f5e9;
             border-radius: 14px;
-            padding: 1rem 0.5rem;
+            padding: 0.8rem 0.3rem;
             text-align: center;
-            color: #1e3a1e;
             transition: all 0.3s;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            cursor: pointer;
-            min-height: 100px;
+            min-height: 90px;
             width: 100%;
+            cursor: pointer;
         }}
-        .stat-btn:hover {{
+        .stat-btn-wrap:hover {{
             transform: translateY(-5px);
             box-shadow: 0 8px 25px rgba(46, 125, 50, 0.2);
             border-color: {SECONDARY_COLOR};
         }}
-        .stat-btn:active {{
+        .stat-btn-wrap:active {{
             transform: scale(0.95);
         }}
         .stat-number {{
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: bold;
             color: {PRIMARY_COLOR};
             line-height: 1.2;
         }}
         .stat-label {{
             color: #555;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: 500;
-            margin-top: 4px;
+            margin-top: 2px;
         }}
         .stat-icon {{
-            font-size: 1.8rem;
+            font-size: 1.6rem;
             margin-bottom: 2px;
         }}
-        
-        /* --- Адаптив для телефона --- */
         @media (max-width: 768px) {{
-            .stat-number {{ font-size: 1.8rem; }}
-            .stat-label {{ font-size: 0.7rem; }}
-            .stat-icon {{ font-size: 1.4rem; }}
-            .stat-btn {{ min-height: 70px; padding: 0.5rem 0.2rem; }}
-        }}
-        
-        /* --- Кнопки в карточках вещей --- */
-        .action-btn {{
-            background-color: {SECONDARY_COLOR} !important;
-            color: white !important;
-            border-radius: 8px !important;
-            border: none !important;
-            padding: 0.4rem 0.6rem !important;
-            font-size: 0.75rem !important;
-            font-weight: 600 !important;
-            box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
-            transition: all 0.3s;
-            white-space: nowrap;
-        }}
-        .action-btn:hover {{
-            background-color: {PRIMARY_COLOR} !important;
-            transform: translateY(-2px);
-        }}
-        .action-btn-danger {{
-            background-color: #f44336 !important;
-        }}
-        .action-btn-danger:hover {{
-            background-color: #c62828 !important;
-        }}
-        
-        /* --- Адаптив для телефона --- */
-        @media (max-width: 768px) {{
-            .action-btn {{
-                font-size: 0.6rem !important;
-                padding: 0.2rem 0.3rem !important;
-            }}
+            .stat-number {{ font-size: 1.6rem; }}
+            .stat-label {{ font-size: 0.65rem; }}
+            .stat-icon {{ font-size: 1.2rem; }}
+            .stat-btn-wrap {{ min-height: 65px; padding: 0.4rem 0.2rem; }}
         }}
         
         div[data-testid="stSidebar"] {{
@@ -144,20 +163,6 @@ st.markdown(f"""
             padding: 1rem;
             border-radius: 10px;
             margin-bottom: 1rem;
-        }}
-        
-        .clickable-card {{
-            background: white;
-            padding: 0.8rem 1.2rem;
-            border-radius: 10px;
-            margin-bottom: 0.5rem;
-            border: 2px solid #e8f5e9;
-            cursor: pointer;
-            transition: all 0.2s;
-        }}
-        .clickable-card:hover {{
-            border-color: {SECONDARY_COLOR};
-            box-shadow: 0 4px 15px rgba(46, 125, 50, 0.15);
         }}
     </style>
 """, unsafe_allow_html=True)
@@ -234,29 +239,20 @@ if st.session_state.dark_mode:
             .main-header {
                 background: linear-gradient(135deg, #1B5E20, #2E7D32) !important;
             }
-            .stat-btn {
+            .stat-btn-wrap {
                 background: #1a2a1a !important;
                 border-color: #2e5a2e !important;
                 color: #d4e8d4 !important;
             }
-            .stat-btn:hover {
+            .stat-btn-wrap:hover {
                 border-color: #4CAF50 !important;
             }
             .stat-number { color: #4CAF50 !important; }
             .stat-label { color: #9acd9a !important; }
-            .clickable-card {
-                background: #1a2a1a !important;
-                border-color: #2e5a2e !important;
-            }
-            .clickable-card:hover {
-                border-color: #4CAF50 !important;
-            }
-            div[data-testid="stDialog"] { background-color: #1a2a1a !important; }
-            div[data-testid="stDialog"] * { color: #d4e8d4 !important; }
-            div[data-testid="stDialog"] input, div[data-testid="stDialog"] textarea {
-                background-color: #0d1a0d !important;
-                color: #d4e8d4 !important;
-            }
+            .action-btn { background-color: #4CAF50 !important; }
+            .action-btn:hover { background-color: #2E7D32 !important; }
+            .action-btn-danger { background-color: #f44336 !important; }
+            .action-btn-danger:hover { background-color: #c62828 !important; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -644,62 +640,9 @@ def export_to_excel():
 
 init_db()
 
-# --- СТАТИСТИКА (АДАПТИВНЫЕ КНОПКИ) ---
+# --- СТАТИСТИКА ---
 total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list, total_consumption = get_statistics()
 
-# Стиль для адаптивных кнопок
-st.markdown("""
-    <style>
-        .stat-btn-wrap {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: white;
-            border: 2px solid #e8f5e9;
-            border-radius: 14px;
-            padding: 0.8rem 0.3rem;
-            text-align: center;
-            transition: all 0.3s;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            min-height: 90px;
-            width: 100%;
-            cursor: pointer;
-        }
-        .stat-btn-wrap:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(46, 125, 50, 0.2);
-            border-color: #4CAF50;
-        }
-        .stat-btn-wrap:active {
-            transform: scale(0.95);
-        }
-        .stat-number {
-            font-size: 2.2rem;
-            font-weight: bold;
-            color: #2E7D32;
-            line-height: 1.2;
-        }
-        .stat-label {
-            color: #555;
-            font-size: 0.85rem;
-            font-weight: 500;
-            margin-top: 2px;
-        }
-        .stat-icon {
-            font-size: 1.6rem;
-            margin-bottom: 2px;
-        }
-        @media (max-width: 768px) {
-            .stat-number { font-size: 1.6rem; }
-            .stat-label { font-size: 0.65rem; }
-            .stat-icon { font-size: 1.2rem; }
-            .stat-btn-wrap { min-height: 65px; padding: 0.4rem 0.2rem; }
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# Создаём 6 колонок для статистики
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 with col1:
@@ -918,7 +861,6 @@ with tab1:
         st.write("")
         search_clicked = st.button("🔍 Найти", use_container_width=True)
     
-    # Если нажали на "Пополнить"
     if show_low_stock:
         st.info("📋 **Вещи, которые нужно пополнить:**")
         low_items = get_low_stock_items()
@@ -1030,30 +972,60 @@ with tab1:
                         st.write(f"📝 {description}")
                     st.caption(f"🕒 Добавлено: {date_added}")
                     
-                    # --- АДАПТИВНЫЕ КНОПКИ В КАРТОЧКАХ ---
+                    # --- АДАПТИВНЫЕ КНОПКИ (увеличенные для компьютера) ---
                     col_btn1, col_btn2, col_btn3, col_btn4, col_btn5, col_btn6 = st.columns(6)
                     with col_btn1:
-                        if st.button("✏️ Кол-во", key=f"edit_{item_id}", use_container_width=True):
+                        if st.button(
+                            "✏️\nКол-во", 
+                            key=f"edit_{item_id}", 
+                            use_container_width=True,
+                            help="Изменить количество"
+                        ):
                             st.session_state[f"edit_mode_{item_id}"] = True
                             st.rerun()
                     with col_btn2:
-                        if st.button("⚙️ Порог", key=f"thr_{item_id}", use_container_width=True):
+                        if st.button(
+                            "⚙️\nПорог", 
+                            key=f"thr_{item_id}", 
+                            use_container_width=True,
+                            help="Настроить порог уведомления"
+                        ):
                             st.session_state[f"thr_mode_{item_id}"] = True
                             st.rerun()
                     with col_btn3:
-                        if st.button("📤 Спис.", key=f"cons_{item_id}", use_container_width=True):
+                        if st.button(
+                            "📤\nСписать", 
+                            key=f"cons_{item_id}", 
+                            use_container_width=True,
+                            help="Списать вещь на объект"
+                        ):
                             st.session_state[f"cons_mode_{item_id}"] = True
                             st.rerun()
                     with col_btn4:
-                        if st.button("📷 QR", key=f"qr_{item_id}", use_container_width=True):
+                        if st.button(
+                            "📷\nQR", 
+                            key=f"qr_{item_id}", 
+                            use_container_width=True,
+                            help="Сгенерировать QR-код"
+                        ):
                             st.session_state[f"qr_mode_{item_id}"] = True
                             st.rerun()
                     with col_btn5:
-                        if st.button("🚚 Пер.", key=f"move_{item_id}", use_container_width=True):
+                        if st.button(
+                            "🚚\nПер.", 
+                            key=f"move_{item_id}", 
+                            use_container_width=True,
+                            help="Переместить в другое помещение"
+                        ):
                             st.session_state[f"move_mode_{item_id}"] = True
                             st.rerun()
                     with col_btn6:
-                        if st.button("🗑️", key=f"del_{item_id}", use_container_width=True):
+                        if st.button(
+                            "🗑️\nУдалить", 
+                            key=f"del_{item_id}", 
+                            use_container_width=True,
+                            help="Удалить вещь"
+                        ):
                             delete_item(item_id)
                             st.rerun()
                     
