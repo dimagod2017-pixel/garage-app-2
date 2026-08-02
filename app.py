@@ -42,7 +42,7 @@ st.markdown(f"""
         .main-header h1 {{ margin: 0; font-size: 2.5rem; font-weight: 700; }}
         .main-header p {{ margin: 0; font-size: 1.2rem; opacity: 0.95; }}
         
-        /* --- ВЕРТИКАЛЬНЫЕ КНОПКИ С ИКОНКАМИ --- */
+        /* --- ВЕРТИКАЛЬНЫЕ КНОПКИ С ИКОНКАМИ ПО ЦЕНТРУ --- */
         @media (min-width: 769px) {{
             .vertical-btn-wrap {{
                 display: flex !important;
@@ -60,7 +60,10 @@ st.markdown(f"""
                 min-height: 44px !important;
                 border-radius: 8px !important;
                 line-height: 1 !important;
-                font-weight: 400 !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                text-align: center !important;
             }}
         }}
         @media (max-width: 768px) {{
@@ -80,6 +83,10 @@ st.markdown(f"""
                 min-height: 32px !important;
                 border-radius: 5px !important;
                 line-height: 1 !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                text-align: center !important;
             }}
         }}
         
@@ -990,7 +997,7 @@ with tab1:
                         st.write(f"📝 {description}")
                     st.caption(f"🕒 Добавлено: {date_added}")
                     
-                    # --- ВЕРТИКАЛЬНЫЕ ЦВЕТНЫЕ КНОПКИ С ИКОНКАМИ ---
+                    # --- ВЕРТИКАЛЬНЫЕ ЦВЕТНЫЕ КНОПКИ С ИКОНКАМИ ПО ЦЕНТРУ ---
                     st.markdown("""
                         <style>
                             @media (min-width: 769px) {
@@ -1010,6 +1017,10 @@ with tab1:
                                     min-height: 44px !important;
                                     border-radius: 8px !important;
                                     line-height: 1 !important;
+                                    display: flex !important;
+                                    justify-content: center !important;
+                                    align-items: center !important;
+                                    text-align: center !important;
                                 }
                             }
                             @media (max-width: 768px) {
@@ -1029,6 +1040,10 @@ with tab1:
                                     min-height: 32px !important;
                                     border-radius: 5px !important;
                                     line-height: 1 !important;
+                                    display: flex !important;
+                                    justify-content: center !important;
+                                    align-items: center !important;
+                                    text-align: center !important;
                                 }
                             }
                             .btn-edit .stButton button { background-color: #4CAF50 !important; color: white !important; }
