@@ -432,7 +432,6 @@ if low_stock:
 
 # --- БОКОВАЯ ПАНЕЛЬ ---
 with st.sidebar:
-    # --- ДОБАВЛЕНИЕ ВЕЩИ ---
     st.header("➕ Добавить вещь")
     
     room_names = get_room_names()
@@ -451,7 +450,6 @@ with st.sidebar:
         location = st.text_input("Место внутри помещения*")
         description = st.text_area("Описание")
         
-        # --- Привязка к технике ---
         st.subheader("🔧 Привязка к технике")
         equipment_list = get_equipment()
         if equipment_list:
@@ -517,7 +515,6 @@ with st.sidebar:
     
     st.divider()
     
-    # --- ИМПОРТ/ЭКСПОРТ ---
     st.header("📥 Импорт Excel")
     uploaded_file = st.file_uploader("Выберите Excel-файл", type=["xlsx", "xls"])
     if uploaded_file:
@@ -562,25 +559,19 @@ with tab1:
         cols = st.columns(3)
         for idx, item in enumerate(items):
             with cols[idx % 3]:
-                # --- УНИВЕРСАЛЬНАЯ РАСПАКОВКА ---
-                # item может содержать 16 полей (с JOIN) или 14 полей (без JOIN)
                 if len(item) >= 16:
-                    # С JOIN (из search_items)
                     item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo, equipment_id, unit_id = item[:16]
                 elif len(item) >= 14:
-                    # Без JOIN (из get_all_items)
                     item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo = item[:14]
                     equipment_id = None
                     unit_id = None
                 else:
-                    # Ещё более старая версия
                     item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item[:12]
                     application = ""
                     installed_photo = ""
                     equipment_id = None
                     unit_id = None
                 
-                # Получаем названия техники и агрегата
                 eq_name = ""
                 unit_name = ""
                 if equipment_id:
@@ -668,7 +659,6 @@ with tab1:
                             delete_item(item_id)
                             st.rerun()
                     
-                    # --- Диалоги ---
                     if st.session_state.get(f"edit_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Изменение количества для {name}**")
@@ -699,6 +689,7 @@ with tab1:
                                     st.session_state[f"thr_mode_{item_id}"] = False
                                     st.rerun()
                     
+                    # --- ОБНОВЛЁННОЕ СПИСАНИЕ С ПОИСКОМ ТЕХНИКИ ---
                     if st.session_state.get(f"cons_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Списание {name}**")
@@ -708,7 +699,23 @@ with tab1:
                             with col1:
                                 consume_qty = st.number_input("Количество", min_value=0.0, step=0.5, max_value=float(qty), value=min(1.0, float(qty)), key=f"cons_qty_{item_id}")
                             with col2:
-                                object_name = st.text_input("Объект списания*", key=f"cons_obj_{item_id}")
+                                # --- ИНТЕРАКТИВНЫЙ ПОИСК ТЕХНИКИ ---
+                                equipment_list = get_equipment()
+                                eq_names = ["Другое"] + [eq[1] + (f" ({eq[2]})" if eq[2] else "") for eq in equipment_list]
+                                
+                                search_equipment = st.text_input("🔍 Поиск техники", placeholder="Начните вводить название...", key=f"search_eq_{item_id}")
+                                
+                                filtered_eq = [eq for eq in eq_names if search_equipment.lower() in eq.lower()] if search_equipment else eq_names
+                                
+                                if filtered_eq:
+                                    selected_eq = st.selectbox("Выберите технику", filtered_eq, key=f"sel_eq_{item_id}")
+                                    if selected_eq == "Другое":
+                                        object_name = st.text_input("Введите название объекта*", key=f"custom_obj_{item_id}")
+                                    else:
+                                        object_name = selected_eq
+                                else:
+                                    st.warning("Техника не найдена. Добавьте её в разделе '🚜 Парк'")
+                                    object_name = st.text_input("Введите название объекта*", key=f"custom_obj_{item_id}")
                             
                             user = st.text_input("Кто списывает", value="Пользователь", key=f"cons_user_{item_id}")
                             note = st.text_area("Примечание", key=f"cons_note_{item_id}")
@@ -761,7 +768,6 @@ with tab2:
     else:
         data = []
         for item in all_items:
-            # Универсальная распаковка для tab2
             if len(item) >= 14:
                 item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo = item[:14]
                 equipment_id = None
