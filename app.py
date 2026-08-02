@@ -29,23 +29,19 @@ def login():
         else:
             st.sidebar.error("❌ Неверный пароль!")
 
-# Если пользователь не авторизован — показываем вход
 if st.session_state.user is None:
     login()
     st.stop()
 
-# --- ПОСЛЕ ВХОДА ---
 user = st.session_state.user
 role = user["role"]
 user_name = user["name"]
 
-# --- НАСТРОЙКА СТРАНИЦЫ ---
 st.set_page_config(page_title="Мой Склад", page_icon="🌿", layout="wide")
 
 st.title("🌿 Мой Склад")
 st.caption(f"👋 Добро пожаловать, {user_name}! {('🔑 Администратор' if role == 'admin' else '🔧 Сотрудник')}")
 
-# --- ВЫХОД ---
 if st.sidebar.button("🚪 Выйти"):
     st.session_state.user = None
     st.rerun()
@@ -60,6 +56,50 @@ st.markdown("""
     <link rel="apple-touch-icon" href="icon-192.png">
     <meta name="theme-color" content="#2E7D32">
 """, unsafe_allow_html=True)
+
+# --- СКРИПТ ДЛЯ PUSH-УВЕДОМЛЕНИЙ ---
+st.markdown("""
+    <script>
+        function sendPushNotification(title, body) {
+            if (!("Notification" in window)) {
+                console.log("Этот браузер не поддерживает уведомления");
+                return;
+            }
+            if (Notification.permission === "granted") {
+                new Notification(title, {
+                    body: body,
+                    icon: "/icon-192.png",
+                    vibrate: [200, 100, 200]
+                });
+            } else if (Notification.permission !== "denied") {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        new Notification(title, {
+                            body: body,
+                            icon: "/icon-192.png",
+                            vibrate: [200, 100, 200]
+                        });
+                    }
+                });
+            }
+        }
+        function showNotification(title, body) {
+            sendPushNotification(title, body);
+        }
+        if ("Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+    </script>
+""", unsafe_allow_html=True)
+
+def send_browser_notification(title, body):
+    st.markdown(f"""
+        <script>
+            if (typeof showNotification === 'function') {{
+                showNotification('{title}', '{body}');
+            }}
+        </script>
+    """, unsafe_allow_html=True)
 
 # --- ТЁМНАЯ ТЕМА ---
 if "dark_mode" not in st.session_state:
@@ -172,7 +212,6 @@ def init_db():
                   equipment_id INTEGER,
                   date_added TEXT,
                   UNIQUE(name, equipment_id))''')
-    # --- ДОБАВЛЯЕМ ПОЛЕ "status" В ТАБЛИЦУ consumption ---
     c.execute('''CREATE TABLE IF NOT EXISTS consumption
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   item_id TEXT,
@@ -181,7 +220,8 @@ def init_db():
                   object_name TEXT,
                   user TEXT,
                   date TEXT,
-                  status TEXT DEFAULT 'pending')''')
+                  status TEXT DEFAULT 'pending',
+                  photo TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS rooms
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT UNIQUE,
@@ -200,6 +240,8 @@ def init_db():
     cons_columns = [col[1] for col in c.fetchall()]
     if 'status' not in cons_columns:
         c.execute("ALTER TABLE consumption ADD COLUMN status TEXT DEFAULT 'pending'")
+    if 'photo' not in cons_columns:
+        c.execute("ALTER TABLE consumption ADD COLUMN photo TEXT")
     c.execute("PRAGMA table_info(equipment)")
     eq_columns = [col[1] for col in c.fetchall()]
     if 'number' not in eq_columns:
@@ -314,7 +356,7 @@ def get_units(equipment_id=None):
     conn.close()
     return results
 
-def consume_item(item_id, quantity, object_name, user="Пользователь", note="", status="pending"):
+def consume_item(item_id, quantity, object_name, user="Пользователь", note="", photo_path="", status="pending"):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute("SELECT quantity, unit FROM items WHERE id = ?", (item_id,))
@@ -328,8 +370,8 @@ def consume_item(item_id, quantity, object_name, user="Пользователь"
         return False, f"Недостаточно! Есть {current_q} {unit}"
     new_q = current_q - quantity
     c.execute("UPDATE items SET quantity = ? WHERE id = ?", (new_q, item_id))
-    c.execute("INSERT INTO consumption (item_id, quantity, unit, object_name, user, date, status) VALUES (?,?,?,?,?,?,?)",
-              (item_id, quantity, unit, object_name, user, datetime.now().strftime("%Y-%m-%d %H:%M"), status))
+    c.execute("INSERT INTO consumption (item_id, quantity, unit, object_name, user, date, status, photo) VALUES (?,?,?,?,?,?,?,?)",
+              (item_id, quantity, unit, object_name, user, datetime.now().strftime("%Y-%m-%d %H:%M"), status, photo_path))
     conn.commit()
     conn.close()
     return True, f"Списано {quantity} {unit} на '{object_name}'"
@@ -337,13 +379,14 @@ def consume_item(item_id, quantity, object_name, user="Пользователь"
 def delete_consumption_record(record_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    c.execute("SELECT item_id, quantity, status FROM consumption WHERE id = ?", (record_id,))
+    c.execute("SELECT item_id, quantity, status, photo FROM consumption WHERE id = ?", (record_id,))
     result = c.fetchone()
     if result:
-        item_id, quantity, status = result
-        # Если запись была подтверждена — возвращаем количество
+        item_id, quantity, status, photo = result
         if status == "confirmed":
             c.execute("UPDATE items SET quantity = quantity + ? WHERE id = ?", (quantity, item_id))
+        if photo and os.path.exists(photo):
+            os.remove(photo)
     c.execute("DELETE FROM consumption WHERE id = ?", (record_id,))
     conn.commit()
     conn.close()
@@ -635,7 +678,6 @@ with st.sidebar:
     st.caption(f"Роль: {'🔑 Администратор' if role == 'admin' else '🔧 Сотрудник'}")
     st.divider()
     
-    # --- ТОЛЬКО ДЛЯ АДМИНА: Добавление вещи ---
     if role == "admin":
         st.header("➕ Добавить вещь")
         room_names = get_room_names()
@@ -906,6 +948,10 @@ with tab1:
                                 else:
                                     st.warning("Ничего не найдено")
                                     object_name = st.text_input("Введите название*", key=f"take_custom_{item_id}")
+                            
+                            # --- ФОТО ДЛЯ СОТРУДНИКА ---
+                            take_photo = st.file_uploader("📷 Фото (причина замены)", type=["jpg", "jpeg", "png"], key=f"take_photo_{item_id}")
+                            
                             note = st.text_area("Примечание", key=f"take_note_{item_id}")
                             col1, col2 = st.columns(2)
                             with col1:
@@ -915,8 +961,21 @@ with tab1:
                                     elif not object_name:
                                         st.error("Укажите объект")
                                     else:
-                                        success, message = consume_item(item_id, take_qty, object_name, user_name, note, "pending")
+                                        # Сохраняем фото
+                                        photo_path = ""
+                                        if take_photo:
+                                            ext = take_photo.name.split('.')[-1]
+                                            photo_path = f"images/cons_{uuid.uuid4()}.{ext}"
+                                            with open(photo_path, "wb") as f:
+                                                f.write(take_photo.getbuffer())
+                                        
+                                        success, message = consume_item(item_id, take_qty, object_name, user_name, note, photo_path, "pending")
                                         if success:
+                                            # Отправляем push-уведомление администратору
+                                            send_browser_notification(
+                                                "📤 Новая заявка на списание!",
+                                                f"{user_name} запросил {take_qty} {unit} '{name}' на {object_name}"
+                                            )
                                             st.success(f"✅ Заявка отправлена! Ожидает подтверждения администратора.")
                                             st.session_state[f"take_mode_{item_id}"] = False
                                             st.rerun()
@@ -1065,7 +1124,7 @@ with tab1:
                                         elif not object_name:
                                             st.error("Укажите объект")
                                         else:
-                                            success, message = consume_item(item_id, consume_qty, object_name, user, note, "confirmed")
+                                            success, message = consume_item(item_id, consume_qty, object_name, user, note, "", "confirmed")
                                             if success:
                                                 st.success(message)
                                                 st.session_state[f"cons_mode_{item_id}"] = False
@@ -1177,9 +1236,11 @@ with tab3:
         consumptions = get_consumption_by_equipment(eq_name)
         if consumptions:
             for c in consumptions:
-                record_id, item_id, qty, unit, obj_name, user, date, item_name, status = c
+                record_id, item_id, qty, unit, obj_name, user, date, item_name, status, photo = c
                 status_text = "✅" if status == "confirmed" else "⏳"
                 st.write(f"{status_text} **{item_name}** → {qty} {unit} (списал {user}, {date})")
+                if photo and os.path.exists(photo):
+                    st.image(photo, caption="Фото", use_container_width=True)
         else:
             st.info(f"🌱 Нет списаний на '{eq_name}'")
         if st.button("⬅️ Назад"):
@@ -1234,27 +1295,26 @@ with tab4:
     if not all_consumption:
         st.info("🌱 Пока нет списаний")
     else:
-        # Для админа показываем все записи, для сотрудника — только свои
         if role == "employee":
             all_consumption = [c for c in all_consumption if c[5] == user_name]
         
         st.caption(f"Всего записей: {len(all_consumption)}")
         
-        # Фильтр по объекту
         objects = list(set([c[4] for c in all_consumption]))
         filter_obj = st.selectbox("🔍 Фильтр по объекту", ["Все"] + objects)
         filtered = [c for c in all_consumption if filter_obj == "Все" or c[4] == filter_obj]
         
-        # Для админа показываем заявки на подтверждение
         if role == "admin":
             pending = [c for c in all_consumption if c[8] == "pending"]
             if pending:
                 st.warning(f"⏳ **{len(pending)} заявок ожидают подтверждения!**")
                 for c in pending:
-                    record_id, item_id, qty, unit, obj_name, user, date, item_name, status = c
-                    col1, col2, col3 = st.columns([6, 1, 1])
+                    record_id, item_id, qty, unit, obj_name, user, date, item_name, status, photo = c
+                    col1, col2, col3, col4 = st.columns([5, 1, 1, 1])
                     with col1:
                         st.write(f"⏳ **{item_name}** → {qty} {unit} на **{obj_name}** (запросил {user}, {date})")
+                        if photo and os.path.exists(photo):
+                            st.image(photo, caption="Фото причины", use_container_width=True)
                     with col2:
                         if st.button("✅ Подтвердить", key=f"approve_{record_id}"):
                             approve_consumption(record_id)
@@ -1265,21 +1325,32 @@ with tab4:
                             delete_consumption_record(record_id)
                             st.success("❌ Заявка отклонена!")
                             st.rerun()
+                    with col4:
+                        if st.button("📷", key=f"view_photo_{record_id}"):
+                            if photo and os.path.exists(photo):
+                                st.image(photo, caption="Фото", use_container_width=True)
+                            else:
+                                st.info("Нет фото")
                 st.divider()
         
-        # Показываем все записи
         for c in filtered:
-            record_id, item_id, qty, unit, obj_name, user, date, item_name, status = c
+            record_id, item_id, qty, unit, obj_name, user, date, item_name, status, photo = c
             status_text = "✅" if status == "confirmed" else "⏳"
-            col1, col2 = st.columns([8, 1])
+            col1, col2, col3 = st.columns([7, 1, 1])
             with col1:
                 st.write(f"{status_text} **{item_name}** → {qty} {unit} на **{obj_name}** (списал {user}, {date})")
+                if photo and os.path.exists(photo):
+                    st.image(photo, caption="Фото", use_container_width=True)
             with col2:
                 if role == "admin":
                     if st.button("🗑️", key=f"del_cons_{record_id}", help="Удалить запись"):
                         delete_consumption_record(record_id)
                         st.success(f"✅ Запись удалена!")
                         st.rerun()
+            with col3:
+                if role == "admin" and photo and os.path.exists(photo):
+                    if st.button("📷", key=f"view_photo2_{record_id}"):
+                        st.image(photo, caption="Фото", use_container_width=True)
         st.caption("🗑️ — удалить запись")
 
 with tab5:
