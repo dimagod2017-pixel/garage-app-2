@@ -8,6 +8,7 @@ import pandas as pd
 from io import BytesIO
 import qrcode
 
+# --- ПАРОЛЬ ---
 PASSWORD = "12345"
 
 user_pass = st.sidebar.text_input("🔑 Введите пароль:", type="password")
@@ -15,10 +16,198 @@ if user_pass != PASSWORD:
     st.sidebar.warning("⚠️ Неверный пароль!")
     st.stop()
 
-st.set_page_config(page_title="Мой Склад", page_icon="📦", layout="wide")
-st.title("📦 Мой Склад")
+# --- НАСТРОЙКА СТРАНИЦЫ (зелёная тема) ---
+st.set_page_config(page_title="Мой Склад", page_icon="🌿", layout="wide")
+
+# --- ЗЕЛЁНАЯ ЦВЕТОВАЯ СХЕМА ---
+PRIMARY_COLOR = "#2E7D32"      # Тёмно-зелёный
+SECONDARY_COLOR = "#4CAF50"    # Светло-зелёный
+ACCENT_COLOR = "#66BB6A"       # Акцентный зелёный
+LIGHT_GREEN = "#E8F5E9"        # Очень светлый зелёный
+DARK_GREEN = "#1B5E20"         # Очень тёмный зелёный
+
+st.title("🌿 Мой Склад")
 st.caption("Добро пожаловать! Храните и находите вещи легко.")
 
+# --- КАСТОМНЫЙ CSS (зелёная тема) ---
+st.markdown(f"""
+    <style>
+        /* Основной фон */
+        .stApp {{
+            background-color: #f0f7f0;
+        }}
+        
+        /* Заголовок */
+        .main-header {{
+            background: linear-gradient(135deg, {PRIMARY_COLOR}, {SECONDARY_COLOR});
+            padding: 1.5rem;
+            border-radius: 15px;
+            color: white;
+            text-align: center;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(46, 125, 50, 0.3);
+        }}
+        .main-header h1 {{
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }}
+        .main-header p {{
+            margin: 0;
+            font-size: 1.2rem;
+            opacity: 0.95;
+            font-weight: 300;
+        }}
+        
+        /* Карточки статистики */
+        .stat-card {{
+            background: white;
+            padding: 1.2rem;
+            border-radius: 12px;
+            text-align: center;
+            border-left: 5px solid {SECONDARY_COLOR};
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: transform 0.2s;
+        }}
+        .stat-card:hover {{
+            transform: translateY(-3px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.12);
+        }}
+        .stat-number {{
+            font-size: 2.2rem;
+            font-weight: bold;
+            color: {PRIMARY_COLOR};
+        }}
+        .stat-label {{
+            color: #555;
+            font-size: 0.9rem;
+        }}
+        
+        /* Карточки вещей */
+        .item-card {{
+            background: white;
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            transition: all 0.2s;
+        }}
+        .item-card:hover {{
+            box-shadow: 0 4px 20px rgba(46, 125, 50, 0.15);
+            border-color: {SECONDARY_COLOR};
+        }}
+        
+        /* Кнопки */
+        .stButton > button {{
+            background-color: {SECONDARY_COLOR} !important;
+            color: white !important;
+            border-radius: 8px !important;
+            border: none !important;
+            padding: 0.5rem 1.2rem !important;
+            font-weight: 600 !important;
+            transition: all 0.3s !important;
+            box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
+        }}
+        .stButton > button:hover {{
+            background-color: {PRIMARY_COLOR} !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(46, 125, 50, 0.4);
+        }}
+        
+        /* Боковая панель */
+        div[data-testid="stSidebar"] {{
+            background: linear-gradient(180deg, #f5faf5, #e8f5e9);
+            border-right: 2px solid {SECONDARY_COLOR};
+        }}
+        div[data-testid="stSidebar"] * {{
+            color: #1e3a1e !important;
+        }}
+        div[data-testid="stSidebar"] .stTextInput input {{
+            background-color: white !important;
+            border: 2px solid {LIGHT_GREEN} !important;
+            border-radius: 8px !important;
+        }}
+        div[data-testid="stSidebar"] .stTextInput input:focus {{
+            border-color: {SECONDARY_COLOR} !important;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2) !important;
+        }}
+        
+        /* Вкладки */
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 8px;
+        }}
+        .stTabs [data-baseweb="tab"] {{
+            background-color: transparent;
+            border-radius: 8px 8px 0 0;
+            padding: 0.5rem 1rem;
+            font-weight: 500;
+        }}
+        .stTabs [data-baseweb="tab"][aria-selected="true"] {{
+            background-color: {SECONDARY_COLOR};
+            color: white !important;
+        }}
+        
+        /* Инпуты и селекты */
+        .stTextInput input, .stSelectbox select, .stNumberInput input, .stTextArea textarea {{
+            border: 2px solid #e0e0e0 !important;
+            border-radius: 8px !important;
+            transition: border-color 0.3s !important;
+        }}
+        .stTextInput input:focus, .stSelectbox select:focus, .stNumberInput input:focus, .stTextArea textarea:focus {{
+            border-color: {SECONDARY_COLOR} !important;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.15) !important;
+        }}
+        
+        /* Уведомления */
+        .stAlert {{
+            border-radius: 10px !important;
+            border-left: 5px solid {SECONDARY_COLOR} !important;
+        }}
+        
+        /* Критические уведомления */
+        .critical-warning {{
+            background: linear-gradient(135deg, #ffebee, #ffcdd2);
+            border-left: 5px solid #f44336;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }}
+        .warning-warning {{
+            background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+            border-left: 5px solid #ff9800;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }}
+        
+        /* Тёмная тема для зелёного стиля */
+        .dark-mode .stApp {{
+            background-color: #1a2a1a;
+        }}
+        .dark-mode .item-card {{
+            background-color: #1e3a1e;
+            border-color: #2e5a2e;
+        }}
+        .dark-mode .stat-card {{
+            background-color: #1e3a1e;
+        }}
+        .dark-mode div[data-testid="stSidebar"] {{
+            background: linear-gradient(180deg, #1a2a1a, #0d1a0d);
+        }}
+    </style>
+""", unsafe_allow_html=True)
+
+# --- ШАПКА С ЗЕЛЁНЫМ ГРАДИЕНТОМ ---
+st.markdown(f"""
+    <div class="main-header">
+        <h1>🌿 {st.session_state.get('garage_name', 'Мой Склад')}</h1>
+        <p>👋 Добро пожаловать!</p>
+    </div>
+""", unsafe_allow_html=True)
+
+# --- ТЁМНАЯ ТЕМА ---
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 
@@ -31,52 +220,70 @@ with st.sidebar:
 if st.session_state.dark_mode:
     st.markdown("""
         <style>
-            .stApp { background-color: #0e1117; color: #fafafa; }
+            .stApp { background-color: #0d1a0d; color: #d4e8d4; }
             .stMarkdown, .stMarkdown p, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4 {
-                color: #fafafa !important;
+                color: #d4e8d4 !important;
             }
             .stTextInput label, .stSelectbox label, .stNumberInput label, .stTextArea label {
-                color: #cccccc !important;
+                color: #b8d9b8 !important;
             }
             .stTextInput input, .stSelectbox select, .stNumberInput input, .stTextArea textarea {
-                background-color: #262730 !important;
-                color: #fafafa !important;
+                background-color: #1a2a1a !important;
+                color: #d4e8d4 !important;
+                border-color: #2e5a2e !important;
                 border-radius: 8px;
             }
             .stButton button {
-                background-color: #FF6B35 !important;
+                background-color: #4CAF50 !important;
                 color: #ffffff !important;
                 border-radius: 8px;
                 font-weight: bold;
             }
             .stButton button:hover {
-                background-color: #004E89 !important;
+                background-color: #2E7D32 !important;
                 color: #ffffff !important;
             }
             .stCaption, .stCaption p {
-                color: #aaaaaa !important;
+                color: #9acd9a !important;
             }
             .stInfo, .stWarning, .stError, .stSuccess {
-                background-color: #262730 !important;
-                color: #fafafa !important;
+                background-color: #1a2a1a !important;
+                color: #d4e8d4 !important;
             }
-            .stAlert { background-color: #262730 !important; }
+            .stAlert { background-color: #1a2a1a !important; }
             .element-container, .stContainer, .stColumn { background-color: transparent !important; }
-            div[data-testid="stSidebar"] { background-color: #1a1d23 !important; }
-            div[data-testid="stSidebar"] * { color: #fafafa !important; }
-            div[data-testid="stSidebar"] .stTextInput input { background-color: #262730 !important; color: #fafafa !important; }
-            div[data-testid="stDialog"] { background-color: #1a1d23 !important; }
-            div[data-testid="stDialog"] * { color: #fafafa !important; }
+            div[data-testid="stSidebar"] { 
+                background: linear-gradient(180deg, #0d1a0d, #1a2a1a) !important;
+                border-right: 2px solid #2e5a2e !important;
+            }
+            div[data-testid="stSidebar"] * { color: #d4e8d4 !important; }
+            div[data-testid="stSidebar"] .stTextInput input { 
+                background-color: #1a2a1a !important; 
+                color: #d4e8d4 !important;
+                border-color: #2e5a2e !important;
+            }
+            .main-header {
+                background: linear-gradient(135deg, #1B5E20, #2E7D32) !important;
+            }
+            .stat-card {
+                background: #1a2a1a !important;
+                border-left-color: #4CAF50 !important;
+            }
+            .stat-number { color: #4CAF50 !important; }
+            div[data-testid="stDialog"] { background-color: #1a2a1a !important; }
+            div[data-testid="stDialog"] * { color: #d4e8d4 !important; }
             div[data-testid="stDialog"] input, div[data-testid="stDialog"] textarea {
-                background-color: #262730 !important;
-                color: #fafafa !important;
+                background-color: #0d1a0d !important;
+                color: #d4e8d4 !important;
             }
         </style>
     """, unsafe_allow_html=True)
 
+# --- ПАПКА ДЛЯ ФОТО ---
 if not os.path.exists("images"):
     os.makedirs("images")
 
+# --- БАЗА ДАННЫХ ---
 def init_db():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -140,6 +347,7 @@ def init_db():
     conn.commit()
     conn.close()
 
+# --- ФУНКЦИИ ДЛЯ ПОМЕЩЕНИЙ ---
 def add_room(name):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -171,6 +379,7 @@ def get_rooms():
 def get_room_names():
     return [room[1] for room in get_rooms()]
 
+# --- ФУНКЦИИ ДЛЯ ТЕХНИКИ ---
 def add_equipment(name, number=""):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -216,6 +425,7 @@ def get_equipment_by_id(eq_id):
     conn.close()
     return result
 
+# --- ФУНКЦИИ ДЛЯ АГРЕГАТОВ ---
 def add_unit(name, equipment_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -247,6 +457,7 @@ def get_units(equipment_id=None):
     conn.close()
     return results
 
+# --- ФУНКЦИИ ДЛЯ РАСХОДА ---
 def consume_item(item_id, quantity, object_name, user="Пользователь", note=""):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -277,6 +488,7 @@ def get_all_consumption():
     conn.close()
     return results
 
+# --- ОСНОВНЫЕ ФУНКЦИИ ---
 def add_item(name, category, location, room, description, item_photo_path, location_photo_path, quantity, unit, threshold, application, installed_photo_path, equipment_id, unit_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -417,42 +629,88 @@ def export_to_excel():
 
 init_db()
 
+# --- СТАТИСТИКА (ЗЕЛЁНЫЙ СТИЛЬ) ---
 total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list = get_statistics()
 
 col1, col2, col3, col4, col5, col6 = st.columns(6)
+
 with col1:
-    st.metric("📦 Вещей", total_items)
+    st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-number">{total_items}</div>
+            <div class="stat-label">📦 Вещей</div>
+        </div>
+    """, unsafe_allow_html=True)
+
 with col2:
-    st.metric("🏠 Помещ.", total_rooms_list)
+    st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-number">{total_rooms_list}</div>
+            <div class="stat-label">🏠 Помещ.</div>
+        </div>
+    """, unsafe_allow_html=True)
+
 with col3:
-    st.metric("⚠️ Пополнить", low_stock_count)
+    st.markdown(f"""
+        <div class="stat-card" style="border-left-color: #f44336;">
+            <div class="stat-number" style="color: #f44336;">{low_stock_count}</div>
+            <div class="stat-label">⚠️ Пополнить</div>
+        </div>
+    """, unsafe_allow_html=True)
+
 with col4:
     top_cat_str = ", ".join([f"{cat}" for cat, count in top_categories[:2]]) if top_categories else "—"
-    st.metric("🏆 Топ", top_cat_str)
-with col5:
-    st.metric("🚜 Техники", total_equipment)
-with col6:
-    st.metric("📤 Списано", 0)
+    st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-number">🏆</div>
+            <div class="stat-label">{top_cat_str}</div>
+        </div>
+    """, unsafe_allow_html=True)
 
+with col5:
+    st.markdown(f"""
+        <div class="stat-card" style="border-left-color: #2196F3;">
+            <div class="stat-number" style="color: #2196F3;">{total_equipment}</div>
+            <div class="stat-label">🚜 Техники</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+with col6:
+    st.markdown(f"""
+        <div class="stat-card" style="border-left-color: #9C27B0;">
+            <div class="stat-number" style="color: #9C27B0;">0</div>
+            <div class="stat-label">📤 Списано</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+# --- УВЕДОМЛЕНИЯ ---
 low_stock = get_low_stock_items()
 if low_stock:
-    st.warning("⚠️ **ВНИМАНИЕ! Заканчиваются:**")
-    for item in low_stock:
-        qty = item[9]
-        name = item[1]
-        unit = item[10]
-        room = item[4]
-        if qty <= 0:
-            st.error(f"🔴 {name} — 0 {unit} (в {room})")
-        else:
-            st.warning(f"🟡 {name} — {qty} {unit} (в {room})")
+    st.markdown('<div class="critical-warning">⚠️ <b>ВНИМАНИЕ! Заканчиваются:</b></div>', unsafe_allow_html=True)
+    critical = [item for item in low_stock if item[9] == 0]
+    warning = [item for item in low_stock if item[9] > 0]
+    col1, col2 = st.columns(2)
+    with col1:
+        if critical:
+            st.error(f"🔴 **Критично (0 осталось):**")
+            for item in critical:
+                st.write(f"- {item[1]} ({item[9]} {item[10]}) в {item[4]}")
+    with col2:
+        if warning:
+            st.warning(f"🟡 **Скоро закончится:**")
+            for item in warning:
+                st.write(f"- {item[1]} ({item[9]} {item[10]}) в {item[4]}")
     st.divider()
 
+# --- БОКОВАЯ ПАНЕЛЬ (ЗЕЛЁНАЯ) ---
 with st.sidebar:
+    st.markdown("### 🌿 Управление")
+    
     st.header("➕ Добавить вещь")
     room_names = get_room_names()
     if not room_names:
         st.warning("⚠️ Сначала добавьте помещения в разделе 'Помещения'!")
+    
     with st.form("add_form", clear_on_submit=True):
         name = st.text_input("Название вещи*")
         category = st.text_input("Категория")
@@ -487,6 +745,7 @@ with st.sidebar:
             st.info("Сначала добавьте технику в разделе '🚜 Парк'")
             eq_id = None
             unit_id = None
+        
         application = st.text_area("🔧 Область применения", placeholder="Например: ремень генератора трактора МТЗ-80")
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -525,12 +784,14 @@ with st.sidebar:
             st.rerun()
         elif submitted:
             st.error("⚠️ Название, Помещение и Место обязательны!")
+    
     st.divider()
     st.header("📥 Импорт Excel")
     uploaded_file = st.file_uploader("Выберите Excel-файл", type=["xlsx", "xls"])
     if uploaded_file:
         if st.button("📤 Импортировать"):
             st.success("Импорт пока в разработке")
+    
     st.header("📤 Экспорт Excel")
     if st.button("📥 Скачать Excel", use_container_width=True):
         excel_data = export_to_excel()
@@ -542,6 +803,7 @@ with st.sidebar:
             use_container_width=True
         )
 
+# --- ОСНОВНАЯ ОБЛАСТЬ: ВКЛАДКИ ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Поиск", "📋 Все вещи", "🚜 Парк", "🚗 История списаний", "🏠 Помещения"])
 
 with tab1:
@@ -576,7 +838,7 @@ with tab1:
     st.subheader(f"📌 Найдено: {len(items)}")
 
     if not items:
-        st.info("Ничего нет. Добавьте через меню.")
+        st.info("🌱 Ничего нет. Добавьте через меню.")
     else:
         cols = st.columns(3)
         for idx, item in enumerate(items):
@@ -825,7 +1087,7 @@ with tab2:
     st.subheader("📋 Все вещи в базе данных")
     all_items = get_all_items()
     if not all_items:
-        st.info("В базе пока нет вещей. Добавьте первую вещь через боковое меню!")
+        st.info("🌱 В базе пока нет вещей. Добавьте первую вещь через боковое меню!")
     else:
         data = []
         for item in all_items:
@@ -901,7 +1163,7 @@ with tab3:
                     st.error(msg)
     equipment_list = get_equipment()
     if not equipment_list:
-        st.info("Пока нет техники. Добавьте первую!")
+        st.info("🌱 Пока нет техники. Добавьте первую!")
     else:
         for eq in equipment_list:
             eq_id, eq_name, eq_number, eq_date = eq
@@ -958,7 +1220,7 @@ with tab4:
     st.subheader("🚗 История списаний по объектам")
     all_consumption = get_all_consumption()
     if not all_consumption:
-        st.info("Пока нет списаний")
+        st.info("🌱 Пока нет списаний")
     else:
         for c in all_consumption[:50]:
             st.write(f"• **{c[7]}** → {c[2]} {c[3]} на **{c[4]}** (списал {c[5]}, {c[6]})")
@@ -985,7 +1247,7 @@ with tab5:
     st.divider()
     rooms = get_rooms()
     if not rooms:
-        st.info("Пока нет помещений. Добавьте первое!")
+        st.info("🌱 Пока нет помещений. Добавьте первое!")
     else:
         st.caption(f"Всего помещений: {len(rooms)}")
         for room_id, room_name, room_date in rooms:
