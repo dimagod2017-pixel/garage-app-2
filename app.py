@@ -42,7 +42,13 @@ st.markdown(f"""
         .main-header h1 {{ margin: 0; font-size: 2.5rem; font-weight: 700; }}
         .main-header p {{ margin: 0; font-size: 1.2rem; opacity: 0.95; }}
         
-        /* --- АДАПТИВНЫЕ КНОПКИ В КАРТОЧКАХ --- */
+        /* --- ВЕРТИКАЛЬНЫЕ КНОПКИ ДЛЯ КОМПЬЮТЕРА --- */
+        .action-btn-wrap {{
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            width: 100%;
+        }}
         .action-btn {{
             display: inline-flex;
             align-items: center;
@@ -51,15 +57,17 @@ st.markdown(f"""
             color: white;
             border: none;
             border-radius: 8px;
-            padding: 0.6rem 0.8rem;
-            font-size: 0.8rem;
+            padding: 0.5rem 0.8rem;
+            font-size: 0.75rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
             box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
             width: 100%;
+            min-height: 36px;
+            text-align: center;
+            position: relative;
             white-space: nowrap;
-            min-height: 40px;
         }}
         .action-btn:hover {{
             background-color: {PRIMARY_COLOR};
@@ -76,23 +84,68 @@ st.markdown(f"""
             background-color: {SECONDARY_COLOR};
         }}
         
+        /* --- Подсказка при наведении (tooltip) --- */
+        .action-btn[title]:hover::after {{
+            content: attr(title);
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1a1a;
+            color: #fff;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }}
+        .action-btn[title]:hover::before {{
+            content: '';
+            position: absolute;
+            bottom: calc(100% + 4px);
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 6px solid #1a1a1a;
+            z-index: 1000;
+        }}
+        
         /* --- Адаптив для мобильных устройств --- */
         @media (max-width: 768px) {{
+            .action-btn-wrap {{
+                flex-direction: row !important;
+                flex-wrap: wrap !important;
+                gap: 0.2rem !important;
+            }}
             .action-btn {{
-                padding: 0.3rem 0.4rem;
-                font-size: 0.6rem;
-                min-height: 30px;
-                border-radius: 6px;
+                padding: 0.25rem 0.3rem !important;
+                font-size: 0.55rem !important;
+                min-height: 28px !important;
+                border-radius: 5px !important;
+                flex: 1 !important;
+                min-width: 40px !important;
+            }}
+            .action-btn[title]:hover::after {{
+                display: none !important;
+            }}
+            .action-btn[title]:hover::before {{
+                display: none !important;
             }}
         }}
         
-        /* --- Адаптив для компьютера (увеличение) --- */
+        /* --- Адаптив для компьютера --- */
         @media (min-width: 769px) {{
+            .action-btn-wrap {{
+                flex-direction: column !important;
+                gap: 0.5rem !important;
+            }}
             .action-btn {{
-                padding: 0.7rem 1rem;
-                font-size: 0.85rem;
-                min-height: 44px;
-                border-radius: 10px;
+                padding: 0.6rem 0.8rem !important;
+                font-size: 0.8rem !important;
+                min-height: 40px !important;
+                border-radius: 10px !important;
             }}
         }}
         
@@ -133,14 +186,9 @@ st.markdown(f"""
             font-weight: 500;
             margin-top: 2px;
         }}
-        .stat-icon {{
-            font-size: 1.6rem;
-            margin-bottom: 2px;
-        }}
         @media (max-width: 768px) {{
             .stat-number {{ font-size: 1.6rem; }}
             .stat-label {{ font-size: 0.65rem; }}
-            .stat-icon {{ font-size: 1.2rem; }}
             .stat-btn-wrap {{ min-height: 65px; padding: 0.4rem 0.2rem; }}
         }}
         
@@ -163,6 +211,23 @@ st.markdown(f"""
             padding: 1rem;
             border-radius: 10px;
             margin-bottom: 1rem;
+        }}
+        
+        /* --- Карточка вещи --- */
+        .item-container {{
+            background: white;
+            border-radius: 12px;
+            padding: 0.8rem;
+            border: 2px solid #e8f5e9;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            transition: all 0.3s;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }}
+        .item-container:hover {{
+            border-color: {SECONDARY_COLOR};
+            box-shadow: 0 4px 20px rgba(46, 125, 50, 0.15);
         }}
     </style>
 """, unsafe_allow_html=True)
@@ -253,6 +318,8 @@ if st.session_state.dark_mode:
             .action-btn:hover { background-color: #2E7D32 !important; }
             .action-btn-danger { background-color: #f44336 !important; }
             .action-btn-danger:hover { background-color: #c62828 !important; }
+            .item-container { background: #1a2a1a !important; border-color: #2e5a2e !important; }
+            .item-container:hover { border-color: #4CAF50 !important; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -972,11 +1039,14 @@ with tab1:
                         st.write(f"📝 {description}")
                     st.caption(f"🕒 Добавлено: {date_added}")
                     
-                    # --- АДАПТИВНЫЕ КНОПКИ (увеличенные для компьютера) ---
+                    # --- ВЕРТИКАЛЬНЫЕ КНОПКИ ДЛЯ КОМПЬЮТЕРА ---
+                    st.markdown('<div class="action-btn-wrap">', unsafe_allow_html=True)
+                    
+                    # Кнопки в вертикальном столбце
                     col_btn1, col_btn2, col_btn3, col_btn4, col_btn5, col_btn6 = st.columns(6)
                     with col_btn1:
                         if st.button(
-                            "✏️\nКол-во", 
+                            "✏️ Кол-во", 
                             key=f"edit_{item_id}", 
                             use_container_width=True,
                             help="Изменить количество"
@@ -985,7 +1055,7 @@ with tab1:
                             st.rerun()
                     with col_btn2:
                         if st.button(
-                            "⚙️\nПорог", 
+                            "⚙️ Порог", 
                             key=f"thr_{item_id}", 
                             use_container_width=True,
                             help="Настроить порог уведомления"
@@ -994,7 +1064,7 @@ with tab1:
                             st.rerun()
                     with col_btn3:
                         if st.button(
-                            "📤\nСписать", 
+                            "📤 Списать", 
                             key=f"cons_{item_id}", 
                             use_container_width=True,
                             help="Списать вещь на объект"
@@ -1003,7 +1073,7 @@ with tab1:
                             st.rerun()
                     with col_btn4:
                         if st.button(
-                            "📷\nQR", 
+                            "📷 QR", 
                             key=f"qr_{item_id}", 
                             use_container_width=True,
                             help="Сгенерировать QR-код"
@@ -1012,7 +1082,7 @@ with tab1:
                             st.rerun()
                     with col_btn5:
                         if st.button(
-                            "🚚\nПер.", 
+                            "🚚 Пер.", 
                             key=f"move_{item_id}", 
                             use_container_width=True,
                             help="Переместить в другое помещение"
@@ -1021,13 +1091,15 @@ with tab1:
                             st.rerun()
                     with col_btn6:
                         if st.button(
-                            "🗑️\nУдалить", 
+                            "🗑️ Удалить", 
                             key=f"del_{item_id}", 
                             use_container_width=True,
                             help="Удалить вещь"
                         ):
                             delete_item(item_id)
                             st.rerun()
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
                     
                     if st.session_state.get(f"edit_mode_{item_id}", False):
                         with st.container(border=True):
