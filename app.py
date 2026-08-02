@@ -9,48 +9,43 @@ from io import BytesIO
 import qrcode
 import requests
 
+# --- НАСТРОЙКА SMS.ru (ТВОИ ДАННЫЕ) ---
+SMS_API_KEY = "384FB159-E4AB-FB84-B29A-0BB69CA01D27"
+SMS_RECIPIENT = "+79197461228"
+
+def send_sms(text):
+    """Отправляет SMS через SMS.ru"""
+    try:
+        url = "https://sms.ru/sms/send"
+        payload = {
+            "api_id": SMS_API_KEY,
+            "to": SMS_RECIPIENT,
+            "msg": text,
+            "json": 1
+        }
+        response = requests.post(url, data=payload, timeout=10)
+        data = response.json()
+        if data.get("status") == "OK":
+            return True, "✅ SMS отправлено"
+        else:
+            return False, f"❌ Ошибка: {data}"
+    except Exception as e:
+        return False, f"❌ Ошибка: {str(e)}"
+
 # --- ПАРОЛИ И РОЛИ ---
 USERS = {
     "12345": {"role": "admin", "name": "Администратор"},
     "1111": {"role": "employee", "name": "Сотрудник"},
 }
 
-# --- НАСТРОЙКА ВКОНТАКТЕ ---
-VK_ACCESS_TOKEN = "X82PvhMLfF8sNK1H5r0vQWkzx_la3dYgEX7SllN98vu7e9xUTMn_FE-qeSaIimLcNB24d4s6tXShWJSMdDHPVTIgOBiycEo6cLHzij2odPfHeKUsddNtueegA48Lxy2cDD-XVE_dAkxYTEIOWNEor8SOupGqTxCZ6R-cGqICdp6iBlUpIIaQZmy4uRUGtLGdHtZXfAr1M-Iw1H04zdyRNEXt8tQVgpMnAlpVzTETE_IyLPZ1eS67ZmOAup5v9S4WOFUpXxIHXj_67vi6BpRwNhsq0e7RRbJMokjlRcsjMsQ-y_6-ZOvbRtKaguYdCBRsFg81TcpeW8FGg4Ntnb_IdunvWEGvloko1SiUsO4bH1R4bOUDEig3BUttNwiOYCrWJdeUSx-mUk4-PAeV-88O2Q"
-VK_ADMIN_ID = 204817167
+if "user" not in st.session_state:
+    st.session_state.user = None
 
-def send_vk_message(text):
-    try:
-        url = "https://api.vk.com/method/messages.send"
-        payload = {
-            "user_id": VK_ADMIN_ID,
-            "message": text,
-            "access_token": VK_ACCESS_TOKEN,
-            "v": "5.199",
-            "random_id": 0
-        }
-        response = requests.post(url, data=payload, timeout=10)
-        data = response.json()
-        if "error" in data:
-            print(f"Ошибка ВК: {data['error']}")
-            return False
-        return True
-    except Exception as e:
-        print(f"Ошибка отправки в ВК: {e}")
-        return False
-
-# --- ВХОД С ЗАПОМИНАНИЕМ ---
 def login():
     st.sidebar.title("🔐 Вход")
     
-    # Проверяем, есть ли сохранённый пользователь в URL
-    if "user" in st.query_params:
-        saved_user = st.query_params["user"]
-        if saved_user in USERS:
-            st.session_state.user = USERS[saved_user]
-            st.session_state.user["password"] = saved_user
-            st.rerun()
-            return
+    if "user" in st.session_state and st.session_state.user is not None:
+        return
     
     st.sidebar.markdown("""
         <style>
@@ -73,9 +68,6 @@ def login():
         placeholder="12345"
     )
     
-    # Галочка "Запомнить меня"
-    remember_me = st.sidebar.checkbox("🔒 Запомнить меня", value=True, help="При следующем открытии приложения пароль не потребуется")
-    
     st.markdown("""
         <script>
             document.addEventListener('DOMContentLoaded', function() {
@@ -95,7 +87,7 @@ def login():
             if password in USERS:
                 st.session_state.user = USERS[password]
                 st.session_state.user["password"] = password
-                if remember_me:
+                if "user" in st.query_params:
                     st.query_params["user"] = password
                 st.rerun()
             else:
@@ -110,11 +102,12 @@ def login():
             st.session_state.login_password = ""
             st.rerun()
 
-# --- ПРОВЕРКА АВТОРИЗАЦИИ ---
-if "user" not in st.session_state:
-    st.session_state.user = None
+if "user" in st.query_params:
+    saved_user = st.query_params["user"]
+    if saved_user in USERS and st.session_state.user is None:
+        st.session_state.user = USERS[saved_user]
+        st.session_state.user["password"] = saved_user
 
-# Если пользователь не авторизован — показываем вход
 if st.session_state.user is None:
     login()
     st.stop()
@@ -225,6 +218,7 @@ if st.session_state.dark_mode:
 if not os.path.exists("images"):
     os.makedirs("images")
 
+# --- БАЗА ДАННЫХ ---
 def init_db():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -646,7 +640,7 @@ def export_to_excel():
 
 init_db()
 
-# --- ПОКАЗ УВЕДОМЛЕНИЙ (ТОЛЬКО ДЛЯ АДМИНА) ---
+# --- ПОКАЗ УВЕДОМЛЕНИЙ ---
 def show_low_stock_banner():
     if role != "admin":
         return
@@ -720,6 +714,17 @@ show_low_stock_banner()
 with st.sidebar:
     st.markdown(f"### 👤 {user_name}")
     st.caption(f"Роль: {'🔑 Администратор' if role == 'admin' else '🔧 Сотрудник'}")
+    st.divider()
+    
+    # --- ТЕСТ SMS ---
+    st.subheader("📨 Тест SMS")
+    if st.button("📨 Отправить тестовое SMS", use_container_width=True):
+        success, msg = send_sms("✅ Тестовое SMS из приложения! Уведомления работают!")
+        if success:
+            st.success(msg)
+        else:
+            st.error(msg)
+    
     st.divider()
     
     if role == "admin":
@@ -1015,19 +1020,16 @@ with tab1:
                                         
                                         success, message = consume_item(item_id, take_qty, object_name, user_name, note, photo_path, "pending")
                                         if success:
-                                            # --- ОТПРАВКА УВЕДОМЛЕНИЯ В ВК ---
-                                            vk_msg = (
-                                                f"📤 Новая заявка на списание!\n\n"
-                                                f"👤 Сотрудник: {user_name}\n"
-                                                f"📦 Вещь: {name}\n"
-                                                f"📦 Количество: {take_qty} {unit}\n"
-                                                f"🚗 Объект: {object_name}\n"
-                                                f"📝 Примечание: {note or '—'}\n\n"
-                                                f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                                            # --- ОТПРАВКА SMS ---
+                                            sms_text = (
+                                                f"Заявка на списание!\n"
+                                                f"Сотрудник: {user_name}\n"
+                                                f"Вещь: {name} - {take_qty} {unit}\n"
+                                                f"Объект: {object_name}"
                                             )
-                                            send_vk_message(vk_msg)
+                                            send_sms(sms_text)
                                             
-                                            st.success("✅ Заявка отправлена! Администратор получит уведомление в ВК.")
+                                            st.success("✅ Заявка отправлена! Администратор получит SMS.")
                                             st.session_state[f"take_mode_{item_id}"] = False
                                             st.rerun()
                                         else:
