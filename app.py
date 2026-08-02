@@ -696,6 +696,7 @@ with tab1:
                 else:
                     status_emoji = "🟢"
                     status_text = "В норме"
+
                 with st.container(border=True):
                     col_title, col_dots = st.columns([6, 1])
                     with col_title:
@@ -703,8 +704,11 @@ with tab1:
                         if category:
                             st.caption(f"📂 {category}")
                     with col_dots:
-                        if st.button("⋮", key=f"menu_{item_id}", help="Меню"):
-                            st.session_state[f"menu_{item_id}"] = not st.session_state.get(f"menu_{item_id}", False)
+                        # Используем кнопку для переключения меню
+                        menu_key = f"show_menu_{item_id}"
+                        if st.button("⋮", key=f"menu_btn_{item_id}", help="Меню"):
+                            st.session_state[menu_key] = not st.session_state.get(menu_key, False)
+                            st.rerun()
                     st.caption(f"🏠 {room} → 📍 {location}")
                     if eq_name:
                         st.caption(f"🚜 **Техника:** {eq_name}")
@@ -733,36 +737,41 @@ with tab1:
                     if description:
                         st.write(f"📝 {description}")
                     st.caption(f"🕒 Добавлено: {date_added}")
-                    if st.session_state.get(f"menu_{item_id}", False):
+
+                    # Меню (показывается, если включено)
+                    menu_key = f"show_menu_{item_id}"
+                    if st.session_state.get(menu_key, False):
                         with st.container(border=True):
                             st.write("**📋 Действия:**")
                             col1, col2, col3 = st.columns(3)
                             with col1:
                                 if st.button("✏️ Редактировать", key=f"edit_{item_id}", use_container_width=True):
                                     st.session_state[f"edit_mode_{item_id}"] = True
-                                    st.session_state[f"menu_{item_id}"] = False
+                                    st.session_state[menu_key] = False
                                     st.rerun()
                                 if st.button("📷 Фото", key=f"photo_{item_id}", use_container_width=True):
                                     st.session_state[f"photo_mode_{item_id}"] = True
-                                    st.session_state[f"menu_{item_id}"] = False
+                                    st.session_state[menu_key] = False
                                     st.rerun()
                             with col2:
                                 if st.button("📤 Списать", key=f"cons_{item_id}", use_container_width=True):
                                     st.session_state[f"cons_mode_{item_id}"] = True
-                                    st.session_state[f"menu_{item_id}"] = False
+                                    st.session_state[menu_key] = False
                                     st.rerun()
                                 if st.button("📷 QR", key=f"qr_{item_id}", use_container_width=True):
                                     st.session_state[f"qr_mode_{item_id}"] = True
-                                    st.session_state[f"menu_{item_id}"] = False
+                                    st.session_state[menu_key] = False
                                     st.rerun()
                             with col3:
                                 if st.button("🚚 Переместить", key=f"move_{item_id}", use_container_width=True):
                                     st.session_state[f"move_mode_{item_id}"] = True
-                                    st.session_state[f"menu_{item_id}"] = False
+                                    st.session_state[menu_key] = False
                                     st.rerun()
                                 if st.button("🗑️ Удалить", key=f"del_{item_id}", use_container_width=True):
                                     delete_item(item_id)
                                     st.rerun()
+
+                    # --- РЕДАКТИРОВАНИЕ ---
                     if st.session_state.get(f"edit_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**✏️ Редактирование {name}**")
@@ -816,6 +825,8 @@ with tab1:
                                 if st.button("❌ Отмена", key=f"cancel_edit_{item_id}"):
                                     st.session_state[f"edit_mode_{item_id}"] = False
                                     st.rerun()
+
+                    # --- ИЗМЕНЕНИЕ ФОТО ---
                     if st.session_state.get(f"photo_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**📷 Изменение фото для {name}**")
@@ -857,6 +868,8 @@ with tab1:
                                 if st.button("❌ Отмена", key=f"cancel_photo_{item_id}"):
                                     st.session_state[f"photo_mode_{item_id}"] = False
                                     st.rerun()
+
+                    # --- СПИСАНИЕ ---
                     if st.session_state.get(f"cons_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**📤 Списание {name}**")
@@ -905,6 +918,8 @@ with tab1:
                                 if st.button("❌ Отмена", key=f"cancel_cons_{item_id}"):
                                     st.session_state[f"cons_mode_{item_id}"] = False
                                     st.rerun()
+
+                    # --- ПЕРЕМЕЩЕНИЕ ---
                     if st.session_state.get(f"move_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**🚚 Перемещение {name}**")
@@ -929,6 +944,8 @@ with tab1:
                                 if st.button("❌ Закрыть", key=f"close_move_{item_id}"):
                                     st.session_state[f"move_mode_{item_id}"] = False
                                     st.rerun()
+
+                    # --- QR-КОД ---
                     if st.session_state.get(f"qr_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**📷 QR-код для {name}**")
