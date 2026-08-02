@@ -335,35 +335,36 @@ def delete_item(item_id):
 def search_items(query, room_filter=None):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    query_lower = f"%{query.lower()}%"
+    query_lower = query.lower()
     
+    # Сначала проверим, есть ли вообще данные в таблице
+    c.execute("SELECT COUNT(*) FROM items")
+    total = c.fetchone()[0]
+    
+    if total == 0:
+        conn.close()
+        return []
+    
+    # Упрощаем поиск — ищем только по name и category (самые важные поля)
     if room_filter and room_filter != "Все помещения":
         c.execute("""
-            SELECT i.* FROM items i
-            LEFT JOIN equipment e ON i.equipment_id = e.id
-            LEFT JOIN units u ON i.unit_id = u.id
-            WHERE (LOWER(COALESCE(i.name, '')) LIKE ? 
-                   OR LOWER(COALESCE(i.category, '')) LIKE ? 
-                   OR LOWER(COALESCE(i.location, '')) LIKE ? 
-                   OR LOWER(COALESCE(i.description, '')) LIKE ? 
-                   OR LOWER(COALESCE(i.application, '')) LIKE ? 
-                   OR LOWER(COALESCE(e.name, '')) LIKE ? 
-                   OR LOWER(COALESCE(u.name, '')) LIKE ?) 
-            AND i.room = ?
-        """, (query_lower, query_lower, query_lower, query_lower, query_lower, query_lower, query_lower, room_filter))
+            SELECT * FROM items 
+            WHERE (LOWER(COALESCE(name, '')) LIKE ? 
+                   OR LOWER(COALESCE(category, '')) LIKE ? 
+                   OR LOWER(COALESCE(location, '')) LIKE ? 
+                   OR LOWER(COALESCE(description, '')) LIKE ? 
+                   OR LOWER(COALESCE(application, '')) LIKE ?)
+            AND room = ?
+        """, (f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', room_filter))
     else:
         c.execute("""
-            SELECT i.* FROM items i
-            LEFT JOIN equipment e ON i.equipment_id = e.id
-            LEFT JOIN units u ON i.unit_id = u.id
-            WHERE LOWER(COALESCE(i.name, '')) LIKE ? 
-               OR LOWER(COALESCE(i.category, '')) LIKE ? 
-               OR LOWER(COALESCE(i.location, '')) LIKE ? 
-               OR LOWER(COALESCE(i.description, '')) LIKE ? 
-               OR LOWER(COALESCE(i.application, '')) LIKE ? 
-               OR LOWER(COALESCE(e.name, '')) LIKE ? 
-               OR LOWER(COALESCE(u.name, '')) LIKE ?
-        """, (query_lower, query_lower, query_lower, query_lower, query_lower, query_lower, query_lower))
+            SELECT * FROM items 
+            WHERE LOWER(COALESCE(name, '')) LIKE ? 
+               OR LOWER(COALESCE(category, '')) LIKE ? 
+               OR LOWER(COALESCE(location, '')) LIKE ? 
+               OR LOWER(COALESCE(description, '')) LIKE ? 
+               OR LOWER(COALESCE(application, '')) LIKE ?
+        """, (f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%'))
     
     results = c.fetchall()
     conn.close()
@@ -562,7 +563,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Поиск", "📋 Все вещи
 with tab1:
     col_search, col_btn = st.columns([5, 1])
     with col_search:
-        search_query = st.text_input("🔍 Что ищем?", placeholder="Введите название, категорию, технику, агрегат...", key="search_input")
+        search_query = st.text_input("🔍 Что ищем?", placeholder="Введите название, категорию, место...", key="search_input")
     with col_btn:
         st.write("")
         search_clicked = st.button("🔍 Найти", use_container_width=True)
@@ -570,7 +571,9 @@ with tab1:
     rooms = ["Все помещения"] + get_room_names()
     room_filter = st.selectbox("🏠 Помещение", rooms, key="room_filter_tab1")
     
+    # --- ОТЛАДКА: показываем, что ищем ---
     if search_query:
+        st.caption(f"🔎 Ищем: **{search_query}**")
         items = search_items(search_query, room_filter)
     else:
         items = get_all_items(room_filter)
@@ -717,7 +720,6 @@ with tab1:
                                     st.session_state[f"thr_mode_{item_id}"] = False
                                     st.rerun()
                     
-                    # --- Списание ---
                     if st.session_state.get(f"cons_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Списание {name}**")
@@ -778,7 +780,6 @@ with tab1:
                                     st.session_state[f"cons_mode_{item_id}"] = False
                                     st.rerun()
                     
-                    # --- Перемещение ---
                     if st.session_state.get(f"move_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Перемещение {name}**")
