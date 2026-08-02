@@ -42,52 +42,87 @@ st.markdown(f"""
         .main-header h1 {{ margin: 0; font-size: 2.5rem; font-weight: 700; }}
         .main-header p {{ margin: 0; font-size: 1.2rem; opacity: 0.95; }}
         
-        /* Стиль для кнопок-карточек статистики */
+        /* --- АДАПТИВНЫЕ КНОПКИ-КАРТОЧКИ --- */
         .stat-btn {{
-            background: white !important;
-            border: 2px solid #e8f5e9 !important;
-            border-radius: 12px !important;
-            padding: 0.8rem 0.5rem !important;
-            text-align: center !important;
-            color: #1e3a1e !important;
-            transition: all 0.3s !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
-            height: 100% !important;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border: 2px solid #e8f5e9;
+            border-radius: 14px;
+            padding: 1rem 0.5rem;
+            text-align: center;
+            color: #1e3a1e;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            cursor: pointer;
+            min-height: 100px;
+            width: 100%;
         }}
         .stat-btn:hover {{
-            transform: translateY(-5px) !important;
-            box-shadow: 0 8px 25px rgba(46, 125, 50, 0.2) !important;
-            border-color: {SECONDARY_COLOR} !important;
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(46, 125, 50, 0.2);
+            border-color: {SECONDARY_COLOR};
+        }}
+        .stat-btn:active {{
+            transform: scale(0.95);
         }}
         .stat-number {{
             font-size: 2.5rem;
             font-weight: bold;
             color: {PRIMARY_COLOR};
-            display: block;
+            line-height: 1.2;
         }}
         .stat-label {{
             color: #555;
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: 500;
+            margin-top: 4px;
         }}
-        .stat-label-small {{
-            color: #777;
-            font-size: 0.75rem;
-            font-weight: 400;
+        .stat-icon {{
+            font-size: 1.8rem;
+            margin-bottom: 2px;
         }}
         
-        .stButton > button {{
+        /* --- Адаптив для телефона --- */
+        @media (max-width: 768px) {{
+            .stat-number {{ font-size: 1.8rem; }}
+            .stat-label {{ font-size: 0.7rem; }}
+            .stat-icon {{ font-size: 1.4rem; }}
+            .stat-btn {{ min-height: 70px; padding: 0.5rem 0.2rem; }}
+        }}
+        
+        /* --- Кнопки в карточках вещей --- */
+        .action-btn {{
             background-color: {SECONDARY_COLOR} !important;
             color: white !important;
             border-radius: 8px !important;
             border: none !important;
-            padding: 0.5rem 1.2rem !important;
+            padding: 0.4rem 0.6rem !important;
+            font-size: 0.75rem !important;
             font-weight: 600 !important;
             box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
+            transition: all 0.3s;
+            white-space: nowrap;
         }}
-        .stButton > button:hover {{
+        .action-btn:hover {{
             background-color: {PRIMARY_COLOR} !important;
             transform: translateY(-2px);
+        }}
+        .action-btn-danger {{
+            background-color: #f44336 !important;
+        }}
+        .action-btn-danger:hover {{
+            background-color: #c62828 !important;
+        }}
+        
+        /* --- Адаптив для телефона --- */
+        @media (max-width: 768px) {{
+            .action-btn {{
+                font-size: 0.6rem !important;
+                padding: 0.2rem 0.3rem !important;
+            }}
         }}
         
         div[data-testid="stSidebar"] {{
@@ -609,66 +644,57 @@ def export_to_excel():
 
 init_db()
 
-# --- СТАТИСТИКА (РАБОЧИЕ КНОПКИ) ---
+# --- СТАТИСТИКА (АДАПТИВНЫЕ КНОПКИ) ---
 total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list, total_consumption = get_statistics()
 
-# Стиль для кнопок
+# Стиль для адаптивных кнопок
 st.markdown("""
     <style>
-        .stButton button {
-            background: white !important;
-            border: 2px solid #e8f5e9 !important;
-            border-radius: 12px !important;
-            padding: 1rem 0.5rem !important;
-            text-align: center !important;
-            color: #1e3a1e !important;
-            transition: all 0.3s !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
-            height: auto !important;
-            min-height: 80px !important;
-            white-space: normal !important;
-            line-height: 1.4 !important;
+        .stat-btn-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border: 2px solid #e8f5e9;
+            border-radius: 14px;
+            padding: 0.8rem 0.3rem;
+            text-align: center;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            min-height: 90px;
+            width: 100%;
+            cursor: pointer;
         }
-        .stButton button:hover {
-            transform: translateY(-5px) !important;
-            box-shadow: 0 8px 25px rgba(46, 125, 50, 0.2) !important;
-            border-color: #4CAF50 !important;
+        .stat-btn-wrap:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(46, 125, 50, 0.2);
+            border-color: #4CAF50;
         }
-        .stButton button:active {
-            transform: scale(0.95) !important;
+        .stat-btn-wrap:active {
+            transform: scale(0.95);
         }
-        .stButton button .stat-number {
-            font-size: 2.5rem;
+        .stat-number {
+            font-size: 2.2rem;
             font-weight: bold;
             color: #2E7D32;
-            display: block;
+            line-height: 1.2;
         }
-        .stButton button .stat-label {
+        .stat-label {
             color: #555;
-            font-size: 1rem;
+            font-size: 0.85rem;
             font-weight: 500;
-            display: block;
+            margin-top: 2px;
         }
-        .stButton button .stat-label-small {
-            color: #777;
-            font-size: 0.75rem;
-            font-weight: 400;
-            display: block;
+        .stat-icon {
+            font-size: 1.6rem;
+            margin-bottom: 2px;
         }
-        /* Тёмная тема для кнопок */
-        .dark-mode .stButton button {
-            background: #1a2a1a !important;
-            border-color: #2e5a2e !important;
-            color: #d4e8d4 !important;
-        }
-        .dark-mode .stButton button .stat-number {
-            color: #4CAF50 !important;
-        }
-        .dark-mode .stButton button .stat-label {
-            color: #9acd9a !important;
-        }
-        .dark-mode .stButton button .stat-label-small {
-            color: #6a8a6a !important;
+        @media (max-width: 768px) {
+            .stat-number { font-size: 1.6rem; }
+            .stat-label { font-size: 0.65rem; }
+            .stat-icon { font-size: 1.2rem; }
+            .stat-btn-wrap { min-height: 65px; padding: 0.4rem 0.2rem; }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -678,7 +704,7 @@ col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 with col1:
     if st.button(
-        f"📦\n{total_items}\nВещей",
+        "📦\n" + str(total_items) + "\nВещи",
         use_container_width=True,
         key="stat_items",
         help="Показать все вещи"
@@ -690,7 +716,7 @@ with col1:
 
 with col2:
     if st.button(
-        f"🏠\n{total_rooms_list}\nПомещ.",
+        "🏠\n" + str(total_rooms_list) + "\nПомещения",
         use_container_width=True,
         key="stat_rooms",
         help="Показать помещения"
@@ -702,7 +728,7 @@ with col2:
 
 with col3:
     if st.button(
-        f"⚠️\n{low_stock_count}\nПополнить",
+        "⚠️\n" + str(low_stock_count) + "\nПополнить",
         use_container_width=True,
         key="stat_low_stock",
         help="Показать что нужно пополнить"
@@ -715,7 +741,7 @@ with col3:
 with col4:
     top_cat_str = "\n".join([f"{cat}" for cat, count in top_categories[:2]]) if top_categories else "—"
     st.button(
-        f"🏆\nТоп\n{top_cat_str}",
+        "🏆\nТоп\n" + top_cat_str,
         use_container_width=True,
         key="stat_top",
         disabled=True,
@@ -724,7 +750,7 @@ with col4:
 
 with col5:
     if st.button(
-        f"🚜\n{total_equipment}\nТехники",
+        "🚜\n" + str(total_equipment) + "\nТехника",
         use_container_width=True,
         key="stat_equipment",
         help="Показать технику"
@@ -735,7 +761,7 @@ with col5:
 
 with col6:
     if st.button(
-        f"📤\n{total_consumption}\nСписано",
+        "📤\n" + str(total_consumption) + "\nСписано",
         use_container_width=True,
         key="stat_consumption",
         help="Показать историю списаний"
@@ -1004,29 +1030,30 @@ with tab1:
                         st.write(f"📝 {description}")
                     st.caption(f"🕒 Добавлено: {date_added}")
                     
+                    # --- АДАПТИВНЫЕ КНОПКИ В КАРТОЧКАХ ---
                     col_btn1, col_btn2, col_btn3, col_btn4, col_btn5, col_btn6 = st.columns(6)
                     with col_btn1:
-                        if st.button("✏️ Кол-во", key=f"edit_{item_id}"):
+                        if st.button("✏️ Кол-во", key=f"edit_{item_id}", use_container_width=True):
                             st.session_state[f"edit_mode_{item_id}"] = True
                             st.rerun()
                     with col_btn2:
-                        if st.button("⚙️ Порог", key=f"thr_{item_id}"):
+                        if st.button("⚙️ Порог", key=f"thr_{item_id}", use_container_width=True):
                             st.session_state[f"thr_mode_{item_id}"] = True
                             st.rerun()
                     with col_btn3:
-                        if st.button("📤 Спис.", key=f"cons_{item_id}"):
+                        if st.button("📤 Спис.", key=f"cons_{item_id}", use_container_width=True):
                             st.session_state[f"cons_mode_{item_id}"] = True
                             st.rerun()
                     with col_btn4:
-                        if st.button("📷 QR", key=f"qr_{item_id}"):
+                        if st.button("📷 QR", key=f"qr_{item_id}", use_container_width=True):
                             st.session_state[f"qr_mode_{item_id}"] = True
                             st.rerun()
                     with col_btn5:
-                        if st.button("🚚 Переместить", key=f"move_{item_id}"):
+                        if st.button("🚚 Пер.", key=f"move_{item_id}", use_container_width=True):
                             st.session_state[f"move_mode_{item_id}"] = True
                             st.rerun()
                     with col_btn6:
-                        if st.button("🗑️", key=f"del_{item_id}"):
+                        if st.button("🗑️", key=f"del_{item_id}", use_container_width=True):
                             delete_item(item_id)
                             st.rerun()
                     
@@ -1227,7 +1254,6 @@ with tab2:
 with tab3:
     st.subheader("🚜 Управление техникой")
     
-    # Если выбрана техника — показываем её историю
     if selected_equipment:
         st.markdown(f"### 🔧 История списаний на **{selected_equipment}**")
         consumptions = get_consumption_by_equipment(selected_equipment)
@@ -1242,7 +1268,6 @@ with tab3:
             st.rerun()
         st.divider()
     
-    # Список техники
     with st.expander("➕ Добавить технику", expanded=False):
         with st.form("add_equipment_form", clear_on_submit=True):
             col1, col2, col3 = st.columns([3, 2, 1])
@@ -1326,7 +1351,6 @@ with tab4:
 with tab5:
     st.subheader("🏠 Управление помещениями")
     
-    # Если выбрано помещение — показываем его содержимое
     if selected_room:
         st.markdown(f"### 📦 Содержимое помещения **{selected_room}**")
         items_in_room = get_items_by_room(selected_room)
@@ -1352,7 +1376,6 @@ with tab5:
             st.rerun()
         st.divider()
     
-    # Добавление помещения
     with st.form("add_room_form", clear_on_submit=True):
         col1, col2 = st.columns([3, 1])
         with col1:
@@ -1371,7 +1394,6 @@ with tab5:
     
     st.divider()
     
-    # Список помещений
     rooms = get_rooms()
     if not rooms:
         st.info("🌱 Пока нет помещений. Добавьте первое!")
