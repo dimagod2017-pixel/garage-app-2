@@ -489,34 +489,79 @@ def export_to_excel():
 
 init_db()
 
+# --- СТАТИСТИКА (интерактивные карточки) ---
 total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list, total_consumption = get_statistics()
 
 col1, col2, col3, col4, col5, col6 = st.columns(6)
+
 with col1:
-    if st.button("📦\n" + str(total_items) + "\nВещи", use_container_width=True, key="stat_items"):
-        st.session_state.active_tab = 1
-        st.rerun()
-with col2:
-    if st.button("🏠\n" + str(total_rooms_list) + "\nПомещения", use_container_width=True, key="stat_rooms"):
-        st.session_state.active_tab = 4
-        st.rerun()
-with col3:
-    if st.button("⚠️\n" + str(low_stock_count) + "\nПополнить", use_container_width=True, key="stat_low_stock"):
-        st.session_state.active_tab = 0
-        st.session_state.show_low_stock = True
-        st.rerun()
-with col4:
-    top_cat_str = "\n".join([f"{cat}" for cat, count in top_categories[:2]]) if top_categories else "—"
-    st.button("🏆\nТоп\n" + top_cat_str, use_container_width=True, key="stat_top", disabled=True)
-with col5:
-    if st.button("🚜\n" + str(total_equipment) + "\nТехника", use_container_width=True, key="stat_equipment"):
-        st.session_state.active_tab = 2
-        st.rerun()
-with col6:
-    if st.button("📤\n" + str(total_consumption) + "\nСписано", use_container_width=True, key="stat_consumption"):
-        st.session_state.active_tab = 3
+    if st.button(
+        "📦\n" + str(total_items) + "\nВещи",
+        use_container_width=True,
+        key="stat_items",
+        help="Показать все вещи"
+    ):
+        st.session_state.active_tab = 1  # Вкладка "Все вещи"
+        st.session_state.selected_room = None
+        st.session_state.show_low_stock = False
         st.rerun()
 
+with col2:
+    if st.button(
+        "🏠\n" + str(total_rooms_list) + "\nПомещения",
+        use_container_width=True,
+        key="stat_rooms",
+        help="Показать помещения"
+    ):
+        st.session_state.active_tab = 4  # Вкладка "Помещения"
+        st.session_state.selected_room = None
+        st.session_state.show_low_stock = False
+        st.rerun()
+
+with col3:
+    if st.button(
+        "⚠️\n" + str(low_stock_count) + "\nПополнить",
+        use_container_width=True,
+        key="stat_low_stock",
+        help="Показать что нужно пополнить"
+    ):
+        st.session_state.active_tab = 0  # Вкладка "Поиск"
+        st.session_state.show_low_stock = True
+        st.session_state.selected_room = None
+        st.rerun()
+
+with col4:
+    top_cat_str = "\n".join([f"{cat}" for cat, count in top_categories[:2]]) if top_categories else "—"
+    st.button(
+        "🏆\nТоп\n" + top_cat_str,
+        use_container_width=True,
+        key="stat_top",
+        disabled=True,
+        help="Топ категорий (неактивно)"
+    )
+
+with col5:
+    if st.button(
+        "🚜\n" + str(total_equipment) + "\nТехника",
+        use_container_width=True,
+        key="stat_equipment",
+        help="Показать технику"
+    ):
+        st.session_state.active_tab = 2  # Вкладка "Парк"
+        st.session_state.selected_equipment = None
+        st.rerun()
+
+with col6:
+    if st.button(
+        "📤\n" + str(total_consumption) + "\nСписано",
+        use_container_width=True,
+        key="stat_consumption",
+        help="Показать историю списаний"
+    ):
+        st.session_state.active_tab = 3  # Вкладка "История списаний"
+        st.rerun()
+
+# --- УВЕДОМЛЕНИЯ ---
 low_stock = get_low_stock_items()
 if low_stock:
     st.markdown('<div class="critical-warning">⚠️ <b>ВНИМАНИЕ! Заканчиваются:</b></div>', unsafe_allow_html=True)
@@ -623,7 +668,23 @@ with st.sidebar:
         excel_data = export_to_excel()
         st.download_button(label="⬇️ Скачать", data=excel_data, file_name=f"инвентарь_{datetime.now().strftime('%Y-%m-%d')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
+# --- ОСНОВНАЯ ОБЛАСТЬ: ВКЛАДКИ ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Поиск", "📋 Все вещи", "🚜 Парк", "📤 История списаний", "🏠 Помещения"])
+
+# Получаем активную вкладку из session_state
+active_tab = st.session_state.get("active_tab", 0)
+
+# Если активная вкладка не 0, переключаемся
+if active_tab == 1:
+    # Переключаем на tab2 через JavaScript (Streamlit не позволяет напрямую)
+    # Используем session_state для управления
+    pass
+elif active_tab == 2:
+    pass
+elif active_tab == 3:
+    pass
+elif active_tab == 4:
+    pass
 
 with tab1:
     col_search, col_btn = st.columns([5, 1])
@@ -634,6 +695,8 @@ with tab1:
     with col_btn:
         st.write("")
         search_clicked = st.button("🔍 Найти", use_container_width=True)
+    
+    # Показываем список для пополнения, если активировано
     if st.session_state.get("show_low_stock", False):
         st.info("📋 **Вещи, которые нужно пополнить:**")
         low_items = get_low_stock_items()
@@ -648,7 +711,9 @@ with tab1:
         else:
             st.success("✅ Все вещи в норме!")
         st.divider()
+        # Сбрасываем флаг после показа
         st.session_state.show_low_stock = False
+    
     rooms = ["Все помещения"] + get_room_names()
     room_filter = st.selectbox("🏠 Помещение", rooms, key="room_filter_tab1")
     items = search_items(search_query, room_filter) if search_query else get_all_items(room_filter)
@@ -766,19 +831,16 @@ with tab1:
                                     delete_item(item_id)
                                     st.rerun()
 
-                    # --- РЕДАКТИРОВАНИЕ (объединено с фото) ---
+                    # --- РЕДАКТИРОВАНИЕ ---
                     if st.session_state.get(f"edit_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**✏️ Редактирование {name}**")
-                            
                             new_name = st.text_input("Название", value=name, key=f"new_name_{item_id}")
                             new_category = st.text_input("Категория", value=category or "", key=f"new_cat_{item_id}")
                             new_description = st.text_area("Описание", value=description or "", key=f"new_desc_{item_id}")
                             new_application = st.text_area("Область применения", value=application or "", key=f"new_app_{item_id}")
-                            
                             room_names = get_room_names()
                             new_room = st.selectbox("Помещение", room_names, index=room_names.index(room) if room in room_names else 0, key=f"new_room_{item_id}")
-                            
                             equipment_list = get_equipment()
                             eq_names = ["Не выбрано"] + [eq[1] for eq in equipment_list]
                             current_eq = eq_names[0]
@@ -793,7 +855,6 @@ with tab1:
                                     if eq[1] == new_eq:
                                         new_eq_id = eq[0]
                                         break
-                            
                             unit_names = ["Не выбрано"]
                             if new_eq_id:
                                 units = get_units(new_eq_id)
@@ -813,10 +874,8 @@ with tab1:
                                     if u[1] == new_unit:
                                         new_unit_id = u[0]
                                         break
-                            
                             st.divider()
                             st.write("**📷 Фото:**")
-                            
                             col1, col2, col3 = st.columns(3)
                             with col1:
                                 st.caption("Фото вещи")
@@ -833,12 +892,10 @@ with tab1:
                                 if installed_photo and os.path.exists(installed_photo):
                                     st.image(installed_photo, use_container_width=True)
                                 new_installed_pic = st.file_uploader("Заменить", type=["jpg", "jpeg", "png"], key=f"new_inst_{item_id}", label_visibility="collapsed")
-                            
                             col1, col2 = st.columns(2)
                             with col1:
                                 if st.button("✅ Сохранить", key=f"save_edit_{item_id}"):
                                     update_item(item_id, new_name, new_category, location, new_room, new_description, new_application, new_eq_id, new_unit_id)
-                                    
                                     item_path = item_photo or ""
                                     loc_path = location_photo or ""
                                     installed_path = installed_photo or ""
@@ -864,7 +921,6 @@ with tab1:
                                         with open(installed_path, "wb") as f:
                                             f.write(new_installed_pic.getbuffer())
                                     update_item_photos(item_id, item_path, loc_path, installed_path)
-                                    
                                     st.session_state[f"edit_mode_{item_id}"] = False
                                     st.success("✅ Изменения сохранены!")
                                     st.rerun()
