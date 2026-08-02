@@ -15,12 +15,11 @@ USERS = {
     "1111": {"role": "employee", "name": "Сотрудник"},
 }
 
-# --- НАСТРОЙКА ВКОНТАКТЕ (токен уже вставлен!) ---
+# --- НАСТРОЙКА ВКОНТАКТЕ ---
 VK_ACCESS_TOKEN = "X82PvhMLfF8sNK1H5r0vQWkzx_la3dYgEX7SllN98vu7e9xUTMn_FE-qeSaIimLcNB24d4s6tXShWJSMdDHPVTIgOBiycEo6cLHzij2odPfHeKUsddNtueegA48Lxy2cDD-XVE_dAkxYTEIOWNEor8SOupGqTxCZ6R-cGqICdp6iBlUpIIaQZmy4uRUGtLGdHtZXfAr1M-Iw1H04zdyRNEXt8tQVgpMnAlpVzTETE_IyLPZ1eS67ZmOAup5v9S4WOFUpXxIHXj_67vi6BpRwNhsq0e7RRbJMokjlRcsjMsQ-y_6-ZOvbRtKaguYdCBRsFg81TcpeW8FGg4Ntnb_IdunvWEGvloko1SiUsO4bH1R4bOUDEig3BUttNwiOYCrWJdeUSx-mUk4-PAeV-88O2Q"
-VK_ADMIN_ID = 204817167  # Твой ID
+VK_ADMIN_ID = 204817167
 
 def send_vk_message(text):
-    """Отправляет сообщение администратору в ВКонтакте"""
     try:
         url = "https://api.vk.com/method/messages.send"
         payload = {
@@ -40,12 +39,18 @@ def send_vk_message(text):
         print(f"Ошибка отправки в ВК: {e}")
         return False
 
-# --- ВХОД С ЗАПОМИНАНИЕМ ПАРОЛЯ ---
+# --- ВХОД С ЗАПОМИНАНИЕМ ---
 def login():
     st.sidebar.title("🔐 Вход")
     
-    if "user" in st.session_state and st.session_state.user is not None:
-        return
+    # Проверяем, есть ли сохранённый пользователь в URL
+    if "user" in st.query_params:
+        saved_user = st.query_params["user"]
+        if saved_user in USERS:
+            st.session_state.user = USERS[saved_user]
+            st.session_state.user["password"] = saved_user
+            st.rerun()
+            return
     
     st.sidebar.markdown("""
         <style>
@@ -68,6 +73,9 @@ def login():
         placeholder="12345"
     )
     
+    # Галочка "Запомнить меня"
+    remember_me = st.sidebar.checkbox("🔒 Запомнить меня", value=True, help="При следующем открытии приложения пароль не потребуется")
+    
     st.markdown("""
         <script>
             document.addEventListener('DOMContentLoaded', function() {
@@ -81,17 +89,24 @@ def login():
         </script>
     """, unsafe_allow_html=True)
     
-    col1, col2 = st.sidebar.columns([3, 1])
+    col1, col2, col3 = st.sidebar.columns([2, 1, 1])
     with col1:
         if st.button("🔓 Войти", use_container_width=True):
             if password in USERS:
                 st.session_state.user = USERS[password]
                 st.session_state.user["password"] = password
+                if remember_me:
+                    st.query_params["user"] = password
                 st.rerun()
             else:
                 st.sidebar.error("❌ Неверный пароль!")
     with col2:
-        if st.button("✖️", help="Очистить"):
+        if st.button("🔄 Сброс", use_container_width=True, help="Очистить сохранённый пароль"):
+            st.query_params.clear()
+            st.session_state.user = None
+            st.rerun()
+    with col3:
+        if st.button("✖️", help="Очистить поле"):
             st.session_state.login_password = ""
             st.rerun()
 
@@ -99,6 +114,7 @@ def login():
 if "user" not in st.session_state:
     st.session_state.user = None
 
+# Если пользователь не авторизован — показываем вход
 if st.session_state.user is None:
     login()
     st.stop()
@@ -114,6 +130,7 @@ st.title("🌿 Мой Склад")
 st.caption(f"👋 Добро пожаловать, {user_name}! {('🔑 Администратор' if role == 'admin' else '🔧 Сотрудник')}")
 
 if st.sidebar.button("🚪 Выйти"):
+    st.query_params.clear()
     st.session_state.user = None
     st.rerun()
 
