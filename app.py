@@ -8,27 +8,31 @@ import pandas as pd
 from io import BytesIO
 import qrcode
 import requests
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-# --- НАСТРОЙКА SMS.ru (ТВОИ ДАННЫЕ) ---
-SMS_API_KEY = "384FB159-E4AB-FB84-B29A-0BB69CA01D27"
-SMS_RECIPIENT = "+79197461228"
+# --- НАСТРОЙКА YANDEX ПОЧТЫ ---
+EMAIL_SENDER = "Yvedomlenie-scald.sad@yandex.ru"
+EMAIL_PASSWORD = "ТВОЙ_ПАРОЛЬ_ОТ_ПОЧТЫ"  # ← ЗАМЕНИ НА СВОЙ ПАРОЛЬ
+EMAIL_RECIPIENT = "Yvedomlenie-scald.sad@yandex.ru"
+SMTP_SERVER = "smtp.yandex.ru"
+SMTP_PORT = 587
 
-def send_sms(text):
-    """Отправляет SMS через SMS.ru"""
+def send_email(subject, body):
+    """Отправляет email через Yandex"""
     try:
-        url = "https://sms.ru/sms/send"
-        payload = {
-            "api_id": SMS_API_KEY,
-            "to": SMS_RECIPIENT,
-            "msg": text,
-            "json": 1
-        }
-        response = requests.post(url, data=payload, timeout=10)
-        data = response.json()
-        if data.get("status") == "OK":
-            return True, "✅ SMS отправлено"
-        else:
-            return False, f"❌ Ошибка: {data}"
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_SENDER
+        msg['To'] = EMAIL_RECIPIENT
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        return True, "✅ Email отправлен"
     except Exception as e:
         return False, f"❌ Ошибка: {str(e)}"
 
@@ -87,8 +91,7 @@ def login():
             if password in USERS:
                 st.session_state.user = USERS[password]
                 st.session_state.user["password"] = password
-                if "user" in st.query_params:
-                    st.query_params["user"] = password
+                st.query_params["user"] = password
                 st.rerun()
             else:
                 st.sidebar.error("❌ Неверный пароль!")
@@ -716,10 +719,14 @@ with st.sidebar:
     st.caption(f"Роль: {'🔑 Администратор' if role == 'admin' else '🔧 Сотрудник'}")
     st.divider()
     
-    # --- ТЕСТ SMS ---
-    st.subheader("📨 Тест SMS")
-    if st.button("📨 Отправить тестовое SMS", use_container_width=True):
-        success, msg = send_sms("✅ Тестовое SMS из приложения! Уведомления работают!")
+    # --- ТЕСТ EMAIL ---
+    st.subheader("📧 Тест Email")
+    if st.button("📧 Отправить тестовое письмо", use_container_width=True):
+        success, msg = send_email(
+            "✅ Тестовое письмо из приложения!",
+            "Если вы читаете это письмо — уведомления работают!\n\n"
+            "Проверено: " + datetime.now().strftime("%Y-%m-%d %H:%M")
+        )
         if success:
             st.success(msg)
         else:
@@ -1020,16 +1027,20 @@ with tab1:
                                         
                                         success, message = consume_item(item_id, take_qty, object_name, user_name, note, photo_path, "pending")
                                         if success:
-                                            # --- ОТПРАВКА SMS ---
-                                            sms_text = (
-                                                f"Заявка на списание!\n"
-                                                f"Сотрудник: {user_name}\n"
-                                                f"Вещь: {name} - {take_qty} {unit}\n"
-                                                f"Объект: {object_name}"
+                                            # --- ОТПРАВКА EMAIL ---
+                                            subject = "📤 Новая заявка на списание!"
+                                            body = (
+                                                f"👤 Сотрудник: {user_name}\n"
+                                                f"📦 Вещь: {name}\n"
+                                                f"📦 Количество: {take_qty} {unit}\n"
+                                                f"🚗 Объект: {object_name}\n"
+                                                f"📝 Примечание: {note or '—'}\n\n"
+                                                f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+                                                f"Зайдите в приложение, чтобы подтвердить или отклонить заявку."
                                             )
-                                            send_sms(sms_text)
+                                            send_email(subject, body)
                                             
-                                            st.success("✅ Заявка отправлена! Администратор получит SMS.")
+                                            st.success("✅ Заявка отправлена! Администратор получит уведомление на почту.")
                                             st.session_state[f"take_mode_{item_id}"] = False
                                             st.rerun()
                                         else:
