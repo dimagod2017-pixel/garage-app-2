@@ -8,7 +8,6 @@ import pandas as pd
 from io import BytesIO
 import qrcode
 
-# --- ПАРОЛЬ ---
 PASSWORD = "12345"
 
 user_pass = st.sidebar.text_input("🔑 Введите пароль:", type="password")
@@ -16,99 +15,10 @@ if user_pass != PASSWORD:
     st.sidebar.warning("⚠️ Неверный пароль!")
     st.stop()
 
-# --- НАСТРОЙКА СТРАНИЦЫ ---
 st.set_page_config(page_title="Мой Склад", page_icon="🌿", layout="wide")
-
-# --- ЗЕЛЁНАЯ ЦВЕТОВАЯ СХЕМА ---
-PRIMARY_COLOR = "#2E7D32"
-SECONDARY_COLOR = "#4CAF50"
-
 st.title("🌿 Мой Склад")
 st.caption("Добро пожаловать! Храните и находите вещи легко.")
 
-# --- КАСТОМНЫЙ CSS ---
-st.markdown(f"""
-    <style>
-        .stApp {{ background-color: #f0f7f0; }}
-        .main-header {{
-            background: linear-gradient(135deg, {PRIMARY_COLOR}, {SECONDARY_COLOR});
-            padding: 1.5rem;
-            border-radius: 15px;
-            color: white;
-            text-align: center;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 15px rgba(46, 125, 50, 0.3);
-        }}
-        .main-header h1 {{ margin: 0; font-size: 2.5rem; font-weight: 700; }}
-        .main-header p {{ margin: 0; font-size: 1.2rem; opacity: 0.95; }}
-        
-        .stat-btn-wrap {{
-            background: white;
-            border: 2px solid #e8f5e9;
-            border-radius: 14px;
-            padding: 0.8rem 0.3rem;
-            text-align: center;
-            transition: all 0.3s;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            min-height: 90px;
-            width: 100%;
-            cursor: pointer;
-        }}
-        .stat-btn-wrap:hover {{
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(46, 125, 50, 0.2);
-            border-color: {SECONDARY_COLOR};
-        }}
-        .stat-number {{
-            font-size: 2.2rem;
-            font-weight: bold;
-            color: {PRIMARY_COLOR};
-            line-height: 1.2;
-        }}
-        .stat-label {{
-            color: #555;
-            font-size: 0.85rem;
-            font-weight: 500;
-            margin-top: 2px;
-        }}
-        @media (max-width: 768px) {{
-            .stat-number {{ font-size: 1.6rem; }}
-            .stat-label {{ font-size: 0.65rem; }}
-            .stat-btn-wrap {{ min-height: 65px; padding: 0.4rem 0.2rem; }}
-        }}
-        
-        .critical-warning {{
-            background: linear-gradient(135deg, #ffebee, #ffcdd2);
-            border-left: 5px solid #f44336;
-            padding: 1rem;
-            border-radius: 10px;
-            margin-bottom: 1rem;
-        }}
-        .warning-warning {{
-            background: linear-gradient(135deg, #fff3e0, #ffe0b2);
-            border-left: 5px solid #ff9800;
-            padding: 1rem;
-            border-radius: 10px;
-            margin-bottom: 1rem;
-        }}
-        
-        div[data-testid="stSidebar"] {{
-            background: linear-gradient(180deg, #f5faf5, #e8f5e9);
-            border-right: 2px solid {SECONDARY_COLOR};
-        }}
-        div[data-testid="stSidebar"] * {{ color: #1e3a1e !important; }}
-    </style>
-""", unsafe_allow_html=True)
-
-# --- ШАПКА ---
-st.markdown(f"""
-    <div class="main-header">
-        <h1>🌿 Мой Склад</h1>
-        <p>👋 Добро пожаловать!</p>
-    </div>
-""", unsafe_allow_html=True)
-
-# --- ТЁМНАЯ ТЕМА ---
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 if "active_tab" not in st.session_state:
@@ -159,13 +69,13 @@ if st.session_state.dark_mode:
             }
             .stAlert { background-color: #1a2a1a !important; }
             .element-container, .stContainer, .stColumn { background-color: transparent !important; }
-            div[data-testid="stSidebar"] { 
+            div[data-testid="stSidebar"] {
                 background: linear-gradient(180deg, #0d1a0d, #1a2a1a) !important;
                 border-right: 2px solid #2e5a2e !important;
             }
             div[data-testid="stSidebar"] * { color: #d4e8d4 !important; }
-            div[data-testid="stSidebar"] .stTextInput input { 
-                background-color: #1a2a1a !important; 
+            div[data-testid="stSidebar"] .stTextInput input {
+                background-color: #1a2a1a !important;
                 color: #d4e8d4 !important;
                 border-color: #2e5a2e !important;
             }
@@ -185,23 +95,21 @@ if st.session_state.dark_mode:
         </style>
     """, unsafe_allow_html=True)
 
-# --- ПАПКА ДЛЯ ФОТО ---
 if not os.path.exists("images"):
     os.makedirs("images")
 
-# --- БАЗА ДАННЫХ ---
 def init_db():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS items
-                 (id TEXT PRIMARY KEY, 
-                  name TEXT, 
-                  category TEXT, 
+                 (id TEXT PRIMARY KEY,
+                  name TEXT,
+                  category TEXT,
                   location TEXT,
                   room TEXT,
-                  description TEXT, 
-                  item_photo TEXT, 
-                  location_photo TEXT, 
+                  description TEXT,
+                  item_photo TEXT,
+                  location_photo TEXT,
                   date_added TEXT,
                   quantity REAL,
                   unit TEXT,
@@ -233,7 +141,6 @@ def init_db():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT UNIQUE,
                   date_added TEXT)''')
-    
     c.execute("PRAGMA table_info(items)")
     columns = [col[1] for col in c.fetchall()]
     if 'application' not in columns:
@@ -244,16 +151,13 @@ def init_db():
         c.execute("ALTER TABLE items ADD COLUMN equipment_id INTEGER")
     if 'unit_id' not in columns:
         c.execute("ALTER TABLE items ADD COLUMN unit_id INTEGER")
-    
     c.execute("PRAGMA table_info(equipment)")
     eq_columns = [col[1] for col in c.fetchall()]
     if 'number' not in eq_columns:
         c.execute("ALTER TABLE equipment ADD COLUMN number TEXT")
-    
     conn.commit()
     conn.close()
 
-# --- ФУНКЦИИ ДЛЯ ПОМЕЩЕНИЙ ---
 def add_room(name):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -285,7 +189,6 @@ def get_rooms():
 def get_room_names():
     return [room[1] for room in get_rooms()]
 
-# --- ФУНКЦИИ ДЛЯ ТЕХНИКИ ---
 def add_equipment(name, number=""):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -331,7 +234,6 @@ def get_equipment_by_id(eq_id):
     conn.close()
     return result
 
-# --- ФУНКЦИИ ДЛЯ АГРЕГАТОВ ---
 def add_unit(name, equipment_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -363,7 +265,6 @@ def get_units(equipment_id=None):
     conn.close()
     return results
 
-# --- ФУНКЦИИ ДЛЯ РАСХОДА ---
 def consume_item(item_id, quantity, object_name, user="Пользователь", note=""):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -400,8 +301,8 @@ def delete_consumption_record(record_id):
 def get_all_consumption():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    c.execute("""SELECT c.*, i.name FROM consumption c 
-                 JOIN items i ON c.item_id = i.id 
+    c.execute("""SELECT c.*, i.name FROM consumption c
+                 JOIN items i ON c.item_id = i.id
                  ORDER BY c.date DESC LIMIT 200""")
     results = c.fetchall()
     conn.close()
@@ -410,15 +311,14 @@ def get_all_consumption():
 def get_consumption_by_equipment(eq_name):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    c.execute("""SELECT c.*, i.name FROM consumption c 
-                 JOIN items i ON c.item_id = i.id 
-                 WHERE c.object_name LIKE ? 
+    c.execute("""SELECT c.*, i.name FROM consumption c
+                 JOIN items i ON c.item_id = i.id
+                 WHERE c.object_name LIKE ?
                  ORDER BY c.date DESC""", (f'%{eq_name}%',))
     results = c.fetchall()
     conn.close()
     return results
 
-# --- ОСНОВНЫЕ ФУНКЦИИ ---
 def add_item(name, category, location, room, description, item_photo_path, location_photo_path, quantity, unit, threshold, application, installed_photo_path, equipment_id, unit_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -433,7 +333,7 @@ def update_item(item_id, name, category, location, room, description, applicatio
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute("""
-        UPDATE items 
+        UPDATE items
         SET name = ?, category = ?, location = ?, room = ?, description = ?, application = ?, equipment_id = ?, unit_id = ?
         WHERE id = ?
     """, (name, category, location, room, description, application, equipment_id, unit_id, item_id))
@@ -444,7 +344,7 @@ def update_item_photos(item_id, item_photo_path, location_photo_path, installed_
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute("""
-        UPDATE items 
+        UPDATE items
         SET item_photo = ?, location_photo = ?, installed_photo = ?
         WHERE id = ?
     """, (item_photo_path, location_photo_path, installed_photo_path, item_id))
@@ -491,40 +391,38 @@ def search_items(query, room_filter=None):
     c = conn.cursor()
     query_like = f"%{query}%"
     query_lower = f"%{query.lower()}%"
-    
     if room_filter and room_filter != "Все помещения":
         c.execute("""
-            SELECT * FROM items 
-            WHERE (name LIKE ? 
-                   OR category LIKE ? 
-                   OR location LIKE ? 
-                   OR description LIKE ? 
+            SELECT * FROM items
+            WHERE (name LIKE ?
+                   OR category LIKE ?
+                   OR location LIKE ?
+                   OR description LIKE ?
                    OR application LIKE ?
-                   OR LOWER(name) LIKE ? 
-                   OR LOWER(category) LIKE ? 
-                   OR LOWER(location) LIKE ? 
-                   OR LOWER(description) LIKE ? 
+                   OR LOWER(name) LIKE ?
+                   OR LOWER(category) LIKE ?
+                   OR LOWER(location) LIKE ?
+                   OR LOWER(description) LIKE ?
                    OR LOWER(application) LIKE ?)
             AND room = ?
-        """, (query_like, query_like, query_like, query_like, query_like, 
+        """, (query_like, query_like, query_like, query_like, query_like,
               query_lower, query_lower, query_lower, query_lower, query_lower,
               room_filter))
     else:
         c.execute("""
-            SELECT * FROM items 
-            WHERE name LIKE ? 
-               OR category LIKE ? 
-               OR location LIKE ? 
-               OR description LIKE ? 
+            SELECT * FROM items
+            WHERE name LIKE ?
+               OR category LIKE ?
+               OR location LIKE ?
+               OR description LIKE ?
                OR application LIKE ?
-               OR LOWER(name) LIKE ? 
-               OR LOWER(category) LIKE ? 
-               OR LOWER(location) LIKE ? 
-               OR LOWER(description) LIKE ? 
+               OR LOWER(name) LIKE ?
+               OR LOWER(category) LIKE ?
+               OR LOWER(location) LIKE ?
+               OR LOWER(description) LIKE ?
                OR LOWER(application) LIKE ?
         """, (query_like, query_like, query_like, query_like, query_like,
               query_lower, query_lower, query_lower, query_lower, query_lower))
-    
     results = c.fetchall()
     conn.close()
     return results
@@ -591,7 +489,6 @@ def export_to_excel():
 
 init_db()
 
-# --- СТАТИСТИКА ---
 total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list, total_consumption = get_statistics()
 
 col1, col2, col3, col4, col5, col6 = st.columns(6)
@@ -620,7 +517,6 @@ with col6:
         st.session_state.active_tab = 3
         st.rerun()
 
-# --- УВЕДОМЛЕНИЯ ---
 low_stock = get_low_stock_items()
 if low_stock:
     st.markdown('<div class="critical-warning">⚠️ <b>ВНИМАНИЕ! Заканчиваются:</b></div>', unsafe_allow_html=True)
@@ -639,14 +535,12 @@ if low_stock:
                 st.write(f"- {item[1]} ({item[9]} {item[10]}) в {item[4]}")
     st.divider()
 
-# --- БОКОВАЯ ПАНЕЛЬ ---
 with st.sidebar:
     st.markdown("### 🌿 Управление")
     st.header("➕ Добавить вещь")
     room_names = get_room_names()
     if not room_names:
         st.warning("⚠️ Сначала добавьте помещения в разделе 'Помещения'!")
-    
     with st.form("add_form", clear_on_submit=True):
         name = st.text_input("Название вещи*")
         category = st.text_input("Категория")
@@ -696,25 +590,29 @@ with st.sidebar:
         installed_pic = st.file_uploader("📷 Фото установки на агрегате", type=["jpg", "jpeg", "png"], key="installed")
         submitted = st.form_submit_button("💾 Сохранить")
         if submitted and name and location and room and room != "— Сначала добавьте помещение —":
-            item_path = ""; loc_path = ""; installed_path = ""
+            item_path = ""
+            loc_path = ""
+            installed_path = ""
             if item_pic:
                 ext = item_pic.name.split('.')[-1]
                 item_path = f"images/{uuid.uuid4()}_item.{ext}"
-                with open(item_path, "wb") as f: f.write(item_pic.getbuffer())
+                with open(item_path, "wb") as f:
+                    f.write(item_pic.getbuffer())
             if location_pic:
                 ext = location_pic.name.split('.')[-1]
                 loc_path = f"images/{uuid.uuid4()}_loc.{ext}"
-                with open(loc_path, "wb") as f: f.write(location_pic.getbuffer())
+                with open(loc_path, "wb") as f:
+                    f.write(location_pic.getbuffer())
             if installed_pic:
                 ext = installed_pic.name.split('.')[-1]
                 installed_path = f"images/{uuid.uuid4()}_installed.{ext}"
-                with open(installed_path, "wb") as f: f.write(installed_pic.getbuffer())
+                with open(installed_path, "wb") as f:
+                    f.write(installed_pic.getbuffer())
             add_item(name, category, location, room, description, item_path, loc_path, quantity, unit, threshold, application, installed_path, eq_id, unit_id)
             st.success(f"✅ Добавлено {quantity} {unit} '{name}'")
             st.rerun()
         elif submitted:
             st.error("⚠️ Название, Помещение и Место обязательны!")
-    
     st.divider()
     st.header("📥 Импорт Excel")
     uploaded_file = st.file_uploader("Выберите Excel-файл", type=["xlsx", "xls"])
@@ -725,7 +623,6 @@ with st.sidebar:
         excel_data = export_to_excel()
         st.download_button(label="⬇️ Скачать", data=excel_data, file_name=f"инвентарь_{datetime.now().strftime('%Y-%m-%d')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
-# --- ОСНОВНАЯ ОБЛАСТЬ: ВКЛАДКИ ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Поиск", "📋 Все вещи", "🚜 Парк", "📤 История списаний", "🏠 Помещения"])
 
 with tab1:
@@ -737,25 +634,25 @@ with tab1:
     with col_btn:
         st.write("")
         search_clicked = st.button("🔍 Найти", use_container_width=True)
-    
     if st.session_state.get("show_low_stock", False):
         st.info("📋 **Вещи, которые нужно пополнить:**")
         low_items = get_low_stock_items()
         if low_items:
             for item in low_items:
-                qty = item[9]; name = item[1]; unit = item[10]; room = item[4]; threshold = item[11]
+                qty = item[9]
+                name = item[1]
+                unit = item[10]
+                room = item[4]
+                threshold = item[11]
                 st.write(f"• **{name}** — {qty} {unit} (порог: {threshold}) в **{room}**")
         else:
             st.success("✅ Все вещи в норме!")
         st.divider()
         st.session_state.show_low_stock = False
-    
     rooms = ["Все помещения"] + get_room_names()
     room_filter = st.selectbox("🏠 Помещение", rooms, key="room_filter_tab1")
-    
     items = search_items(search_query, room_filter) if search_query else get_all_items(room_filter)
     st.subheader(f"📌 Найдено: {len(items)}")
-
     if not items:
         st.info("🌱 Ничего нет. Добавьте через меню.")
     else:
@@ -766,12 +663,16 @@ with tab1:
                     item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo, equipment_id, unit_id = item[:16]
                 elif len(item) >= 14:
                     item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo = item[:14]
-                    equipment_id = None; unit_id = None
+                    equipment_id = None
+                    unit_id = None
                 else:
                     item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item[:12]
-                    application = ""; installed_photo = ""; equipment_id = None; unit_id = None
-                
-                eq_name = ""; unit_name = ""
+                    application = ""
+                    installed_photo = ""
+                    equipment_id = None
+                    unit_id = None
+                eq_name = ""
+                unit_name = ""
                 if equipment_id:
                     eq = get_equipment_by_id(equipment_id)
                     if eq:
@@ -780,21 +681,21 @@ with tab1:
                     units = get_units(equipment_id)
                     for u in units:
                         if u[0] == unit_id:
-                            unit_name = u[1]; break
-                
+                            unit_name = u[1]
+                            break
                 try:
                     qty = float(quantity)
                 except:
                     qty = 0
-                
                 if qty <= 0:
-                    status_emoji = "🔴"; status_text = "КРИТИЧНО!"
+                    status_emoji = "🔴"
+                    status_text = "КРИТИЧНО!"
                 elif qty <= threshold:
-                    status_emoji = "🟡"; status_text = f"Скоро закончится (≤ {threshold})"
+                    status_emoji = "🟡"
+                    status_text = f"Скоро закончится (≤ {threshold})"
                 else:
-                    status_emoji = "🟢"; status_text = "В норме"
-                
-                # --- КАРТОЧКА ВЕЩИ ---
+                    status_emoji = "🟢"
+                    status_text = "В норме"
                 with st.container(border=True):
                     col_title, col_dots = st.columns([6, 1])
                     with col_title:
@@ -804,7 +705,6 @@ with tab1:
                     with col_dots:
                         if st.button("⋮", key=f"menu_{item_id}", help="Меню"):
                             st.session_state[f"menu_{item_id}"] = not st.session_state.get(f"menu_{item_id}", False)
-                    
                     st.caption(f"🏠 {room} → 📍 {location}")
                     if eq_name:
                         st.caption(f"🚜 **Техника:** {eq_name}")
@@ -814,7 +714,6 @@ with tab1:
                         st.caption(f"📝 **Область применения:** {application}")
                     st.caption(f"📦 Количество: **{qty} {unit}**")
                     st.caption(f"📊 Статус: **{status_text}**")
-                    
                     c1, c2, c3 = st.columns(3)
                     with c1:
                         if item_photo and os.path.exists(item_photo):
@@ -831,12 +730,9 @@ with tab1:
                             st.image(installed_photo, caption="Установка", use_container_width=True)
                         else:
                             st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
-                    
                     if description:
                         st.write(f"📝 {description}")
                     st.caption(f"🕒 Добавлено: {date_added}")
-                    
-                    # --- МЕНЮ ---
                     if st.session_state.get(f"menu_{item_id}", False):
                         with st.container(border=True):
                             st.write("**📋 Действия:**")
@@ -867,8 +763,6 @@ with tab1:
                                 if st.button("🗑️ Удалить", key=f"del_{item_id}", use_container_width=True):
                                     delete_item(item_id)
                                     st.rerun()
-                    
-                    # --- РЕДАКТИРОВАНИЕ ---
                     if st.session_state.get(f"edit_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**✏️ Редактирование {name}**")
@@ -890,7 +784,8 @@ with tab1:
                             if new_eq != "Не выбрано":
                                 for eq in equipment_list:
                                     if eq[1] == new_eq:
-                                        new_eq_id = eq[0]; break
+                                        new_eq_id = eq[0]
+                                        break
                             unit_names = ["Не выбрано"]
                             if new_eq_id:
                                 units = get_units(new_eq_id)
@@ -900,14 +795,16 @@ with tab1:
                                 units = get_units(equipment_id)
                                 for u in units:
                                     if u[0] == unit_id:
-                                        current_unit = u[1]; break
+                                        current_unit = u[1]
+                                        break
                             new_unit = st.selectbox("Агрегат", unit_names, index=unit_names.index(current_unit) if current_unit in unit_names else 0, key=f"new_unit_{item_id}")
                             new_unit_id = None
                             if new_unit != "Не выбрано" and new_eq_id:
                                 units = get_units(new_eq_id)
                                 for u in units:
                                     if u[1] == new_unit:
-                                        new_unit_id = u[0]; break
+                                        new_unit_id = u[0]
+                                        break
                             col1, col2 = st.columns(2)
                             with col1:
                                 if st.button("✅ Сохранить", key=f"save_edit_{item_id}"):
@@ -919,8 +816,6 @@ with tab1:
                                 if st.button("❌ Отмена", key=f"cancel_edit_{item_id}"):
                                     st.session_state[f"edit_mode_{item_id}"] = False
                                     st.rerun()
-                    
-                    # --- ИЗМЕНЕНИЕ ФОТО ---
                     if st.session_state.get(f"photo_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**📷 Изменение фото для {name}**")
@@ -930,25 +825,30 @@ with tab1:
                             col1, col2 = st.columns(2)
                             with col1:
                                 if st.button("✅ Сохранить фото", key=f"save_photo_{item_id}"):
-                                    item_path = item_photo or ""; loc_path = location_photo or ""; installed_path = installed_photo or ""
+                                    item_path = item_photo or ""
+                                    loc_path = location_photo or ""
+                                    installed_path = installed_photo or ""
                                     if new_item_pic:
                                         ext = new_item_pic.name.split('.')[-1]
                                         if item_path and os.path.exists(item_path):
                                             os.remove(item_path)
                                         item_path = f"images/{uuid.uuid4()}_item.{ext}"
-                                        with open(item_path, "wb") as f: f.write(new_item_pic.getbuffer())
+                                        with open(item_path, "wb") as f:
+                                            f.write(new_item_pic.getbuffer())
                                     if new_location_pic:
                                         ext = new_location_pic.name.split('.')[-1]
                                         if loc_path and os.path.exists(loc_path):
                                             os.remove(loc_path)
                                         loc_path = f"images/{uuid.uuid4()}_loc.{ext}"
-                                        with open(loc_path, "wb") as f: f.write(new_location_pic.getbuffer())
+                                        with open(loc_path, "wb") as f:
+                                            f.write(new_location_pic.getbuffer())
                                     if new_installed_pic:
                                         ext = new_installed_pic.name.split('.')[-1]
                                         if installed_path and os.path.exists(installed_path):
                                             os.remove(installed_path)
                                         installed_path = f"images/{uuid.uuid4()}_installed.{ext}"
-                                        with open(installed_path, "wb") as f: f.write(new_installed_pic.getbuffer())
+                                        with open(installed_path, "wb") as f:
+                                            f.write(new_installed_pic.getbuffer())
                                     update_item_photos(item_id, item_path, loc_path, installed_path)
                                     st.session_state[f"photo_mode_{item_id}"] = False
                                     st.success("✅ Фото обновлены!")
@@ -957,8 +857,6 @@ with tab1:
                                 if st.button("❌ Отмена", key=f"cancel_photo_{item_id}"):
                                     st.session_state[f"photo_mode_{item_id}"] = False
                                     st.rerun()
-                    
-                    # --- СПИСАНИЕ ---
                     if st.session_state.get(f"cons_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**📤 Списание {name}**")
@@ -979,7 +877,10 @@ with tab1:
                                 filtered_eq = [opt for opt in search_options if search_equipment.lower() in opt.lower()] if search_equipment else search_options
                                 if filtered_eq:
                                     selected_eq = st.selectbox("Выберите объект", filtered_eq, key=f"sel_eq_{item_id}")
-                                    object_name = st.text_input("Введите название объекта*", key=f"custom_obj_{item_id}") if selected_eq == "Другое" else selected_eq
+                                    if selected_eq == "Другое":
+                                        object_name = st.text_input("Введите название объекта*", key=f"custom_obj_{item_id}")
+                                    else:
+                                        object_name = selected_eq
                                 else:
                                     st.warning("Ничего не найдено")
                                     object_name = st.text_input("Введите название объекта*", key=f"custom_obj_{item_id}")
@@ -1004,8 +905,6 @@ with tab1:
                                 if st.button("❌ Отмена", key=f"cancel_cons_{item_id}"):
                                     st.session_state[f"cons_mode_{item_id}"] = False
                                     st.rerun()
-                    
-                    # --- ПЕРЕМЕЩЕНИЕ ---
                     if st.session_state.get(f"move_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**🚚 Перемещение {name}**")
@@ -1030,8 +929,6 @@ with tab1:
                                 if st.button("❌ Закрыть", key=f"close_move_{item_id}"):
                                     st.session_state[f"move_mode_{item_id}"] = False
                                     st.rerun()
-                    
-                    # --- QR-КОД ---
                     if st.session_state.get(f"qr_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**📷 QR-код для {name}**")
@@ -1056,11 +953,16 @@ with tab2:
         for item in all_items:
             if len(item) >= 14:
                 item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo = item[:14]
-                equipment_id = None; unit_id = None
+                equipment_id = None
+                unit_id = None
             else:
                 item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item[:12]
-                application = ""; installed_photo = ""; equipment_id = None; unit_id = None
-            eq_name = ""; unit_name = ""
+                application = ""
+                installed_photo = ""
+                equipment_id = None
+                unit_id = None
+            eq_name = ""
+            unit_name = ""
             if equipment_id:
                 eq = get_equipment_by_id(equipment_id)
                 if eq:
@@ -1069,7 +971,8 @@ with tab2:
                 units = get_units(equipment_id)
                 for u in units:
                     if u[0] == unit_id:
-                        unit_name = u[1]; break
+                        unit_name = u[1]
+                        break
             try:
                 qty = float(quantity)
             except:
@@ -1107,7 +1010,6 @@ with tab3:
             st.session_state.selected_equipment = None
             st.rerun()
         st.divider()
-    
     with st.expander("➕ Добавить технику", expanded=False):
         with st.form("add_equipment_form", clear_on_submit=True):
             col1, col2, col3 = st.columns([3, 2, 1])
@@ -1116,14 +1018,16 @@ with tab3:
             with col2:
                 eq_number = st.text_input("Госномер", placeholder="А123ВС")
             with col3:
-                st.write(""); st.write(""); add_eq_btn = st.form_submit_button("➕ Добавить")
+                st.write("")
+                st.write("")
+                add_eq_btn = st.form_submit_button("➕ Добавить")
             if add_eq_btn and eq_name:
                 success, msg = add_equipment(eq_name, eq_number)
                 if success:
-                    st.success(msg); st.rerun()
+                    st.success(msg)
+                    st.rerun()
                 else:
                     st.error(msg)
-    
     equipment_list = get_equipment()
     if not equipment_list:
         st.info("🌱 Пока нет техники")
@@ -1199,17 +1103,19 @@ with tab5:
             st.session_state.selected_room = None
             st.rerun()
         st.divider()
-    
     with st.form("add_room_form", clear_on_submit=True):
         col1, col2 = st.columns([3, 1])
         with col1:
             new_room = st.text_input("Название нового помещения", placeholder="Гараж, Склад, Мастерская...")
         with col2:
-            st.write(""); st.write(""); add_room_btn = st.form_submit_button("➕ Добавить")
+            st.write("")
+            st.write("")
+            add_room_btn = st.form_submit_button("➕ Добавить")
         if add_room_btn and new_room:
             success, msg = add_room(new_room)
             if success:
-                st.success(msg); st.rerun()
+                st.success(msg)
+                st.rerun()
             else:
                 st.error(msg)
     st.divider()
