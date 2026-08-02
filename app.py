@@ -332,31 +332,35 @@ def delete_item(item_id):
     conn.commit()
     conn.close()
 
-# --- УПРОЩЁННЫЙ ПОИСК (только по основным полям) ---
+# --- ПРОСТОЙ И НАДЁЖНЫЙ ПОИСК ---
 def search_items(query, room_filter=None):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     
-    # Приводим запрос к нижнему регистру
     query_lower = f"%{query.lower()}%"
     
-    if room_filter and room_filter != "Все помещения":
-        c.execute("""
-            SELECT * FROM items 
-            WHERE (LOWER(name) LIKE ? 
+    try:
+        if room_filter and room_filter != "Все помещения":
+            c.execute("""
+                SELECT * FROM items 
+                WHERE (LOWER(name) LIKE ? 
+                       OR LOWER(category) LIKE ? 
+                       OR LOWER(location) LIKE ? 
+                       OR LOWER(description) LIKE ?)
+                AND room = ?
+            """, (query_lower, query_lower, query_lower, query_lower, room_filter))
+        else:
+            c.execute("""
+                SELECT * FROM items 
+                WHERE LOWER(name) LIKE ? 
                    OR LOWER(category) LIKE ? 
                    OR LOWER(location) LIKE ? 
-                   OR LOWER(description) LIKE ?)
-            AND room = ?
-        """, (query_lower, query_lower, query_lower, query_lower, room_filter))
-    else:
-        c.execute("""
-            SELECT * FROM items 
-            WHERE LOWER(name) LIKE ? 
-               OR LOWER(category) LIKE ? 
-               OR LOWER(location) LIKE ? 
-               OR LOWER(description) LIKE ?
-        """, (query_lower, query_lower, query_lower, query_lower))
+                   OR LOWER(description) LIKE ?
+            """, (query_lower, query_lower, query_lower, query_lower))
+    except Exception as e:
+        st.error(f"Ошибка поиска: {e}")
+        conn.close()
+        return []
     
     results = c.fetchall()
     conn.close()
