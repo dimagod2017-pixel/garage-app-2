@@ -47,7 +47,7 @@ st.markdown(f"""
             .vertical-btn-wrap {{
                 display: flex !important;
                 flex-direction: column !important;
-                gap: 0.4rem !important;
+                gap: 0.3rem !important;
                 width: 100% !important;
             }}
             .vertical-btn-wrap .stButton {{
@@ -55,12 +55,12 @@ st.markdown(f"""
             }}
             .vertical-btn-wrap .stButton button {{
                 width: 100% !important;
-                padding: 0.6rem 0.8rem !important;
+                padding: 0.5rem 0.8rem !important;
                 font-size: 0.8rem !important;
-                min-height: 40px !important;
+                min-height: 36px !important;
                 border-radius: 8px !important;
-                white-space: normal !important;
-                line-height: 1.3 !important;
+                white-space: nowrap !important;
+                font-weight: 600 !important;
             }}
         }}
         @media (max-width: 768px) {{
@@ -68,20 +68,82 @@ st.markdown(f"""
                 display: flex !important;
                 flex-direction: row !important;
                 flex-wrap: wrap !important;
-                gap: 0.2rem !important;
+                gap: 0.15rem !important;
             }}
             .vertical-btn-wrap .stButton {{
                 flex: 1 !important;
-                min-width: 40px !important;
+                min-width: 35px !important;
             }}
             .vertical-btn-wrap .stButton button {{
-                padding: 0.2rem 0.3rem !important;
-                font-size: 0.55rem !important;
-                min-height: 28px !important;
-                border-radius: 5px !important;
-                white-space: normal !important;
-                line-height: 1.2 !important;
+                padding: 0.15rem 0.2rem !important;
+                font-size: 0.5rem !important;
+                min-height: 24px !important;
+                border-radius: 4px !important;
+                white-space: nowrap !important;
+                font-weight: 600 !important;
             }}
+        }}
+        
+        /* --- ЦВЕТНЫЕ КНОПКИ --- */
+        .btn-edit .stButton button {{ 
+            background-color: #4CAF50 !important; 
+            color: white !important;
+            box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
+        }}
+        .btn-edit .stButton button:hover {{ 
+            background-color: #388E3C !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }}
+        .btn-threshold .stButton button {{ 
+            background-color: #FF9800 !important; 
+            color: white !important;
+            box-shadow: 0 2px 6px rgba(255, 152, 0, 0.3);
+        }}
+        .btn-threshold .stButton button:hover {{ 
+            background-color: #F57C00 !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
+        }}
+        .btn-consume .stButton button {{ 
+            background-color: #2196F3 !important; 
+            color: white !important;
+            box-shadow: 0 2px 6px rgba(33, 150, 243, 0.3);
+        }}
+        .btn-consume .stButton button:hover {{ 
+            background-color: #1976D2 !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+        }}
+        .btn-qr .stButton button {{ 
+            background-color: #9C27B0 !important; 
+            color: white !important;
+            box-shadow: 0 2px 6px rgba(156, 39, 176, 0.3);
+        }}
+        .btn-qr .stButton button:hover {{ 
+            background-color: #7B1FA2 !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(156, 39, 176, 0.4);
+        }}
+        .btn-move .stButton button {{ 
+            background-color: #FF5722 !important; 
+            color: white !important;
+            box-shadow: 0 2px 6px rgba(255, 87, 34, 0.3);
+        }}
+        .btn-move .stButton button:hover {{ 
+            background-color: #E64A19 !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 87, 34, 0.4);
+        }}
+        .btn-delete .stButton button {{ 
+            background-color: #f44336 !important; 
+            color: white !important;
+            box-shadow: 0 2px 6px rgba(244, 67, 54, 0.3);
+        }}
+        .btn-delete .stButton button:hover {{ 
+            background-color: #c62828 !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
         }}
         
         /* --- Tooltip при наведении --- */
@@ -93,9 +155,9 @@ st.markdown(f"""
             transform: translateX(-50%);
             background: #1a1a1a;
             color: #fff;
-            padding: 0.4rem 0.8rem;
+            padding: 0.3rem 0.7rem;
             border-radius: 6px;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             white-space: nowrap;
             z-index: 1000;
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
@@ -106,14 +168,28 @@ st.markdown(f"""
             bottom: calc(100% + 4px);
             left: 50%;
             transform: translateX(-50%);
-            border-left: 6px solid transparent;
-            border-right: 6px solid transparent;
-            border-top: 6px solid #1a1a1a;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid #1a1a1a;
             z-index: 1000;
         }}
         .stButton button {{
             position: relative;
         }}
+        
+        /* --- Тёмная тема для цветных кнопок --- */
+        .dark-mode .btn-edit .stButton button {{ background-color: #2E7D32 !important; }}
+        .dark-mode .btn-edit .stButton button:hover {{ background-color: #1B5E20 !important; }}
+        .dark-mode .btn-threshold .stButton button {{ background-color: #E65100 !important; }}
+        .dark-mode .btn-threshold .stButton button:hover {{ background-color: #BF360C !important; }}
+        .dark-mode .btn-consume .stButton button {{ background-color: #0D47A1 !important; }}
+        .dark-mode .btn-consume .stButton button:hover {{ background-color: #0D47A1 !important; }}
+        .dark-mode .btn-qr .stButton button {{ background-color: #4A148C !important; }}
+        .dark-mode .btn-qr .stButton button:hover {{ background-color: #4A148C !important; }}
+        .dark-mode .btn-move .stButton button {{ background-color: #BF360C !important; }}
+        .dark-mode .btn-move .stButton button:hover {{ background-color: #BF360C !important; }}
+        .dark-mode .btn-delete .stButton button {{ background-color: #B71C1C !important; }}
+        .dark-mode .btn-delete .stButton button:hover {{ background-color: #B71C1C !important; }}
         
         div[data-testid="stSidebar"] {{
             background: linear-gradient(180deg, #f5faf5, #e8f5e9);
@@ -170,33 +246,6 @@ st.markdown(f"""
             .stat-number {{ font-size: 1.6rem; }}
             .stat-label {{ font-size: 0.65rem; }}
             .stat-btn-wrap {{ min-height: 65px; padding: 0.4rem 0.2rem; }}
-        }}
-        
-        /* --- Тёмная тема --- */
-        .dark-mode .stApp {{ background-color: #0d1a0d; color: #d4e8d4; }}
-        .dark-mode .stat-btn-wrap {{
-            background: #1a2a1a !important;
-            border-color: #2e5a2e !important;
-        }}
-        .dark-mode .stat-btn-wrap:hover {{
-            border-color: #4CAF50 !important;
-        }}
-        .dark-mode .stat-number {{ color: #4CAF50 !important; }}
-        .dark-mode .stat-label {{ color: #9acd9a !important; }}
-        .dark-mode .main-header {{
-            background: linear-gradient(135deg, #1B5E20, #2E7D32) !important;
-        }}
-        .dark-mode div[data-testid="stSidebar"] {{
-            background: linear-gradient(180deg, #0d1a0d, #1a2a1a) !important;
-            border-right: 2px solid #2e5a2e !important;
-        }}
-        .dark-mode div[data-testid="stSidebar"] * {{ color: #d4e8d4 !important; }}
-        .dark-mode .stButton button {{
-            background-color: #4CAF50 !important;
-            color: #ffffff !important;
-        }}
-        .dark-mode .stButton button:hover {{
-            background-color: #2E7D32 !important;
         }}
     </style>
 """, unsafe_allow_html=True)
@@ -942,14 +991,14 @@ with tab1:
                         st.write(f"📝 {description}")
                     st.caption(f"🕒 Добавлено: {date_added}")
                     
-                    # --- ВЕРТИКАЛЬНЫЕ КНОПКИ ДЛЯ КОМПЬЮТЕРА ---
+                    # --- ВЕРТИКАЛЬНЫЕ ЦВЕТНЫЕ КНОПКИ ---
                     st.markdown("""
                         <style>
                             @media (min-width: 769px) {
                                 .vertical-btn-wrap {
                                     display: flex !important;
                                     flex-direction: column !important;
-                                    gap: 0.4rem !important;
+                                    gap: 0.3rem !important;
                                     width: 100% !important;
                                 }
                                 .vertical-btn-wrap .stButton {
@@ -957,10 +1006,12 @@ with tab1:
                                 }
                                 .vertical-btn-wrap .stButton button {
                                     width: 100% !important;
-                                    padding: 0.6rem 0.8rem !important;
+                                    padding: 0.5rem 0.8rem !important;
                                     font-size: 0.8rem !important;
-                                    min-height: 40px !important;
+                                    min-height: 36px !important;
                                     border-radius: 8px !important;
+                                    white-space: nowrap !important;
+                                    font-weight: 600 !important;
                                 }
                             }
                             @media (max-width: 768px) {
@@ -968,19 +1019,33 @@ with tab1:
                                     display: flex !important;
                                     flex-direction: row !important;
                                     flex-wrap: wrap !important;
-                                    gap: 0.2rem !important;
+                                    gap: 0.15rem !important;
                                 }
                                 .vertical-btn-wrap .stButton {
                                     flex: 1 !important;
-                                    min-width: 40px !important;
+                                    min-width: 35px !important;
                                 }
                                 .vertical-btn-wrap .stButton button {
-                                    padding: 0.2rem 0.3rem !important;
-                                    font-size: 0.55rem !important;
-                                    min-height: 28px !important;
-                                    border-radius: 5px !important;
+                                    padding: 0.15rem 0.2rem !important;
+                                    font-size: 0.5rem !important;
+                                    min-height: 24px !important;
+                                    border-radius: 4px !important;
+                                    white-space: nowrap !important;
+                                    font-weight: 600 !important;
                                 }
                             }
+                            .btn-edit .stButton button { background-color: #4CAF50 !important; color: white !important; }
+                            .btn-edit .stButton button:hover { background-color: #388E3C !important; }
+                            .btn-threshold .stButton button { background-color: #FF9800 !important; color: white !important; }
+                            .btn-threshold .stButton button:hover { background-color: #F57C00 !important; }
+                            .btn-consume .stButton button { background-color: #2196F3 !important; color: white !important; }
+                            .btn-consume .stButton button:hover { background-color: #1976D2 !important; }
+                            .btn-qr .stButton button { background-color: #9C27B0 !important; color: white !important; }
+                            .btn-qr .stButton button:hover { background-color: #7B1FA2 !important; }
+                            .btn-move .stButton button { background-color: #FF5722 !important; color: white !important; }
+                            .btn-move .stButton button:hover { background-color: #E64A19 !important; }
+                            .btn-delete .stButton button { background-color: #f44336 !important; color: white !important; }
+                            .btn-delete .stButton button:hover { background-color: #c62828 !important; }
                         </style>
                     """, unsafe_allow_html=True)
                     
@@ -988,59 +1053,71 @@ with tab1:
                     
                     col_btn1, col_btn2, col_btn3, col_btn4, col_btn5, col_btn6 = st.columns(6)
                     with col_btn1:
+                        st.markdown('<div class="btn-edit">', unsafe_allow_html=True)
                         if st.button(
-                            "✏️\nКол-во", 
+                            "✏️ Кол-во", 
                             key=f"edit_{item_id}", 
                             use_container_width=True,
                             help="Изменить количество"
                         ):
                             st.session_state[f"edit_mode_{item_id}"] = True
                             st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
                     with col_btn2:
+                        st.markdown('<div class="btn-threshold">', unsafe_allow_html=True)
                         if st.button(
-                            "⚙️\nПорог", 
+                            "⚙️ Порог", 
                             key=f"thr_{item_id}", 
                             use_container_width=True,
                             help="Настроить порог"
                         ):
                             st.session_state[f"thr_mode_{item_id}"] = True
                             st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
                     with col_btn3:
+                        st.markdown('<div class="btn-consume">', unsafe_allow_html=True)
                         if st.button(
-                            "📤\nСписать", 
+                            "📤 Списать", 
                             key=f"cons_{item_id}", 
                             use_container_width=True,
                             help="Списать на объект"
                         ):
                             st.session_state[f"cons_mode_{item_id}"] = True
                             st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
                     with col_btn4:
+                        st.markdown('<div class="btn-qr">', unsafe_allow_html=True)
                         if st.button(
-                            "📷\nQR", 
+                            "📷 QR", 
                             key=f"qr_{item_id}", 
                             use_container_width=True,
                             help="Сгенерировать QR"
                         ):
                             st.session_state[f"qr_mode_{item_id}"] = True
                             st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
                     with col_btn5:
+                        st.markdown('<div class="btn-move">', unsafe_allow_html=True)
                         if st.button(
-                            "🚚\nПер.", 
+                            "🚚 Пер.", 
                             key=f"move_{item_id}", 
                             use_container_width=True,
                             help="Переместить"
                         ):
                             st.session_state[f"move_mode_{item_id}"] = True
                             st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
                     with col_btn6:
+                        st.markdown('<div class="btn-delete">', unsafe_allow_html=True)
                         if st.button(
-                            "🗑️\nУдалить", 
+                            "🗑️ Удалить", 
                             key=f"del_{item_id}", 
                             use_container_width=True,
                             help="Удалить вещь"
                         ):
                             delete_item(item_id)
                             st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
                     
                     st.markdown('</div>', unsafe_allow_html=True)
                     
