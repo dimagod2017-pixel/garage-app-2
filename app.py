@@ -97,7 +97,9 @@ def init_db():
                   date_added TEXT,
                   quantity REAL,
                   unit TEXT,
-                  threshold INTEGER DEFAULT 1)''')
+                  threshold INTEGER DEFAULT 1,
+                  application TEXT,
+                  installed_photo TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS park
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT UNIQUE,
@@ -114,6 +116,15 @@ def init_db():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT UNIQUE,
                   date_added TEXT)''')
+    
+    # Добавляем новые колонки, если их нет
+    c.execute("PRAGMA table_info(items)")
+    columns = [col[1] for col in c.fetchall()]
+    if 'application' not in columns:
+        c.execute("ALTER TABLE items ADD COLUMN application TEXT")
+    if 'installed_photo' not in columns:
+        c.execute("ALTER TABLE items ADD COLUMN installed_photo TEXT")
+    
     conn.commit()
     conn.close()
 
@@ -242,12 +253,12 @@ def get_all_consumption():
     return results
 
 # --- ОСНОВНЫЕ ФУНКЦИИ ---
-def add_item(name, category, location, room, description, item_photo_path, location_photo_path, quantity, unit, threshold):
+def add_item(name, category, location, room, description, item_photo_path, location_photo_path, quantity, unit, threshold, application, installed_photo_path):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     item_id = str(uuid.uuid4())[:8]
-    c.execute("INSERT INTO items (id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-              (item_id, name, category, location, room, description, item_photo_path, location_photo_path, datetime.now().strftime("%Y-%m-%d %H:%M"), quantity, unit, threshold))
+    c.execute("INSERT INTO items (id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+              (item_id, name, category, location, room, description, item_photo_path, location_photo_path, datetime.now().strftime("%Y-%m-%d %H:%M"), quantity, unit, threshold, application, installed_photo_path))
     conn.commit()
     conn.close()
     return item_id
@@ -269,7 +280,7 @@ def update_threshold(item_id, new_threshold):
 def delete_item(item_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    c.execute("SELECT item_photo, location_photo FROM items WHERE id = ?", (item_id,))
+    c.execute("SELECT item_photo, location_photo, installed_photo FROM items WHERE id = ?", (item_id,))
     row = c.fetchone()
     if row:
         for path in row:
@@ -285,13 +296,13 @@ def search_items(query, room_filter=None):
     c = conn.cursor()
     if room_filter and room_filter != "Все помещения":
         c.execute("""SELECT * FROM items WHERE 
-                     (name LIKE ? OR category LIKE ? OR location LIKE ? OR description LIKE ?) 
+                     (name LIKE ? OR category LIKE ? OR location LIKE ? OR description LIKE ? OR application LIKE ?) 
                      AND room = ?""", 
-                  (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', room_filter))
+                  (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', room_filter))
     else:
         c.execute("""SELECT * FROM items WHERE 
-                     name LIKE ? OR category LIKE ? OR location LIKE ? OR description LIKE ?""", 
-                  (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%'))
+                     name LIKE ? OR category LIKE ? OR location LIKE ? OR description LIKE ? OR application LIKE ?""", 
+                  (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%'))
     results = c.fetchall()
     conn.close()
     return results
@@ -306,10 +317,6 @@ def get_all_items(room_filter=None):
     results = c.fetchall()
     conn.close()
     return results
-
-def get_all_rooms_from_db():
-    """Получаем список помещений из базы данных"""
-    return get_room_names()
 
 def get_low_stock_items():
     conn = sqlite3.connect('storage.db')
@@ -339,7 +346,7 @@ def get_statistics():
 
 def export_to_excel():
     conn = sqlite3.connect('storage.db')
-    df = pd.read_sql_query("SELECT name as 'Название', category as 'Категория', location as 'Место', room as 'Помещение', description as 'Описание', quantity as 'Количество', unit as 'Ед. изм.', threshold as 'Порог', date_added as 'Дата добавления' FROM items", conn)
+    df = pd.read_sql_query("SELECT name as 'Название', category as 'Категория', location as 'Место', room as 'Помещение', description as 'Описание', application as 'Область применения', quantity as 'Количество', unit as 'Ед. изм.', threshold as 'Порог', date_added as 'Дата добавления' FROM items", conn)
     conn.close()
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -420,7 +427,7 @@ with st.sidebar:
     
     st.divider()
     
-    # --- ДОБАВЛЕНИЕ ВЕЩИ (ТОЛЬКО ВЫБОР ИЗ СПИСКА) ---
+    # --- ДОБАВЛЕНИЕ ВЕЩИ ---
     st.header("➕ Добавить вещь")
     
     room_names = get_room_names()
@@ -431,7 +438,6 @@ with st.sidebar:
         name = st.text_input("Название вещи*")
         category = st.text_input("Категория")
         
-        # ТОЛЬКО ВЫБОР ИЗ СПИСКА
         if room_names:
             room = st.selectbox("Помещение*", room_names)
         else:
@@ -439,6 +445,10 @@ with st.sidebar:
         
         location = st.text_input("Место внутри помещения*")
         description = st.text_area("Описание")
+        
+        # --- НОВОЕ ПОЛЕ: Область применения ---
+        application = st.text_area("🔧 Область применения", placeholder="Например: ремень генератора трактора МТЗ-80")
+        
         col1, col2, col3 = st.columns(3)
         with col1:
             quantity = st.number_input("Количество", min_value=0.0, step=0.5, value=1.0)
@@ -451,10 +461,12 @@ with st.sidebar:
         
         item_pic = st.file_uploader("📷 Фото вещи", type=["jpg", "jpeg", "png"], key="item")
         location_pic = st.file_uploader("📷 Фото места", type=["jpg", "jpeg", "png"], key="loc")
+        # --- НОВОЕ ПОЛЕ: Фото установки ---
+        installed_pic = st.file_uploader("📷 Фото установки на агрегате", type=["jpg", "jpeg", "png"], key="installed")
         
         submitted = st.form_submit_button("💾 Сохранить")
         if submitted and name and location and room and room != "— Сначала добавьте помещение —":
-            item_path = ""; loc_path = ""
+            item_path = ""; loc_path = ""; installed_path = ""
             if item_pic:
                 ext = item_pic.name.split('.')[-1]
                 item_path = f"images/{uuid.uuid4()}_item.{ext}"
@@ -463,7 +475,11 @@ with st.sidebar:
                 ext = location_pic.name.split('.')[-1]
                 loc_path = f"images/{uuid.uuid4()}_loc.{ext}"
                 with open(loc_path, "wb") as f: f.write(location_pic.getbuffer())
-            add_item(name, category, location, room, description, item_path, loc_path, quantity, unit, threshold)
+            if installed_pic:
+                ext = installed_pic.name.split('.')[-1]
+                installed_path = f"images/{uuid.uuid4()}_installed.{ext}"
+                with open(installed_path, "wb") as f: f.write(installed_pic.getbuffer())
+            add_item(name, category, location, room, description, item_path, loc_path, quantity, unit, threshold, application, installed_path)
             st.success(f"✅ Добавлено {quantity} {unit} '{name}'")
             st.rerun()
         elif submitted:
@@ -495,7 +511,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["🔍 Поиск и управление", "�
 with tab1:
     col_search, col_btn = st.columns([5, 1])
     with col_search:
-        search_query = st.text_input("🔍 Что ищем?", placeholder="Введите название, категорию, место...", key="search_input")
+        search_query = st.text_input("🔍 Что ищем?", placeholder="Введите название, категорию, место или область применения...", key="search_input")
     with col_btn:
         st.write("")
         search_clicked = st.button("🔍 Найти", use_container_width=True)
@@ -516,7 +532,14 @@ with tab1:
         cols = st.columns(3)
         for idx, item in enumerate(items):
             with cols[idx % 3]:
-                item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item
+                # Распаковка с учётом новых полей
+                try:
+                    item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo = item
+                except ValueError:
+                    # Если старые данные без новых полей
+                    item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item
+                    application = ""
+                    installed_photo = ""
                 
                 try:
                     qty = float(quantity)
@@ -538,10 +561,13 @@ with tab1:
                     if category:
                         st.caption(f"📂 {category}")
                     st.caption(f"🏠 {room} → 📍 {location}")
+                    if application:
+                        st.caption(f"🔧 **Область применения:** {application}")
                     st.caption(f"📦 Количество: **{qty} {unit}**")
                     st.caption(f"📊 Статус: **{status_text}**")
                     
-                    c1, c2 = st.columns(2)
+                    # Три фото в ряд
+                    c1, c2, c3 = st.columns(3)
                     with c1:
                         if item_photo and os.path.exists(item_photo):
                             st.image(item_photo, caption="Вещь", use_container_width=True)
@@ -550,6 +576,11 @@ with tab1:
                     with c2:
                         if location_photo and os.path.exists(location_photo):
                             st.image(location_photo, caption="Место", use_container_width=True)
+                        else:
+                            st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
+                    with c3:
+                        if installed_photo and os.path.exists(installed_photo):
+                            st.image(installed_photo, caption="Установка", use_container_width=True)
                         else:
                             st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
                     
@@ -579,7 +610,7 @@ with tab1:
                             delete_item(item_id)
                             st.rerun()
                     
-                    # --- Изменение количества ---
+                    # --- Диалоги ---
                     if st.session_state.get(f"edit_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Изменение количества для {name}**")
@@ -595,7 +626,6 @@ with tab1:
                                     st.session_state[f"edit_mode_{item_id}"] = False
                                     st.rerun()
                     
-                    # --- Настройка порога ---
                     if st.session_state.get(f"thr_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Настройка порога для {name}**")
@@ -611,7 +641,6 @@ with tab1:
                                     st.session_state[f"thr_mode_{item_id}"] = False
                                     st.rerun()
                     
-                    # --- Списание ---
                     if st.session_state.get(f"cons_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Списание {name}**")
@@ -651,7 +680,6 @@ with tab1:
                                     st.session_state[f"cons_mode_{item_id}"] = False
                                     st.rerun()
                     
-                    # --- QR-код ---
                     if st.session_state.get(f"qr_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**QR-код для {name}**")
@@ -680,7 +708,12 @@ with tab2:
     else:
         data = []
         for item in all_items:
-            item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item
+            try:
+                item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo = item
+            except ValueError:
+                item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item
+                application = ""
+                installed_photo = ""
             try:
                 qty = float(quantity)
             except:
@@ -690,6 +723,7 @@ with tab2:
                 "Категория": category or "",
                 "Помещение": room,
                 "Место": location,
+                "Область применения": application or "",
                 "Количество": f"{qty} {unit}",
                 "Статус": "🔴 Критично" if qty <= 0 else "🟡 Скоро" if qty <= threshold else "🟢 Норма",
                 "Дата": date_added[:10]
@@ -737,7 +771,6 @@ with tab3:
 with tab4:
     st.subheader("🏠 Управление помещениями")
     
-    # Добавление помещения
     with st.form("add_room_form", clear_on_submit=True):
         col1, col2 = st.columns([3, 1])
         with col1:
@@ -756,7 +789,6 @@ with tab4:
     
     st.divider()
     
-    # Список помещений
     rooms = get_rooms()
     if not rooms:
         st.info("Пока нет помещений. Добавьте первое!")
