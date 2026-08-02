@@ -4,3 +4,5 @@ pandas
 openpyxl
 qrcode
 requests
+cryptography
+pyOpenSSL
