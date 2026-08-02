@@ -42,7 +42,7 @@ st.markdown(f"""
         .main-header h1 {{ margin: 0; font-size: 2.5rem; font-weight: 700; }}
         .main-header p {{ margin: 0; font-size: 1.2rem; opacity: 0.95; }}
         
-        /* --- ВЕРТИКАЛЬНЫЕ КНОПКИ ДЛЯ КОМПЬЮТЕРА --- */
+        /* --- ВЕРТИКАЛЬНЫЕ КНОПКИ С ИКОНКАМИ --- */
         @media (min-width: 769px) {{
             .vertical-btn-wrap {{
                 display: flex !important;
@@ -55,12 +55,12 @@ st.markdown(f"""
             }}
             .vertical-btn-wrap .stButton button {{
                 width: 100% !important;
-                padding: 0.5rem 0.8rem !important;
-                font-size: 0.8rem !important;
-                min-height: 36px !important;
+                padding: 0.5rem 0.5rem !important;
+                font-size: 1.4rem !important;
+                min-height: 44px !important;
                 border-radius: 8px !important;
-                white-space: nowrap !important;
-                font-weight: 600 !important;
+                line-height: 1 !important;
+                font-weight: 400 !important;
             }}
         }}
         @media (max-width: 768px) {{
@@ -75,16 +75,15 @@ st.markdown(f"""
                 min-width: 35px !important;
             }}
             .vertical-btn-wrap .stButton button {{
-                padding: 0.15rem 0.2rem !important;
-                font-size: 0.5rem !important;
-                min-height: 24px !important;
-                border-radius: 4px !important;
-                white-space: nowrap !important;
-                font-weight: 600 !important;
+                padding: 0.2rem 0.2rem !important;
+                font-size: 1rem !important;
+                min-height: 32px !important;
+                border-radius: 5px !important;
+                line-height: 1 !important;
             }}
         }}
         
-        /* --- ЦВЕТНЫЕ КНОПКИ --- */
+        /* --- ЦВЕТНЫЕ КНОПКИ С ИКОНКАМИ --- */
         .btn-edit .stButton button {{ 
             background-color: #4CAF50 !important; 
             color: white !important;
@@ -92,7 +91,7 @@ st.markdown(f"""
         }}
         .btn-edit .stButton button:hover {{ 
             background-color: #388E3C !important;
-            transform: translateY(-2px);
+            transform: scale(1.05);
             box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
         }}
         .btn-threshold .stButton button {{ 
@@ -102,7 +101,7 @@ st.markdown(f"""
         }}
         .btn-threshold .stButton button:hover {{ 
             background-color: #F57C00 !important;
-            transform: translateY(-2px);
+            transform: scale(1.05);
             box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
         }}
         .btn-consume .stButton button {{ 
@@ -112,7 +111,7 @@ st.markdown(f"""
         }}
         .btn-consume .stButton button:hover {{ 
             background-color: #1976D2 !important;
-            transform: translateY(-2px);
+            transform: scale(1.05);
             box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
         }}
         .btn-qr .stButton button {{ 
@@ -122,7 +121,7 @@ st.markdown(f"""
         }}
         .btn-qr .stButton button:hover {{ 
             background-color: #7B1FA2 !important;
-            transform: translateY(-2px);
+            transform: scale(1.05);
             box-shadow: 0 4px 12px rgba(156, 39, 176, 0.4);
         }}
         .btn-move .stButton button {{ 
@@ -132,7 +131,7 @@ st.markdown(f"""
         }}
         .btn-move .stButton button:hover {{ 
             background-color: #E64A19 !important;
-            transform: translateY(-2px);
+            transform: scale(1.05);
             box-shadow: 0 4px 12px rgba(255, 87, 34, 0.4);
         }}
         .btn-delete .stButton button {{ 
@@ -142,7 +141,7 @@ st.markdown(f"""
         }}
         .btn-delete .stButton button:hover {{ 
             background-color: #c62828 !important;
-            transform: translateY(-2px);
+            transform: scale(1.05);
             box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
         }}
         
@@ -991,7 +990,7 @@ with tab1:
                         st.write(f"📝 {description}")
                     st.caption(f"🕒 Добавлено: {date_added}")
                     
-                    # --- ВЕРТИКАЛЬНЫЕ ЦВЕТНЫЕ КНОПКИ ---
+                    # --- ВЕРТИКАЛЬНЫЕ ЦВЕТНЫЕ КНОПКИ С ИКОНКАМИ ---
                     st.markdown("""
                         <style>
                             @media (min-width: 769px) {
@@ -1006,12 +1005,11 @@ with tab1:
                                 }
                                 .vertical-btn-wrap .stButton button {
                                     width: 100% !important;
-                                    padding: 0.5rem 0.8rem !important;
-                                    font-size: 0.8rem !important;
-                                    min-height: 36px !important;
+                                    padding: 0.5rem 0.5rem !important;
+                                    font-size: 1.4rem !important;
+                                    min-height: 44px !important;
                                     border-radius: 8px !important;
-                                    white-space: nowrap !important;
-                                    font-weight: 600 !important;
+                                    line-height: 1 !important;
                                 }
                             }
                             @media (max-width: 768px) {
@@ -1026,26 +1024,25 @@ with tab1:
                                     min-width: 35px !important;
                                 }
                                 .vertical-btn-wrap .stButton button {
-                                    padding: 0.15rem 0.2rem !important;
-                                    font-size: 0.5rem !important;
-                                    min-height: 24px !important;
-                                    border-radius: 4px !important;
-                                    white-space: nowrap !important;
-                                    font-weight: 600 !important;
+                                    padding: 0.2rem 0.2rem !important;
+                                    font-size: 1rem !important;
+                                    min-height: 32px !important;
+                                    border-radius: 5px !important;
+                                    line-height: 1 !important;
                                 }
                             }
                             .btn-edit .stButton button { background-color: #4CAF50 !important; color: white !important; }
-                            .btn-edit .stButton button:hover { background-color: #388E3C !important; }
+                            .btn-edit .stButton button:hover { background-color: #388E3C !important; transform: scale(1.05); }
                             .btn-threshold .stButton button { background-color: #FF9800 !important; color: white !important; }
-                            .btn-threshold .stButton button:hover { background-color: #F57C00 !important; }
+                            .btn-threshold .stButton button:hover { background-color: #F57C00 !important; transform: scale(1.05); }
                             .btn-consume .stButton button { background-color: #2196F3 !important; color: white !important; }
-                            .btn-consume .stButton button:hover { background-color: #1976D2 !important; }
+                            .btn-consume .stButton button:hover { background-color: #1976D2 !important; transform: scale(1.05); }
                             .btn-qr .stButton button { background-color: #9C27B0 !important; color: white !important; }
-                            .btn-qr .stButton button:hover { background-color: #7B1FA2 !important; }
+                            .btn-qr .stButton button:hover { background-color: #7B1FA2 !important; transform: scale(1.05); }
                             .btn-move .stButton button { background-color: #FF5722 !important; color: white !important; }
-                            .btn-move .stButton button:hover { background-color: #E64A19 !important; }
+                            .btn-move .stButton button:hover { background-color: #E64A19 !important; transform: scale(1.05); }
                             .btn-delete .stButton button { background-color: #f44336 !important; color: white !important; }
-                            .btn-delete .stButton button:hover { background-color: #c62828 !important; }
+                            .btn-delete .stButton button:hover { background-color: #c62828 !important; transform: scale(1.05); }
                         </style>
                     """, unsafe_allow_html=True)
                     
@@ -1055,7 +1052,7 @@ with tab1:
                     with col_btn1:
                         st.markdown('<div class="btn-edit">', unsafe_allow_html=True)
                         if st.button(
-                            "✏️ Кол-во", 
+                            "✏️", 
                             key=f"edit_{item_id}", 
                             use_container_width=True,
                             help="Изменить количество"
@@ -1066,7 +1063,7 @@ with tab1:
                     with col_btn2:
                         st.markdown('<div class="btn-threshold">', unsafe_allow_html=True)
                         if st.button(
-                            "⚙️ Порог", 
+                            "⚙️", 
                             key=f"thr_{item_id}", 
                             use_container_width=True,
                             help="Настроить порог"
@@ -1077,7 +1074,7 @@ with tab1:
                     with col_btn3:
                         st.markdown('<div class="btn-consume">', unsafe_allow_html=True)
                         if st.button(
-                            "📤 Списать", 
+                            "📤", 
                             key=f"cons_{item_id}", 
                             use_container_width=True,
                             help="Списать на объект"
@@ -1088,7 +1085,7 @@ with tab1:
                     with col_btn4:
                         st.markdown('<div class="btn-qr">', unsafe_allow_html=True)
                         if st.button(
-                            "📷 QR", 
+                            "📷", 
                             key=f"qr_{item_id}", 
                             use_container_width=True,
                             help="Сгенерировать QR"
@@ -1099,7 +1096,7 @@ with tab1:
                     with col_btn5:
                         st.markdown('<div class="btn-move">', unsafe_allow_html=True)
                         if st.button(
-                            "🚚 Пер.", 
+                            "🚚", 
                             key=f"move_{item_id}", 
                             use_container_width=True,
                             help="Переместить"
@@ -1110,7 +1107,7 @@ with tab1:
                     with col_btn6:
                         st.markdown('<div class="btn-delete">', unsafe_allow_html=True)
                         if st.button(
-                            "🗑️ Удалить", 
+                            "🗑️", 
                             key=f"del_{item_id}", 
                             use_container_width=True,
                             help="Удалить вещь"
