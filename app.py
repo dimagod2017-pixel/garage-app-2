@@ -325,29 +325,42 @@ def delete_item(item_id):
 def search_items(query, room_filter=None):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
+    query_like = f"%{query}%"
     query_lower = f"%{query.lower()}%"
-    try:
-        if room_filter and room_filter != "Все помещения":
-            c.execute("""
-                SELECT * FROM items 
-                WHERE (LOWER(name) LIKE ? 
-                       OR LOWER(category) LIKE ? 
-                       OR LOWER(location) LIKE ? 
-                       OR LOWER(description) LIKE ?)
-                AND room = ?
-            """, (query_lower, query_lower, query_lower, query_lower, room_filter))
-        else:
-            c.execute("""
-                SELECT * FROM items 
-                WHERE LOWER(name) LIKE ? 
+    
+    if room_filter and room_filter != "Все помещения":
+        c.execute("""
+            SELECT * FROM items 
+            WHERE (name LIKE ? 
+                   OR category LIKE ? 
+                   OR location LIKE ? 
+                   OR description LIKE ? 
+                   OR application LIKE ?
+                   OR LOWER(name) LIKE ? 
                    OR LOWER(category) LIKE ? 
                    OR LOWER(location) LIKE ? 
-                   OR LOWER(description) LIKE ?
-            """, (query_lower, query_lower, query_lower, query_lower))
-    except Exception as e:
-        st.error(f"Ошибка поиска: {e}")
-        conn.close()
-        return []
+                   OR LOWER(description) LIKE ? 
+                   OR LOWER(application) LIKE ?)
+            AND room = ?
+        """, (query_like, query_like, query_like, query_like, query_like, 
+              query_lower, query_lower, query_lower, query_lower, query_lower,
+              room_filter))
+    else:
+        c.execute("""
+            SELECT * FROM items 
+            WHERE name LIKE ? 
+               OR category LIKE ? 
+               OR location LIKE ? 
+               OR description LIKE ? 
+               OR application LIKE ?
+               OR LOWER(name) LIKE ? 
+               OR LOWER(category) LIKE ? 
+               OR LOWER(location) LIKE ? 
+               OR LOWER(description) LIKE ? 
+               OR LOWER(application) LIKE ?
+        """, (query_like, query_like, query_like, query_like, query_like,
+              query_lower, query_lower, query_lower, query_lower, query_lower))
+    
     results = c.fetchall()
     conn.close()
     return results
@@ -534,20 +547,34 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Поиск", "📋 Все вещи
 with tab1:
     col_search, col_btn = st.columns([5, 1])
     with col_search:
-        search_query = st.text_input("🔍 Что ищем?", placeholder="Введите название...", key="search_input")
+        search_query = st.text_input(
+            "🔍 Что ищем?", 
+            placeholder="Введите название, категорию, место...", 
+            key="search_input",
+            value=""
+        )
+        if search_query and len(search_query) > 0:
+            if search_query[0].islower():
+                if len(search_query) > 1:
+                    search_query = search_query[0].upper() + search_query[1:]
+                else:
+                    search_query = search_query.upper()
+    
     with col_btn:
         st.write("")
         search_clicked = st.button("🔍 Найти", use_container_width=True)
+    
     rooms = ["Все помещения"] + get_room_names()
     room_filter = st.selectbox("🏠 Помещение", rooms, key="room_filter_tab1")
-    all_items = get_all_items()
-    st.caption(f"📊 Всего вещей в базе: {len(all_items)}")
+    
     if search_query:
         st.caption(f"🔎 Ищем: **{search_query}**")
         items = search_items(search_query, room_filter)
     else:
-        items = all_items if not room_filter or room_filter == "Все помещения" else get_all_items(room_filter)
+        items = get_all_items(room_filter)
+    
     st.subheader(f"📌 Найдено: {len(items)}")
+
     if not items:
         st.info("Ничего нет. Добавьте через меню.")
     else:
@@ -566,6 +593,7 @@ with tab1:
                     installed_photo = ""
                     equipment_id = None
                     unit_id = None
+                
                 eq_name = ""
                 unit_name = ""
                 if equipment_id:
@@ -580,10 +608,12 @@ with tab1:
                         if u[0] == unit_id:
                             unit_name = u[1]
                             break
+                
                 try:
                     qty = float(quantity)
                 except:
                     qty = 0
+                
                 if qty <= 0:
                     status_emoji = "🔴"
                     status_text = "КРИТИЧНО!"
@@ -593,6 +623,7 @@ with tab1:
                 else:
                     status_emoji = "🟢"
                     status_text = "В норме"
+                
                 with st.container(border=True):
                     st.markdown(f"**{status_emoji} {name}**")
                     if category:
@@ -606,6 +637,7 @@ with tab1:
                         st.caption(f"📝 **Область применения:** {application}")
                     st.caption(f"📦 Количество: **{qty} {unit}**")
                     st.caption(f"📊 Статус: **{status_text}**")
+                    
                     c1, c2, c3 = st.columns(3)
                     with c1:
                         if item_photo and os.path.exists(item_photo):
@@ -622,9 +654,11 @@ with tab1:
                             st.image(installed_photo, caption="Установка", use_container_width=True)
                         else:
                             st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
+                    
                     if description:
                         st.write(f"📝 {description}")
                     st.caption(f"🕒 Добавлено: {date_added}")
+                    
                     col_btn1, col_btn2, col_btn3, col_btn4, col_btn5, col_btn6 = st.columns(6)
                     with col_btn1:
                         if st.button("✏️ Кол-во", key=f"edit_{item_id}"):
@@ -650,6 +684,7 @@ with tab1:
                         if st.button("🗑️", key=f"del_{item_id}"):
                             delete_item(item_id)
                             st.rerun()
+                    
                     if st.session_state.get(f"edit_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Изменение количества для {name}**")
@@ -664,6 +699,7 @@ with tab1:
                                 if st.button("❌ Отмена", key=f"cancel_q_{item_id}"):
                                     st.session_state[f"edit_mode_{item_id}"] = False
                                     st.rerun()
+                    
                     if st.session_state.get(f"thr_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Настройка порога для {name}**")
@@ -678,10 +714,12 @@ with tab1:
                                 if st.button("❌ Отмена", key=f"cancel_thr_{item_id}"):
                                     st.session_state[f"thr_mode_{item_id}"] = False
                                     st.rerun()
+                    
                     if st.session_state.get(f"cons_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Списание {name}**")
                             st.caption(f"Доступно: {qty} {unit}")
+                            
                             col1, col2 = st.columns(2)
                             with col1:
                                 consume_qty = st.number_input("Количество", min_value=0.0, step=0.5, max_value=float(qty), value=min(1.0, float(qty)), key=f"cons_qty_{item_id}")
@@ -696,11 +734,14 @@ with tab1:
                                     units = get_units(eq[0])
                                     for unit in units:
                                         search_options.append(f"{eq_name} → {unit[1]}")
+                                
                                 search_equipment = st.text_input("🔍 Поиск техники или агрегата", placeholder="Начните вводить название...", key=f"search_eq_{item_id}")
+                                
                                 if search_equipment:
                                     filtered_eq = [opt for opt in search_options if search_equipment.lower() in opt.lower()]
                                 else:
                                     filtered_eq = search_options
+                                
                                 if filtered_eq:
                                     selected_eq = st.selectbox("Выберите технику или агрегат", filtered_eq, key=f"sel_eq_{item_id}")
                                     if selected_eq == "Другое":
@@ -710,8 +751,10 @@ with tab1:
                                 else:
                                     st.warning("Ничего не найдено. Выберите 'Другое' или добавьте технику в разделе '🚜 Парк'")
                                     object_name = st.text_input("Введите название объекта*", key=f"custom_obj_{item_id}")
+                            
                             user = st.text_input("Кто списывает", value="Пользователь", key=f"cons_user_{item_id}")
                             note = st.text_area("Примечание", key=f"cons_note_{item_id}")
+                            
                             col1, col2 = st.columns(2)
                             with col1:
                                 if st.button("✅ Списать", key=f"save_cons_{item_id}"):
@@ -731,12 +774,15 @@ with tab1:
                                 if st.button("❌ Отмена", key=f"cancel_cons_{item_id}"):
                                     st.session_state[f"cons_mode_{item_id}"] = False
                                     st.rerun()
+                    
                     if st.session_state.get(f"move_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Перемещение {name}**")
                             st.caption(f"Текущее помещение: **{room}**")
+                            
                             room_names = get_room_names()
                             available_rooms = [r for r in room_names if r != room]
+                            
                             if available_rooms:
                                 new_room = st.selectbox("Выберите новое помещение", available_rooms, key=f"new_room_{item_id}")
                                 col1, col2 = st.columns(2)
@@ -755,6 +801,7 @@ with tab1:
                                 if st.button("❌ Закрыть", key=f"close_move_{item_id}"):
                                     st.session_state[f"move_mode_{item_id}"] = False
                                     st.rerun()
+                    
                     if st.session_state.get(f"qr_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**QR-код для {name}**")
