@@ -689,7 +689,7 @@ with tab1:
                                     st.session_state[f"thr_mode_{item_id}"] = False
                                     st.rerun()
                     
-                    # --- ОБНОВЛЁННОЕ СПИСАНИЕ С ПОИСКОМ ТЕХНИКИ ---
+                    # --- ОБНОВЛЁННОЕ СПИСАНИЕ С ПОИСКОМ ТЕХНИКИ И АГРЕГАТОВ ---
                     if st.session_state.get(f"cons_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Списание {name}**")
@@ -699,22 +699,37 @@ with tab1:
                             with col1:
                                 consume_qty = st.number_input("Количество", min_value=0.0, step=0.5, max_value=float(qty), value=min(1.0, float(qty)), key=f"cons_qty_{item_id}")
                             with col2:
-                                # --- ИНТЕРАКТИВНЫЙ ПОИСК ТЕХНИКИ ---
+                                # --- ПОИСК ТЕХНИКИ И АГРЕГАТОВ ---
                                 equipment_list = get_equipment()
-                                eq_names = ["Другое"] + [eq[1] + (f" ({eq[2]})" if eq[2] else "") for eq in equipment_list]
                                 
-                                search_equipment = st.text_input("🔍 Поиск техники", placeholder="Начните вводить название...", key=f"search_eq_{item_id}")
+                                # Собираем все варианты: техника + агрегаты
+                                search_options = ["Другое"]
+                                for eq in equipment_list:
+                                    eq_name = eq[1]
+                                    if eq[2]:
+                                        eq_name += f" ({eq[2]})"
+                                    search_options.append(eq_name)
+                                    # Добавляем агрегаты этой техники
+                                    units = get_units(eq[0])
+                                    for unit in units:
+                                        search_options.append(f"{eq_name} → {unit[1]}")
                                 
-                                filtered_eq = [eq for eq in eq_names if search_equipment.lower() in eq.lower()] if search_equipment else eq_names
+                                search_equipment = st.text_input("🔍 Поиск техники или агрегата", placeholder="Начните вводить название...", key=f"search_eq_{item_id}")
+                                
+                                # Фильтруем список по поиску
+                                if search_equipment:
+                                    filtered_eq = [opt for opt in search_options if search_equipment.lower() in opt.lower()]
+                                else:
+                                    filtered_eq = search_options
                                 
                                 if filtered_eq:
-                                    selected_eq = st.selectbox("Выберите технику", filtered_eq, key=f"sel_eq_{item_id}")
+                                    selected_eq = st.selectbox("Выберите технику или агрегат", filtered_eq, key=f"sel_eq_{item_id}")
                                     if selected_eq == "Другое":
                                         object_name = st.text_input("Введите название объекта*", key=f"custom_obj_{item_id}")
                                     else:
                                         object_name = selected_eq
                                 else:
-                                    st.warning("Техника не найдена. Добавьте её в разделе '🚜 Парк'")
+                                    st.warning("Ничего не найдено. Выберите 'Другое' или добавьте технику в разделе '🚜 Парк'")
                                     object_name = st.text_input("Введите название объекта*", key=f"custom_obj_{item_id}")
                             
                             user = st.text_input("Кто списывает", value="Пользователь", key=f"cons_user_{item_id}")
