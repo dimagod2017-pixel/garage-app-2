@@ -11,20 +11,29 @@ import requests
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.header import Header
 
 # --- НАСТРОЙКА YANDEX ПОЧТЫ ---
+# ⚠️ ВАЖНО: Замените EMAIL_PASSWORD на реальный пароль от почты!
 EMAIL_SENDER = "Yvedomlenie-scald.sad@yandex.ru"
-EMAIL_PASSWORD = "ТВОЙ_ПАРОЛЬ_ОТ_ПОЧТЫ"  # ← ЗАМЕНИ НА СВОЙ ПАРОЛЬ
+EMAIL_PASSWORD = "ваш_реальный_пароль_здесь"  # ← ЗАМЕНИТЕ НА СВОЙ ПАРОЛЬ
 EMAIL_RECIPIENT = "Yvedomlenie-scald.sad@yandex.ru"
 SMTP_SERVER = "smtp.yandex.ru"
 SMTP_PORT = 587
 
 def send_email(subject, body):
+    """
+    Отправка email с поддержкой кириллицы
+    """
     try:
         msg = MIMEMultipart()
+        
+        # Правильная кодировка заголовков для кириллицы
         msg['From'] = EMAIL_SENDER
         msg['To'] = EMAIL_RECIPIENT
-        msg['Subject'] = subject
+        msg['Subject'] = Header(subject, 'utf-8').encode()
+        
+        # Тело письма с явной кодировкой UTF-8
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
@@ -32,9 +41,89 @@ def send_email(subject, body):
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
         server.send_message(msg)
         server.quit()
+        
         return True, "✅ Email отправлен"
+        
+    except smtplib.SMTPAuthenticationError:
+        return False, "❌ Ошибка аутентификации: проверьте пароль или настройки почты"
+    except smtplib.SMTPException as e:
+        return False, f"❌ SMTP ошибка: {str(e)}"
     except Exception as e:
         return False, f"❌ Ошибка: {str(e)}"
+
+def check_and_notify_low_stock():
+    """
+    Проверяет вещи с низким остатком и отправляет уведомление на почту
+    """
+    low_items = get_low_stock_items()
+    if low_items:
+        subject = "⚠️ ВНИМАНИЕ! Нужно пополнить склад!"
+        body = "Здравствуйте!\n\nОбнаружены вещи с низким остатком:\n\n"
+        body += "=" * 50 + "\n"
+        for item in low_items:
+            name = item[1]
+            quantity = item[9]
+            unit = item[10]
+            room = item[4]
+            threshold = item[11]
+            body += f"📦 {name}\n"
+            body += f"   ➜ Остаток: {quantity} {unit}\n"
+            body += f"   ➜ Порог: {threshold} {unit}\n"
+            body += f"   ➜ Помещение: {room}\n"
+            body += "-" * 30 + "\n"
+        
+        body += "\nПожалуйста, пополните запасы!\n"
+        body += f"\nПроверено: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        
+        success, msg = send_email(subject, body)
+        if success:
+            return True, "Уведомление отправлено"
+        else:
+            return False, msg
+    return True, "Все в норме"
+
+def notify_new_consumption_request(item_name, quantity, unit, object_name, user_name, note=""):
+    """
+    Отправляет уведомление администратору о новой заявке на списание
+    """
+    subject = "📤 Новая заявка на списание!"
+    body = (
+        f"Здравствуйте!\n\n"
+        f"Поступила новая заявка на списание:\n\n"
+        f"👤 Сотрудник: {user_name}\n"
+        f"📦 Вещь: {item_name}\n"
+        f"📦 Количество: {quantity} {unit}\n"
+        f"🚗 Объект: {object_name}\n"
+        f"📝 Примечание: {note or '—'}\n\n"
+        f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+        f"Зайдите в приложение, чтобы подтвердить или отклонить заявку."
+    )
+    return send_email(subject, body)
+
+def send_daily_report():
+    """
+    Отправляет ежедневный отчёт по складу
+    """
+    total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list, total_consumption = get_statistics()
+    
+    subject = f"📊 Ежедневный отчёт по складу - {datetime.now().strftime('%d.%m.%Y')}"
+    body = f"Здравствуйте!\n\n"
+    body += f"📊 Ежедневный отчёт по складу\n"
+    body += f"📅 {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
+    body += f"📦 Всего вещей: {total_items}\n"
+    body += f"🏠 Помещений: {total_rooms_list}\n"
+    body += f"🚜 Техники: {total_equipment}\n"
+    body += f"📤 Списаний за всё время: {total_consumption}\n"
+    body += f"⚠️ Вещей для пополнения: {low_stock_count}\n\n"
+    
+    if top_categories:
+        body += "🏆 Топ категорий:\n"
+        for cat, count in top_categories:
+            body += f"   ➜ {cat}: {count} шт.\n"
+    
+    body += f"\nОтчёт сгенерирован: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    
+    return send_email(subject, body)
 
 # --- ПАРОЛИ И РОЛИ ---
 USERS = {
@@ -720,8 +809,10 @@ with st.sidebar:
     st.divider()
     
     # --- ТЕСТ EMAIL ---
-    st.subheader("📧 Тест Email")
-    if st.button("📧 Отправить тестовое письмо", use_container_width=True):
+    st.subheader("📧 Уведомления")
+    
+    # Тест email
+    if st.button("📧 Тестовое письмо", use_container_width=True):
         success, msg = send_email(
             "✅ Тестовое письмо из приложения!",
             "Если вы читаете это письмо — уведомления работают!\n\n"
@@ -731,6 +822,26 @@ with st.sidebar:
             st.success(msg)
         else:
             st.error(msg)
+    
+    # Уведомление о низких остатках
+    if role == "admin":
+        low_items = get_low_stock_items()
+        if low_items:
+            if st.button("⚠️ Отправить уведомление о пополнении", use_container_width=True):
+                success, msg = check_and_notify_low_stock()
+                if success:
+                    st.success(msg)
+                else:
+                    st.error(msg)
+    
+    # Ежедневный отчёт
+    if role == "admin":
+        if st.button("📊 Отправить ежедневный отчёт", use_container_width=True):
+            success, msg = send_daily_report()
+            if success:
+                st.success(msg)
+            else:
+                st.error(msg)
     
     st.divider()
     
@@ -1027,20 +1138,17 @@ with tab1:
                                         
                                         success, message = consume_item(item_id, take_qty, object_name, user_name, note, photo_path, "pending")
                                         if success:
-                                            # --- ОТПРАВКА EMAIL ---
-                                            subject = "📤 Новая заявка на списание!"
-                                            body = (
-                                                f"👤 Сотрудник: {user_name}\n"
-                                                f"📦 Вещь: {name}\n"
-                                                f"📦 Количество: {take_qty} {unit}\n"
-                                                f"🚗 Объект: {object_name}\n"
-                                                f"📝 Примечание: {note or '—'}\n\n"
-                                                f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
-                                                f"Зайдите в приложение, чтобы подтвердить или отклонить заявку."
+                                            # --- ОТПРАВКА EMAIL АДМИНИСТРАТОРУ ---
+                                            success_email, msg_email = notify_new_consumption_request(
+                                                name, take_qty, unit, object_name, user_name, note
                                             )
-                                            send_email(subject, body)
                                             
-                                            st.success("✅ Заявка отправлена! Администратор получит уведомление на почту.")
+                                            if success_email:
+                                                st.success("✅ Заявка отправлена! Администратор получит уведомление на почту.")
+                                            else:
+                                                st.warning("⚠️ Заявка создана, но не удалось отправить уведомление на почту.")
+                                                st.error(msg_email)
+                                            
                                             st.session_state[f"take_mode_{item_id}"] = False
                                             st.rerun()
                                         else:
