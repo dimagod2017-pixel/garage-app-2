@@ -126,7 +126,6 @@ def init_db():
                   name TEXT UNIQUE,
                   date_added TEXT)''')
     
-    # Добавляем новые колонки, если их нет
     c.execute("PRAGMA table_info(items)")
     columns = [col[1] for col in c.fetchall()]
     if 'application' not in columns:
@@ -216,9 +215,6 @@ def get_equipment():
     conn.close()
     return results
 
-def get_equipment_names():
-    return [eq[1] for eq in get_equipment()]
-
 def get_equipment_by_id(eq_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -259,17 +255,6 @@ def get_units(equipment_id=None):
     conn.close()
     return results
 
-def get_unit_names(equipment_id):
-    return [unit[1] for unit in get_units(equipment_id)]
-
-def get_equipment_by_unit(unit_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT equipment_id FROM units WHERE id = ?", (unit_id,))
-    result = c.fetchone()
-    conn.close()
-    return result[0] if result else None
-
 # --- ФУНКЦИИ ДЛЯ РАСХОДА ---
 def consume_item(item_id, quantity, object_name, user="Пользователь", note=""):
     conn = sqlite3.connect('storage.db')
@@ -290,17 +275,6 @@ def consume_item(item_id, quantity, object_name, user="Пользователь"
     conn.commit()
     conn.close()
     return True, f"Списано {quantity} {unit} на '{object_name}'"
-
-def get_consumption_by_object(object_name):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("""SELECT c.*, i.name FROM consumption c 
-                 JOIN items i ON c.item_id = i.id 
-                 WHERE c.object_name = ? 
-                 ORDER BY c.date DESC""", (object_name,))
-    results = c.fetchall()
-    conn.close()
-    return results
 
 def get_all_consumption():
     conn = sqlite3.connect('storage.db')
@@ -355,14 +329,14 @@ def search_items(query, room_filter=None):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     if room_filter and room_filter != "Все помещения":
-        c.execute("""SELECT i.*, e.name as eq_name, u.name as unit_name FROM items i
+        c.execute("""SELECT i.* FROM items i
                      LEFT JOIN equipment e ON i.equipment_id = e.id
                      LEFT JOIN units u ON i.unit_id = u.id
                      WHERE (i.name LIKE ? OR i.category LIKE ? OR i.location LIKE ? OR i.description LIKE ? OR i.application LIKE ? OR e.name LIKE ? OR u.name LIKE ?) 
                      AND i.room = ?""", 
                   (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', room_filter))
     else:
-        c.execute("""SELECT i.*, e.name as eq_name, u.name as unit_name FROM items i
+        c.execute("""SELECT i.* FROM items i
                      LEFT JOIN equipment e ON i.equipment_id = e.id
                      LEFT JOIN units u ON i.unit_id = u.id
                      WHERE i.name LIKE ? OR i.category LIKE ? OR i.location LIKE ? OR i.description LIKE ? OR i.application LIKE ? OR e.name LIKE ? OR u.name LIKE ?""", 
@@ -504,7 +478,6 @@ with st.sidebar:
             eq_id = None
             unit_id = None
         
-        # --- Область применения ---
         application = st.text_area("🔧 Область применения", placeholder="Например: ремень генератора трактора МТЗ-80")
         
         col1, col2, col3 = st.columns(3)
@@ -589,10 +562,19 @@ with tab1:
         cols = st.columns(3)
         for idx, item in enumerate(items):
             with cols[idx % 3]:
-                try:
-                    item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo, equipment_id, unit_id = item
-                except ValueError:
-                    item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item
+                # --- УНИВЕРСАЛЬНАЯ РАСПАКОВКА ---
+                # item может содержать 16 полей (с JOIN) или 14 полей (без JOIN)
+                if len(item) >= 16:
+                    # С JOIN (из search_items)
+                    item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo, equipment_id, unit_id = item[:16]
+                elif len(item) >= 14:
+                    # Без JOIN (из get_all_items)
+                    item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo = item[:14]
+                    equipment_id = None
+                    unit_id = None
+                else:
+                    # Ещё более старая версия
+                    item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item[:12]
                     application = ""
                     installed_photo = ""
                     equipment_id = None
@@ -607,7 +589,7 @@ with tab1:
                         eq_name = eq[1]
                         if eq[2]:
                             eq_name += f" ({eq[2]})"
-                if unit_id:
+                if unit_id and equipment_id:
                     units = get_units(equipment_id)
                     for u in units:
                         if u[0] == unit_id:
@@ -779,10 +761,13 @@ with tab2:
     else:
         data = []
         for item in all_items:
-            try:
-                item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo, equipment_id, unit_id = item
-            except ValueError:
-                item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item
+            # Универсальная распаковка для tab2
+            if len(item) >= 14:
+                item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo = item[:14]
+                equipment_id = None
+                unit_id = None
+            else:
+                item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item[:12]
                 application = ""
                 installed_photo = ""
                 equipment_id = None
@@ -796,7 +781,7 @@ with tab2:
                     eq_name = eq[1]
                     if eq[2]:
                         eq_name += f" ({eq[2]})"
-            if unit_id:
+            if unit_id and equipment_id:
                 units = get_units(equipment_id)
                 for u in units:
                     if u[0] == unit_id:
@@ -834,7 +819,6 @@ with tab2:
 with tab3:
     st.subheader("🚜 Управление техникой и агрегатами")
     
-    # --- Добавление техники ---
     with st.expander("➕ Добавить технику", expanded=True):
         with st.form("add_equipment_form", clear_on_submit=True):
             col1, col2, col3 = st.columns([3, 2, 1])
@@ -854,7 +838,6 @@ with tab3:
                 else:
                     st.error(msg)
     
-    # --- Список техники ---
     equipment_list = get_equipment()
     if not equipment_list:
         st.info("Пока нет техники. Добавьте первую!")
@@ -862,7 +845,6 @@ with tab3:
         for eq in equipment_list:
             eq_id, eq_name, eq_number, eq_date = eq
             with st.expander(f"🚜 {eq_name}" + (f" ({eq_number})" if eq_number else "")):
-                # --- Редактирование техники ---
                 with st.form(key=f"edit_eq_{eq_id}"):
                     col1, col2, col3 = st.columns([3, 2, 1])
                     with col1:
@@ -877,7 +859,6 @@ with tab3:
                             st.success("Данные обновлены")
                             st.rerun()
                 
-                # --- Добавление агрегата ---
                 with st.form(key=f"add_unit_{eq_id}"):
                     col1, col2 = st.columns([3, 1])
                     with col1:
@@ -896,7 +877,6 @@ with tab3:
                             else:
                                 st.error("Введите название агрегата")
                 
-                # --- Список агрегатов ---
                 units = get_units(eq_id)
                 if units:
                     st.caption(f"Закреплённые агрегаты ({len(units)})")
@@ -912,7 +892,6 @@ with tab3:
                 else:
                     st.caption("Нет закреплённых агрегатов")
                 
-                # --- Удаление техники ---
                 if st.button("🗑️ Удалить технику", key=f"del_eq_{eq_id}"):
                     delete_equipment(eq_id)
                     st.rerun()
@@ -920,7 +899,6 @@ with tab3:
 with tab4:
     st.subheader("🚗 История списаний по объектам")
     
-    # --- Общая история списаний ---
     all_consumption = get_all_consumption()
     if not all_consumption:
         st.info("Пока нет списаний")
