@@ -335,21 +335,36 @@ def delete_item(item_id):
 def search_items(query, room_filter=None):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    # Приводим запрос к нижнему регистру для регистронезависимого поиска
-    query_lower = query.lower()
+    query_lower = f"%{query.lower()}%"
+    
     if room_filter and room_filter != "Все помещения":
-        c.execute("""SELECT i.* FROM items i
-                     LEFT JOIN equipment e ON i.equipment_id = e.id
-                     LEFT JOIN units u ON i.unit_id = u.id
-                     WHERE (LOWER(i.name) LIKE ? OR LOWER(i.category) LIKE ? OR LOWER(i.location) LIKE ? OR LOWER(i.description) LIKE ? OR LOWER(i.application) LIKE ? OR LOWER(e.name) LIKE ? OR LOWER(u.name) LIKE ?) 
-                     AND i.room = ?""", 
-                  (f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', room_filter))
+        c.execute("""
+            SELECT i.* FROM items i
+            LEFT JOIN equipment e ON i.equipment_id = e.id
+            LEFT JOIN units u ON i.unit_id = u.id
+            WHERE (LOWER(COALESCE(i.name, '')) LIKE ? 
+                   OR LOWER(COALESCE(i.category, '')) LIKE ? 
+                   OR LOWER(COALESCE(i.location, '')) LIKE ? 
+                   OR LOWER(COALESCE(i.description, '')) LIKE ? 
+                   OR LOWER(COALESCE(i.application, '')) LIKE ? 
+                   OR LOWER(COALESCE(e.name, '')) LIKE ? 
+                   OR LOWER(COALESCE(u.name, '')) LIKE ?) 
+            AND i.room = ?
+        """, (query_lower, query_lower, query_lower, query_lower, query_lower, query_lower, query_lower, room_filter))
     else:
-        c.execute("""SELECT i.* FROM items i
-                     LEFT JOIN equipment e ON i.equipment_id = e.id
-                     LEFT JOIN units u ON i.unit_id = u.id
-                     WHERE LOWER(i.name) LIKE ? OR LOWER(i.category) LIKE ? OR LOWER(i.location) LIKE ? OR LOWER(i.description) LIKE ? OR LOWER(i.application) LIKE ? OR LOWER(e.name) LIKE ? OR LOWER(u.name) LIKE ?""", 
-                  (f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%'))
+        c.execute("""
+            SELECT i.* FROM items i
+            LEFT JOIN equipment e ON i.equipment_id = e.id
+            LEFT JOIN units u ON i.unit_id = u.id
+            WHERE LOWER(COALESCE(i.name, '')) LIKE ? 
+               OR LOWER(COALESCE(i.category, '')) LIKE ? 
+               OR LOWER(COALESCE(i.location, '')) LIKE ? 
+               OR LOWER(COALESCE(i.description, '')) LIKE ? 
+               OR LOWER(COALESCE(i.application, '')) LIKE ? 
+               OR LOWER(COALESCE(e.name, '')) LIKE ? 
+               OR LOWER(COALESCE(u.name, '')) LIKE ?
+        """, (query_lower, query_lower, query_lower, query_lower, query_lower, query_lower, query_lower))
+    
     results = c.fetchall()
     conn.close()
     return results
@@ -763,14 +778,13 @@ with tab1:
                                     st.session_state[f"cons_mode_{item_id}"] = False
                                     st.rerun()
                     
-                    # --- ПЕРЕМЕЩЕНИЕ МЕЖДУ СКЛАДАМИ ---
+                    # --- Перемещение ---
                     if st.session_state.get(f"move_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Перемещение {name}**")
                             st.caption(f"Текущее помещение: **{room}**")
                             
                             room_names = get_room_names()
-                            # Исключаем текущее помещение из списка
                             available_rooms = [r for r in room_names if r != room]
                             
                             if available_rooms:
