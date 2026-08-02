@@ -1,5 +1,8 @@
 streamlit
+sqlite3
 pillow
 pandas
 openpyxl
-qrcode[pil]
+qrcode
+requests
+smtplib
