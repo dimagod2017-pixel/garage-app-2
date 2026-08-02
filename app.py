@@ -982,31 +982,4 @@ with tab5:
     with st.form("add_room_form", clear_on_submit=True):
         col1, col2 = st.columns([3, 1])
         with col1:
-            new_room = st.text_input("Название нового помещения", placeholder="Гараж, Склад, Мастерская...")
-        with col2:
-            st.write("")
-            st.write("")
-            add_room_btn = st.form_submit_button("➕ Добавить")
-        if add_room_btn and new_room:
-            success, msg = add_room(new_room)
-            if success:
-                st.success(msg)
-                st.rerun()
-            else:
-                st.error(msg)
-    
-    st.divider()
-    
-    rooms = get_rooms()
-    if not rooms:
-        st.info("Пока нет помещений. Добавьте первое!")
-    else:
-        st.caption(f"Всего помещений: {len(rooms)}")
-        for room_id, room_name, room_date in rooms:
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                st.write(f"🏠 **{room_name}** (добавлено {room_date[:10]})")
-            with col2:
-                if st.button("🗑️", key=f"del_room_{room_id}"):
-                    delete_room(room_id)
-                    st.rerun()
+          
