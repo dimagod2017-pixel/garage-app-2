@@ -22,7 +22,6 @@ st.set_page_config(page_title="Мой Склад", page_icon="🌿", layout="wid
 # --- ЗЕЛЁНАЯ ЦВЕТОВАЯ СХЕМА ---
 PRIMARY_COLOR = "#2E7D32"
 SECONDARY_COLOR = "#4CAF50"
-LIGHT_GREEN = "#E8F5E9"
 
 st.title("🌿 Мой Склад")
 st.caption("Добро пожаловать! Храните и находите вещи легко.")
@@ -42,17 +41,38 @@ st.markdown(f"""
         }}
         .main-header h1 {{ margin: 0; font-size: 2.5rem; font-weight: 700; }}
         .main-header p {{ margin: 0; font-size: 1.2rem; opacity: 0.95; }}
+        
+        /* Интерактивные карточки статистики */
         .stat-card {{
             background: white;
             padding: 1.2rem;
             border-radius: 12px;
             text-align: center;
-            border-left: 5px solid {SECONDARY_COLOR};
+            border: 2px solid #e8f5e9;
             margin-bottom: 1rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            cursor: pointer;
+            transition: all 0.3s;
         }}
-        .stat-number {{ font-size: 2.2rem; font-weight: bold; color: {PRIMARY_COLOR}; }}
-        .stat-label {{ color: #555; font-size: 0.9rem; }}
+        .stat-card:hover {{
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(46, 125, 50, 0.2);
+            border-color: {SECONDARY_COLOR};
+        }}
+        .stat-card:active {{
+            transform: scale(0.95);
+        }}
+        .stat-number {{
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: {PRIMARY_COLOR};
+        }}
+        .stat-label {{
+            color: #555;
+            font-size: 1rem;
+            font-weight: 500;
+        }}
+        
         .stButton > button {{
             background-color: {SECONDARY_COLOR} !important;
             color: white !important;
@@ -66,11 +86,13 @@ st.markdown(f"""
             background-color: {PRIMARY_COLOR} !important;
             transform: translateY(-2px);
         }}
+        
         div[data-testid="stSidebar"] {{
             background: linear-gradient(180deg, #f5faf5, #e8f5e9);
             border-right: 2px solid {SECONDARY_COLOR};
         }}
         div[data-testid="stSidebar"] * {{ color: #1e3a1e !important; }}
+        
         .critical-warning {{
             background: linear-gradient(135deg, #ffebee, #ffcdd2);
             border-left: 5px solid #f44336;
@@ -85,15 +107,24 @@ st.markdown(f"""
             border-radius: 10px;
             margin-bottom: 1rem;
         }}
-        .consumption-record {{
+        
+        /* Стиль для карточек в списке */
+        .clickable-card {{
             background: white;
-            padding: 0.8rem 1rem;
-            border-radius: 8px;
+            padding: 0.8rem 1.2rem;
+            border-radius: 10px;
             margin-bottom: 0.5rem;
-            border-left: 4px solid {SECONDARY_COLOR};
+            border: 2px solid #e8f5e9;
+            cursor: pointer;
+            transition: all 0.2s;
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }}
+        .clickable-card:hover {{
+            border-color: {SECONDARY_COLOR};
+            box-shadow: 0 4px 15px rgba(46, 125, 50, 0.15);
+            transform: translateX(5px);
         }}
     </style>
 """, unsafe_allow_html=True)
@@ -109,6 +140,12 @@ st.markdown(f"""
 # --- ТЁМНАЯ ТЕМА ---
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = 0
+if "selected_room" not in st.session_state:
+    st.session_state.selected_room = None
+if "selected_equipment" not in st.session_state:
+    st.session_state.selected_equipment = None
 
 with st.sidebar:
     dark_mode_toggle = st.toggle("🌙 Тёмная тема", value=st.session_state.dark_mode)
@@ -164,12 +201,15 @@ if st.session_state.dark_mode:
             }
             .stat-card {
                 background: #1a2a1a !important;
-                border-left-color: #4CAF50 !important;
+                border-color: #2e5a2e !important;
             }
             .stat-number { color: #4CAF50 !important; }
-            .consumption-record {
+            .clickable-card {
                 background: #1a2a1a !important;
-                border-left-color: #4CAF50 !important;
+                border-color: #2e5a2e !important;
+            }
+            .clickable-card:hover {
+                border-color: #4CAF50 !important;
             }
             div[data-testid="stDialog"] { background-color: #1a2a1a !important; }
             div[data-testid="stDialog"] * { color: #d4e8d4 !important; }
@@ -358,7 +398,7 @@ def get_units(equipment_id=None):
     conn.close()
     return results
 
-# --- ФУНКЦИИ ДЛЯ РАСХОДА (С УДАЛЕНИЕМ) ---
+# --- ФУНКЦИИ ДЛЯ РАСХОДА ---
 def consume_item(item_id, quantity, object_name, user="Пользователь", note=""):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -380,15 +420,12 @@ def consume_item(item_id, quantity, object_name, user="Пользователь"
     return True, f"Списано {quantity} {unit} на '{object_name}'"
 
 def delete_consumption_record(record_id):
-    """Удаление отдельной записи из истории списаний"""
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    # Получаем данные записи перед удалением
     c.execute("SELECT item_id, quantity FROM consumption WHERE id = ?", (record_id,))
     result = c.fetchone()
     if result:
         item_id, quantity = result
-        # Возвращаем количество обратно на склад
         c.execute("UPDATE items SET quantity = quantity + ? WHERE id = ?", (quantity, item_id))
     c.execute("DELETE FROM consumption WHERE id = ?", (record_id,))
     conn.commit()
@@ -401,6 +438,17 @@ def get_all_consumption():
     c.execute("""SELECT c.*, i.name FROM consumption c 
                  JOIN items i ON c.item_id = i.id 
                  ORDER BY c.date DESC LIMIT 200""")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_consumption_by_equipment(eq_name):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("""SELECT c.*, i.name FROM consumption c 
+                 JOIN items i ON c.item_id = i.id 
+                 WHERE c.object_name LIKE ? 
+                 ORDER BY c.date DESC""", (f'%{eq_name}%',))
     results = c.fetchall()
     conn.close()
     return results
@@ -505,6 +553,14 @@ def get_all_items(room_filter=None):
     conn.close()
     return results
 
+def get_items_by_room(room_name):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM items WHERE room = ? ORDER BY date_added DESC", (room_name,))
+    results = c.fetchall()
+    conn.close()
+    return results
+
 def get_low_stock_items():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -528,8 +584,10 @@ def get_statistics():
     total_equipment = c.fetchone()[0]
     c.execute("SELECT COUNT(*) FROM rooms")
     total_rooms_list = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM consumption")
+    total_consumption = c.fetchone()[0]
     conn.close()
-    return total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list
+    return total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list, total_consumption
 
 def export_to_excel():
     conn = sqlite3.connect('storage.db')
@@ -547,52 +605,108 @@ def export_to_excel():
 init_db()
 
 # --- СТАТИСТИКА ---
-total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list = get_statistics()
+total_items, total_rooms, low_stock_count, top_categories, total_equipment, total_rooms_list, total_consumption = get_statistics()
 
+# --- ИНТЕРАКТИВНЫЕ КАРТОЧКИ СТАТИСТИКИ ---
 col1, col2, col3, col4, col5, col6 = st.columns(6)
+
+# Функция для создания интерактивной карточки
+def make_stat_card(col, number, label, icon, action_key):
+    with col:
+        # Используем HTML с обработчиком onclick через st.markdown + JavaScript
+        st.markdown(f"""
+            <div class="stat-card" onclick="document.querySelector('[data-testid=\\"stMarkdown\\"]')?.click()">
+                <div class="stat-number">{number}</div>
+                <div class="stat-label">{icon} {label}</div>
+            </div>
+        """, unsafe_allow_html=True)
+        # Кнопка-триггер (скрытая)
+        if st.button(f"", key=f"stat_{action_key}", use_container_width=True):
+            if action_key == "items":
+                st.session_state.active_tab = 1
+            elif action_key == "rooms":
+                st.session_state.active_tab = 4
+                st.session_state.selected_room = None
+            elif action_key == "low_stock":
+                st.session_state.active_tab = 0
+                st.session_state.show_low_stock = True
+            elif action_key == "equipment":
+                st.session_state.active_tab = 2
+                st.session_state.selected_equipment = None
+            elif action_key == "consumption":
+                st.session_state.active_tab = 3
+            st.rerun()
+
+# Создаём карточки
 with col1:
     st.markdown(f"""
-        <div class="stat-card">
+        <div class="stat-card" style="cursor:pointer;" onclick="this.style.transform='scale(0.95)'">
             <div class="stat-number">{total_items}</div>
             <div class="stat-label">📦 Вещей</div>
         </div>
     """, unsafe_allow_html=True)
+    if st.button("", key="stat_items", use_container_width=True):
+        st.session_state.active_tab = 1
+        st.session_state.selected_room = None
+        st.rerun()
+
 with col2:
     st.markdown(f"""
-        <div class="stat-card">
+        <div class="stat-card" style="cursor:pointer;">
             <div class="stat-number">{total_rooms_list}</div>
             <div class="stat-label">🏠 Помещ.</div>
         </div>
     """, unsafe_allow_html=True)
+    if st.button("", key="stat_rooms", use_container_width=True):
+        st.session_state.active_tab = 4
+        st.session_state.selected_room = None
+        st.session_state.show_low_stock = False
+        st.rerun()
+
 with col3:
     st.markdown(f"""
-        <div class="stat-card" style="border-left-color: #f44336;">
+        <div class="stat-card" style="cursor:pointer; border-left-color: #f44336;">
             <div class="stat-number" style="color: #f44336;">{low_stock_count}</div>
             <div class="stat-label">⚠️ Пополнить</div>
         </div>
     """, unsafe_allow_html=True)
+    if st.button("", key="stat_low_stock", use_container_width=True):
+        st.session_state.active_tab = 0
+        st.session_state.show_low_stock = True
+        st.session_state.selected_room = None
+        st.rerun()
+
 with col4:
     top_cat_str = ", ".join([f"{cat}" for cat, count in top_categories[:2]]) if top_categories else "—"
     st.markdown(f"""
-        <div class="stat-card">
+        <div class="stat-card" style="cursor:pointer;">
             <div class="stat-number">🏆</div>
             <div class="stat-label">{top_cat_str}</div>
         </div>
     """, unsafe_allow_html=True)
+
 with col5:
     st.markdown(f"""
-        <div class="stat-card" style="border-left-color: #2196F3;">
+        <div class="stat-card" style="cursor:pointer; border-left-color: #2196F3;">
             <div class="stat-number" style="color: #2196F3;">{total_equipment}</div>
             <div class="stat-label">🚜 Техники</div>
         </div>
     """, unsafe_allow_html=True)
+    if st.button("", key="stat_equipment", use_container_width=True):
+        st.session_state.active_tab = 2
+        st.session_state.selected_equipment = None
+        st.rerun()
+
 with col6:
     st.markdown(f"""
-        <div class="stat-card" style="border-left-color: #9C27B0;">
-            <div class="stat-number" style="color: #9C27B0;">0</div>
+        <div class="stat-card" style="cursor:pointer; border-left-color: #9C27B0;">
+            <div class="stat-number" style="color: #9C27B0;">{total_consumption}</div>
             <div class="stat-label">📤 Списано</div>
         </div>
     """, unsafe_allow_html=True)
+    if st.button("", key="stat_consumption", use_container_width=True):
+        st.session_state.active_tab = 3
+        st.rerun()
 
 # --- УВЕДОМЛЕНИЯ ---
 low_stock = get_low_stock_items()
@@ -715,7 +829,26 @@ with st.sidebar:
         )
 
 # --- ОСНОВНАЯ ОБЛАСТЬ: ВКЛАДКИ ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Поиск", "📋 Все вещи", "🚜 Парк", "🚗 История списаний", "🏠 Помещения"])
+# Получаем активную вкладку из session_state
+active_tab = st.session_state.get("active_tab", 0)
+show_low_stock = st.session_state.get("show_low_stock", False)
+selected_room = st.session_state.get("selected_room", None)
+selected_equipment = st.session_state.get("selected_equipment", None)
+
+tab_labels = ["🔍 Поиск", "📋 Все вещи", "🚜 Парк", "📤 История списаний", "🏠 Помещения"]
+tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_labels)
+
+# Если есть активная вкладка — переключаем
+if active_tab == 0:
+    pass
+elif active_tab == 1:
+    st.query_params.update({"tab": "all_items"})
+elif active_tab == 2:
+    st.query_params.update({"tab": "equipment"})
+elif active_tab == 3:
+    st.query_params.update({"tab": "consumption"})
+elif active_tab == 4:
+    st.query_params.update({"tab": "rooms"})
 
 with tab1:
     col_search, col_btn = st.columns([5, 1])
@@ -736,6 +869,23 @@ with tab1:
     with col_btn:
         st.write("")
         search_clicked = st.button("🔍 Найти", use_container_width=True)
+    
+    # Если нажали на "Пополнить"
+    if show_low_stock:
+        st.info("📋 **Вещи, которые нужно пополнить:**")
+        low_items = get_low_stock_items()
+        if low_items:
+            for item in low_items:
+                qty = item[9]
+                name = item[1]
+                unit = item[10]
+                room = item[4]
+                threshold = item[11]
+                st.write(f"• **{name}** — {qty} {unit} (порог: {threshold}) в **{room}**")
+        else:
+            st.success("✅ Все вещи в норме!")
+        st.divider()
+        st.session_state.show_low_stock = False
     
     rooms = ["Все помещения"] + get_room_names()
     room_filter = st.selectbox("🏠 Помещение", rooms, key="room_filter_tab1")
@@ -1053,8 +1203,25 @@ with tab2:
         )
 
 with tab3:
-    st.subheader("🚜 Управление техникой и агрегатами")
-    with st.expander("➕ Добавить технику", expanded=True):
+    st.subheader("🚜 Управление техникой")
+    
+    # Если выбрана техника — показываем её историю
+    if selected_equipment:
+        st.markdown(f"### 🔧 История списаний на **{selected_equipment}**")
+        consumptions = get_consumption_by_equipment(selected_equipment)
+        if consumptions:
+            for c in consumptions:
+                record_id, item_id, qty, unit, obj_name, user, date, item_name = c
+                st.write(f"• **{item_name}** → {qty} {unit} (списал {user}, {date})")
+        else:
+            st.info(f"🌱 Нет списаний на '{selected_equipment}'")
+        if st.button("⬅️ Назад к списку техники"):
+            st.session_state.selected_equipment = None
+            st.rerun()
+        st.divider()
+    
+    # Список техники
+    with st.expander("➕ Добавить технику", expanded=False):
         with st.form("add_equipment_form", clear_on_submit=True):
             col1, col2, col3 = st.columns([3, 2, 1])
             with col1:
@@ -1072,63 +1239,39 @@ with tab3:
                     st.rerun()
                 else:
                     st.error(msg)
+    
     equipment_list = get_equipment()
     if not equipment_list:
         st.info("🌱 Пока нет техники. Добавьте первую!")
     else:
+        st.caption(f"Всего техники: {len(equipment_list)}")
         for eq in equipment_list:
             eq_id, eq_name, eq_number, eq_date = eq
-            with st.expander(f"🚜 {eq_name}" + (f" ({eq_number})" if eq_number else "")):
-                with st.form(key=f"edit_eq_{eq_id}"):
-                    col1, col2, col3 = st.columns([3, 2, 1])
-                    with col1:
-                        new_name = st.text_input("Название", value=eq_name, key=f"eq_name_{eq_id}")
-                    with col2:
-                        new_number = st.text_input("Госномер", value=eq_number or "", key=f"eq_number_{eq_id}")
-                    with col3:
-                        st.write("")
-                        st.write("")
-                        if st.form_submit_button("💾 Сохранить"):
-                            update_equipment(eq_id, new_name, new_number)
-                            st.success("Данные обновлены")
-                            st.rerun()
-                with st.form(key=f"add_unit_{eq_id}"):
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        unit_name = st.text_input("Название агрегата/оборудования", placeholder="Борона дисковая БДМ-100", key=f"unit_name_{eq_id}")
-                    with col2:
-                        st.write("")
-                        st.write("")
-                        if st.form_submit_button("➕ Добавить агрегат"):
-                            if unit_name:
-                                success, msg = add_unit(unit_name, eq_id)
-                                if success:
-                                    st.success(msg)
-                                    st.rerun()
-                                else:
-                                    st.error(msg)
-                            else:
-                                st.error("Введите название агрегата")
-                units = get_units(eq_id)
-                if units:
-                    st.caption(f"Закреплённые агрегаты ({len(units)})")
-                    for unit in units:
-                        unit_id, unit_name, _, _ = unit
-                        col1, col2 = st.columns([4, 1])
-                        with col1:
-                            st.write(f"🔧 {unit_name}")
-                        with col2:
-                            if st.button("🗑️", key=f"del_unit_{unit_id}"):
-                                delete_unit(unit_id)
-                                st.rerun()
-                else:
-                    st.caption("Нет закреплённых агрегатов")
-                if st.button("🗑️ Удалить технику", key=f"del_eq_{eq_id}"):
+            # Проверяем, есть ли списания на эту технику
+            cons = get_consumption_by_equipment(eq_name)
+            cons_count = len(cons)
+            
+            # Карточка техники
+            col1, col2, col3 = st.columns([4, 1, 1])
+            with col1:
+                display_name = f"🚜 {eq_name}"
+                if eq_number:
+                    display_name += f" ({eq_number})"
+                if cons_count > 0:
+                    display_name += f" — {cons_count} списаний"
+                st.markdown(f"**{display_name}**")
+                st.caption(f"Добавлено: {eq_date[:10]}")
+            with col2:
+                if st.button("📊 История", key=f"eq_history_{eq_id}"):
+                    st.session_state.selected_equipment = eq_name
+                    st.rerun()
+            with col3:
+                if st.button("🗑️", key=f"del_eq_{eq_id}"):
                     delete_equipment(eq_id)
                     st.rerun()
 
 with tab4:
-    st.subheader("🚗 История списаний")
+    st.subheader("📤 История списаний")
     
     all_consumption = get_all_consumption()
     if not all_consumption:
@@ -1136,33 +1279,61 @@ with tab4:
     else:
         st.caption(f"Всего записей: {len(all_consumption)}")
         
-        # Формируем красивый список с кнопками удаления
-        for c in all_consumption:
-            # c = (id, item_id, quantity, unit, object_name, user, date, item_name)
+        # Фильтр по объекту
+        objects = list(set([c[4] for c in all_consumption]))
+        filter_obj = st.selectbox("🔍 Фильтр по объекту", ["Все"] + objects)
+        
+        filtered = [c for c in all_consumption if filter_obj == "Все" or c[4] == filter_obj]
+        
+        for c in filtered:
             record_id, item_id, qty, unit, obj_name, user, date, item_name = c
             
-            # Создаём строку с информацией
             col1, col2, col3 = st.columns([8, 1, 1])
             with col1:
                 st.write(f"• **{item_name}** → {qty} {unit} на **{obj_name}** (списал {user}, {date})")
             with col2:
-                # Кнопка удаления записи
-                if st.button("🗑️", key=f"del_cons_{record_id}", help="Удалить эту запись"):
+                if st.button("🗑️", key=f"del_cons_{record_id}", help="Удалить запись"):
                     delete_consumption_record(record_id)
                     st.success(f"✅ Запись удалена! Количество '{item_name}' восстановлено на складе.")
                     st.rerun()
             with col3:
-                # Кнопка восстановления (возврат на склад)
                 if st.button("↩️", key=f"restore_cons_{record_id}", help="Вернуть на склад"):
                     delete_consumption_record(record_id)
                     st.success(f"✅ Запись удалена! Количество '{item_name}' восстановлено на складе.")
                     st.rerun()
         
-        # Итоговая строка
         st.caption("🗑️ — удалить запись и вернуть количество на склад")
 
 with tab5:
     st.subheader("🏠 Управление помещениями")
+    
+    # Если выбрано помещение — показываем его содержимое
+    if selected_room:
+        st.markdown(f"### 📦 Содержимое помещения **{selected_room}**")
+        items_in_room = get_items_by_room(selected_room)
+        if items_in_room:
+            for item in items_in_room:
+                if len(item) >= 14:
+                    item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo = item[:14]
+                else:
+                    item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold = item[:12]
+                    application = ""
+                try:
+                    qty = float(quantity)
+                except:
+                    qty = 0
+                status = "🔴" if qty <= 0 else "🟡" if qty <= threshold else "🟢"
+                st.write(f"{status} **{name}** — {qty} {unit} ({location})")
+                if application:
+                    st.caption(f"  📝 {application}")
+        else:
+            st.info(f"🌱 В помещении '{selected_room}' пока нет вещей")
+        if st.button("⬅️ Назад к списку помещений"):
+            st.session_state.selected_room = None
+            st.rerun()
+        st.divider()
+    
+    # Добавление помещения
     with st.form("add_room_form", clear_on_submit=True):
         col1, col2 = st.columns([3, 1])
         with col1:
@@ -1178,17 +1349,29 @@ with tab5:
                 st.rerun()
             else:
                 st.error(msg)
+    
     st.divider()
+    
+    # Список помещений
     rooms = get_rooms()
     if not rooms:
         st.info("🌱 Пока нет помещений. Добавьте первое!")
     else:
         st.caption(f"Всего помещений: {len(rooms)}")
         for room_id, room_name, room_date in rooms:
-            col1, col2 = st.columns([4, 1])
+            # Считаем количество вещей в помещении
+            items_in_room = get_items_by_room(room_name)
+            count = len(items_in_room)
+            
+            col1, col2, col3 = st.columns([4, 1, 1])
             with col1:
-                st.write(f"🏠 **{room_name}** (добавлено {room_date[:10]})")
+                st.markdown(f"🏠 **{room_name}** — {count} вещей")
+                st.caption(f"Добавлено: {room_date[:10]}")
             with col2:
+                if st.button("📦 Открыть", key=f"room_open_{room_id}"):
+                    st.session_state.selected_room = room_name
+                    st.rerun()
+            with col3:
                 if st.button("🗑️", key=f"del_room_{room_id}"):
                     delete_room(room_id)
                     st.rerun()
