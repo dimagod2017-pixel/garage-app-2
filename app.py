@@ -311,6 +311,13 @@ def update_threshold(item_id, new_threshold):
     conn.commit()
     conn.close()
 
+def update_item_room(item_id, new_room):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE items SET room = ? WHERE id = ?", (new_room, item_id))
+    conn.commit()
+    conn.close()
+
 def delete_item(item_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -328,19 +335,21 @@ def delete_item(item_id):
 def search_items(query, room_filter=None):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
+    # Приводим запрос к нижнему регистру для регистронезависимого поиска
+    query_lower = query.lower()
     if room_filter and room_filter != "Все помещения":
         c.execute("""SELECT i.* FROM items i
                      LEFT JOIN equipment e ON i.equipment_id = e.id
                      LEFT JOIN units u ON i.unit_id = u.id
-                     WHERE (i.name LIKE ? OR i.category LIKE ? OR i.location LIKE ? OR i.description LIKE ? OR i.application LIKE ? OR e.name LIKE ? OR u.name LIKE ?) 
+                     WHERE (LOWER(i.name) LIKE ? OR LOWER(i.category) LIKE ? OR LOWER(i.location) LIKE ? OR LOWER(i.description) LIKE ? OR LOWER(i.application) LIKE ? OR LOWER(e.name) LIKE ? OR LOWER(u.name) LIKE ?) 
                      AND i.room = ?""", 
-                  (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', room_filter))
+                  (f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', room_filter))
     else:
         c.execute("""SELECT i.* FROM items i
                      LEFT JOIN equipment e ON i.equipment_id = e.id
                      LEFT JOIN units u ON i.unit_id = u.id
-                     WHERE i.name LIKE ? OR i.category LIKE ? OR i.location LIKE ? OR i.description LIKE ? OR i.application LIKE ? OR e.name LIKE ? OR u.name LIKE ?""", 
-                  (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%'))
+                     WHERE LOWER(i.name) LIKE ? OR LOWER(i.category) LIKE ? OR LOWER(i.location) LIKE ? OR LOWER(i.description) LIKE ? OR LOWER(i.application) LIKE ? OR LOWER(e.name) LIKE ? OR LOWER(u.name) LIKE ?""", 
+                  (f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%', f'%{query_lower}%'))
     results = c.fetchall()
     conn.close()
     return results
@@ -637,7 +646,7 @@ with tab1:
                         st.write(f"📝 {description}")
                     st.caption(f"🕒 Добавлено: {date_added}")
                     
-                    col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns(5)
+                    col_btn1, col_btn2, col_btn3, col_btn4, col_btn5, col_btn6 = st.columns(6)
                     with col_btn1:
                         if st.button("✏️ Кол-во", key=f"edit_{item_id}"):
                             st.session_state[f"edit_mode_{item_id}"] = True
@@ -655,6 +664,10 @@ with tab1:
                             st.session_state[f"qr_mode_{item_id}"] = True
                             st.rerun()
                     with col_btn5:
+                        if st.button("🚚 Переместить", key=f"move_{item_id}"):
+                            st.session_state[f"move_mode_{item_id}"] = True
+                            st.rerun()
+                    with col_btn6:
                         if st.button("🗑️", key=f"del_{item_id}"):
                             delete_item(item_id)
                             st.rerun()
@@ -689,7 +702,7 @@ with tab1:
                                     st.session_state[f"thr_mode_{item_id}"] = False
                                     st.rerun()
                     
-                    # --- ОБНОВЛЁННОЕ СПИСАНИЕ С ПОИСКОМ ТЕХНИКИ И АГРЕГАТОВ ---
+                    # --- Списание ---
                     if st.session_state.get(f"cons_mode_{item_id}", False):
                         with st.container(border=True):
                             st.write(f"**Списание {name}**")
@@ -699,24 +712,19 @@ with tab1:
                             with col1:
                                 consume_qty = st.number_input("Количество", min_value=0.0, step=0.5, max_value=float(qty), value=min(1.0, float(qty)), key=f"cons_qty_{item_id}")
                             with col2:
-                                # --- ПОИСК ТЕХНИКИ И АГРЕГАТОВ ---
                                 equipment_list = get_equipment()
-                                
-                                # Собираем все варианты: техника + агрегаты
                                 search_options = ["Другое"]
                                 for eq in equipment_list:
                                     eq_name = eq[1]
                                     if eq[2]:
                                         eq_name += f" ({eq[2]})"
                                     search_options.append(eq_name)
-                                    # Добавляем агрегаты этой техники
                                     units = get_units(eq[0])
                                     for unit in units:
                                         search_options.append(f"{eq_name} → {unit[1]}")
                                 
                                 search_equipment = st.text_input("🔍 Поиск техники или агрегата", placeholder="Начните вводить название...", key=f"search_eq_{item_id}")
                                 
-                                # Фильтруем список по поиску
                                 if search_equipment:
                                     filtered_eq = [opt for opt in search_options if search_equipment.lower() in opt.lower()]
                                 else:
@@ -753,6 +761,35 @@ with tab1:
                             with col2:
                                 if st.button("❌ Отмена", key=f"cancel_cons_{item_id}"):
                                     st.session_state[f"cons_mode_{item_id}"] = False
+                                    st.rerun()
+                    
+                    # --- ПЕРЕМЕЩЕНИЕ МЕЖДУ СКЛАДАМИ ---
+                    if st.session_state.get(f"move_mode_{item_id}", False):
+                        with st.container(border=True):
+                            st.write(f"**Перемещение {name}**")
+                            st.caption(f"Текущее помещение: **{room}**")
+                            
+                            room_names = get_room_names()
+                            # Исключаем текущее помещение из списка
+                            available_rooms = [r for r in room_names if r != room]
+                            
+                            if available_rooms:
+                                new_room = st.selectbox("Выберите новое помещение", available_rooms, key=f"new_room_{item_id}")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.button("✅ Переместить", key=f"save_move_{item_id}"):
+                                        update_item_room(item_id, new_room)
+                                        st.session_state[f"move_mode_{item_id}"] = False
+                                        st.success(f"✅ Вещь перемещена в '{new_room}'")
+                                        st.rerun()
+                                with col2:
+                                    if st.button("❌ Отмена", key=f"cancel_move_{item_id}"):
+                                        st.session_state[f"move_mode_{item_id}"] = False
+                                        st.rerun()
+                            else:
+                                st.warning("Нет доступных помещений для перемещения. Сначала добавьте их в разделе 'Помещения'.")
+                                if st.button("❌ Закрыть", key=f"close_move_{item_id}"):
+                                    st.session_state[f"move_mode_{item_id}"] = False
                                     st.rerun()
                     
                     if st.session_state.get(f"qr_mode_{item_id}", False):
