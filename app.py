@@ -8,6 +8,7 @@ import pandas as pd
 from io import BytesIO
 import qrcode
 
+# --- ПАРОЛЬ ---
 PASSWORD = "12345"
 
 user_pass = st.sidebar.text_input("🔑 Введите пароль:", type="password")
@@ -15,10 +16,99 @@ if user_pass != PASSWORD:
     st.sidebar.warning("⚠️ Неверный пароль!")
     st.stop()
 
+# --- НАСТРОЙКА СТРАНИЦЫ ---
 st.set_page_config(page_title="Мой Склад", page_icon="🌿", layout="wide")
+
+# --- ЗЕЛЁНАЯ ЦВЕТОВАЯ СХЕМА ---
+PRIMARY_COLOR = "#2E7D32"
+SECONDARY_COLOR = "#4CAF50"
+
 st.title("🌿 Мой Склад")
 st.caption("Добро пожаловать! Храните и находите вещи легко.")
 
+# --- КАСТОМНЫЙ CSS ---
+st.markdown(f"""
+    <style>
+        .stApp {{ background-color: #f0f7f0; }}
+        .main-header {{
+            background: linear-gradient(135deg, {PRIMARY_COLOR}, {SECONDARY_COLOR});
+            padding: 1.5rem;
+            border-radius: 15px;
+            color: white;
+            text-align: center;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(46, 125, 50, 0.3);
+        }}
+        .main-header h1 {{ margin: 0; font-size: 2.5rem; font-weight: 700; }}
+        .main-header p {{ margin: 0; font-size: 1.2rem; opacity: 0.95; }}
+        
+        .stat-btn-wrap {{
+            background: white;
+            border: 2px solid #e8f5e9;
+            border-radius: 14px;
+            padding: 0.8rem 0.3rem;
+            text-align: center;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            min-height: 90px;
+            width: 100%;
+            cursor: pointer;
+        }}
+        .stat-btn-wrap:hover {{
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(46, 125, 50, 0.2);
+            border-color: {SECONDARY_COLOR};
+        }}
+        .stat-number {{
+            font-size: 2.2rem;
+            font-weight: bold;
+            color: {PRIMARY_COLOR};
+            line-height: 1.2;
+        }}
+        .stat-label {{
+            color: #555;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-top: 2px;
+        }}
+        @media (max-width: 768px) {{
+            .stat-number {{ font-size: 1.6rem; }}
+            .stat-label {{ font-size: 0.65rem; }}
+            .stat-btn-wrap {{ min-height: 65px; padding: 0.4rem 0.2rem; }}
+        }}
+        
+        .critical-warning {{
+            background: linear-gradient(135deg, #ffebee, #ffcdd2);
+            border-left: 5px solid #f44336;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }}
+        .warning-warning {{
+            background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+            border-left: 5px solid #ff9800;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }}
+        
+        div[data-testid="stSidebar"] {{
+            background: linear-gradient(180deg, #f5faf5, #e8f5e9);
+            border-right: 2px solid {SECONDARY_COLOR};
+        }}
+        div[data-testid="stSidebar"] * {{ color: #1e3a1e !important; }}
+    </style>
+""", unsafe_allow_html=True)
+
+# --- ШАПКА ---
+st.markdown(f"""
+    <div class="main-header">
+        <h1>🌿 Мой Склад</h1>
+        <p>👋 Добро пожаловать!</p>
+    </div>
+""", unsafe_allow_html=True)
+
+# --- ТЁМНАЯ ТЕМА ---
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 if "active_tab" not in st.session_state:
@@ -95,9 +185,11 @@ if st.session_state.dark_mode:
         </style>
     """, unsafe_allow_html=True)
 
+# --- ПАПКА ДЛЯ ФОТО ---
 if not os.path.exists("images"):
     os.makedirs("images")
 
+# --- БАЗА ДАННЫХ ---
 def init_db():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -161,6 +253,7 @@ def init_db():
     conn.commit()
     conn.close()
 
+# --- ФУНКЦИИ ДЛЯ ПОМЕЩЕНИЙ ---
 def add_room(name):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -192,6 +285,7 @@ def get_rooms():
 def get_room_names():
     return [room[1] for room in get_rooms()]
 
+# --- ФУНКЦИИ ДЛЯ ТЕХНИКИ ---
 def add_equipment(name, number=""):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -237,6 +331,7 @@ def get_equipment_by_id(eq_id):
     conn.close()
     return result
 
+# --- ФУНКЦИИ ДЛЯ АГРЕГАТОВ ---
 def add_unit(name, equipment_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -268,6 +363,7 @@ def get_units(equipment_id=None):
     conn.close()
     return results
 
+# --- ФУНКЦИИ ДЛЯ РАСХОДА ---
 def consume_item(item_id, quantity, object_name, user="Пользователь", note=""):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -322,6 +418,7 @@ def get_consumption_by_equipment(eq_name):
     conn.close()
     return results
 
+# --- ОСНОВНЫЕ ФУНКЦИИ ---
 def add_item(name, category, location, room, description, item_photo_path, location_photo_path, quantity, unit, threshold, application, installed_photo_path, equipment_id, unit_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -739,7 +836,8 @@ with tab1:
                         st.write(f"📝 {description}")
                     st.caption(f"🕒 Добавлено: {date_added}")
                     
-                    # --- МЕНЮ ---                    if st.session_state.get(f"menu_{item_id}", False):
+                    # --- МЕНЮ ---
+                    if st.session_state.get(f"menu_{item_id}", False):
                         with st.container(border=True):
                             st.write("**📋 Действия:**")
                             col1, col2, col3 = st.columns(3)
