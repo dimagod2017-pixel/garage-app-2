@@ -107,7 +107,6 @@ def show_login():
                 -webkit-text-security: disc !important;
             }
             .stTextInput input:focus { border-color: #4CAF50; }
-            /* Скрываем стрелки в поле ввода */
             input[type="password"]::-webkit-inner-spin-button,
             input[type="password"]::-webkit-outer-spin-button {
                 -webkit-appearance: none;
@@ -120,7 +119,6 @@ def show_login():
         </style>
     """, unsafe_allow_html=True)
     
-    # JavaScript для вызова цифровой клавиатуры
     st.markdown("""
         <script>
             document.addEventListener('DOMContentLoaded', function() {
@@ -1044,7 +1042,7 @@ else:
                                 st.session_state.move_mode[item_id] = False
                                 st.rerun()
                 
-                # --- ВЗЯТЬ (СОТРУДНИК) ---
+                # --- ВЗЯТЬ (СОТРУДНИК) - С ИСПРАВЛЕННЫМ ПОИСКОМ ---
                 if role == "employee" and st.session_state.take_mode.get(item_id, False):
                     with st.container(border=True):
                         st.write(f"**📤 Взять: {name}**")
@@ -1052,42 +1050,84 @@ else:
                         with st.form(key=f"main_take_form_{item_id}"):
                             col1, col2 = st.columns(2)
                             with col1:
-                                take_qty = st.number_input("Количество", min_value=0.0, step=0.5, 
-                                                          max_value=float(quantity), value=min(1.0, float(quantity)),
-                                                          key=f"main_take_qty_{item_id}")
+                                take_qty = st.number_input(
+                                    "Количество", 
+                                    min_value=0.0, 
+                                    step=0.5, 
+                                    max_value=float(quantity), 
+                                    value=min(1.0, float(quantity)),
+                                    key=f"main_take_qty_{item_id}"
+                                )
                             with col2:
-                                # Поиск техники
+                                # --- ПОИСК С ЧАСТИЧНЫМ СОВПАДЕНИЕМ ---
                                 equipment_list = get_equipment()
-                                tech_options = ["Другое"]
+                                
+                                # Собираем все варианты для поиска
+                                search_options = ["Другое"]
                                 for eq in equipment_list:
-                                    tech_options.append(eq[1] + (f" ({eq[2]})" if eq[2] else ""))
+                                    eq_name = eq[1] + (f" ({eq[2]})" if eq[2] else "")
+                                    search_options.append(eq_name)
                                     units = get_units(eq[0])
-                                    for u in units:
-                                        tech_options.append(f"{eq[1]} → {u[1]}")
+                                    for unit in units:
+                                        search_options.append(f"{eq_name} → {unit[1]}")
                                 
-                                search_tech = st.text_input("🔍 На что взял?", placeholder="Техника или агрегат...", key=f"main_take_search_{item_id}")
-                                filtered_tech = [opt for opt in tech_options if search_tech.lower() in opt.lower()] if search_tech else tech_options
+                                # Поле для поиска с автодополнением
+                                search_tech = st.text_input(
+                                    "🔍 На что взял?", 
+                                    placeholder="Начните вводить название техники или агрегата...",
+                                    key=f"main_take_search_{item_id}"
+                                )
                                 
-                                if filtered_tech:
-                                    selected_tech = st.selectbox("Выберите объект", filtered_tech, key=f"main_take_sel_{item_id}")
-                                    if selected_tech == "Другое":
-                                        object_name_input = st.text_input("Введите название*", key=f"main_take_custom_{item_id}")
-                                    else:
-                                        object_name_input = selected_tech
+                                # Фильтруем варианты по частичному совпадению (без учета регистра)
+                                if search_tech:
+                                    filtered_options = [
+                                        opt for opt in search_options 
+                                        if search_tech.lower() in opt.lower()
+                                    ]
                                 else:
-                                    st.warning("Ничего не найдено")
-                                    object_name_input = st.text_input("Введите название*", key=f"main_take_custom_{item_id}")
+                                    filtered_options = search_options[:10]  # Показываем первые 10 для удобства
+                                
+                                # Если ничего не найдено
+                                if not filtered_options:
+                                    st.warning("🔍 Ничего не найдено. Введите название вручную или выберите 'Другое'")
+                                    filtered_options = ["Другое"]
+                                
+                                # Выбор из отфильтрованных вариантов
+                                selected_tech = st.selectbox(
+                                    "Выберите объект", 
+                                    filtered_options,
+                                    key=f"main_take_sel_{item_id}"
+                                )
+                                
+                                # Если выбрано "Другое" - показываем поле для ручного ввода
+                                if selected_tech == "Другое":
+                                    object_name_input = st.text_input(
+                                        "Введите название вручную*",
+                                        placeholder="Например: Машина №5, Трактор МТЗ...",
+                                        key=f"main_take_custom_{item_id}"
+                                    )
+                                else:
+                                    object_name_input = selected_tech
+                                    st.caption(f"✅ Выбрано: **{selected_tech}**")
                             
-                            take_photo = st.file_uploader("📷 Фото (причина замены)", type=["jpg", "jpeg", "png"], key=f"main_take_photo_{item_id}")
-                            note = st.text_area("Примечание", key=f"main_take_note_{item_id}")
+                            take_photo = st.file_uploader(
+                                "📷 Фото (причина замены)", 
+                                type=["jpg", "jpeg", "png"], 
+                                key=f"main_take_photo_{item_id}"
+                            )
+                            note = st.text_area(
+                                "📝 Примечание", 
+                                placeholder="Дополнительная информация...",
+                                key=f"main_take_note_{item_id}"
+                            )
                             
                             col1, col2 = st.columns(2)
                             with col1:
                                 if st.form_submit_button("✅ Подтвердить", use_container_width=True):
                                     if take_qty <= 0:
-                                        st.error("Количество > 0")
+                                        st.error("⚠️ Количество должно быть больше 0!")
                                     elif not object_name_input:
-                                        st.error("Укажите объект")
+                                        st.error("⚠️ Укажите объект (технику или агрегат)!")
                                     else:
                                         photo_path = ""
                                         if take_photo:
@@ -1096,7 +1136,15 @@ else:
                                             with open(photo_path, "wb") as f:
                                                 f.write(take_photo.getbuffer())
                                         
-                                        success, msg = consume_item(item_id, take_qty, object_name_input, user_name, note, photo_path, "pending")
+                                        success, msg = consume_item(
+                                            item_id, 
+                                            take_qty, 
+                                            object_name_input, 
+                                            user_name, 
+                                            note, 
+                                            photo_path, 
+                                            "pending"
+                                        )
                                         if success:
                                             send_email(
                                                 "📤 Новая заявка на списание!",
