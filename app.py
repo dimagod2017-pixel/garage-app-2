@@ -186,10 +186,10 @@ with st.sidebar:
         conn = sqlite3.connect('storage.db')
         c = conn.cursor()
         try:
-            c.execute("SELECT COUNT(*) FROM requests WHERE status = 'pending'")
+            c.execute("SELECT COUNT(*) FROM requests WHERE status IN ('pending', 'returned')")
             pending_count = c.fetchone()[0]
             if pending_count > 0:
-                st.sidebar.warning(f"🔔 Новых заявок: {pending_count}")
+                st.sidebar.warning(f"🔔 Заявок на рассмотрении: {pending_count}")
         except:
             pass
         conn.close()
@@ -768,6 +768,17 @@ def update_request_status(request_id, status, admin_comment="", suggested_item_i
     else:
         c.execute("UPDATE requests SET status = ?, admin_comment = ?, seen = 0 WHERE id = ?", 
                   (status, admin_comment, request_id))
+    conn.commit()
+    conn.close()
+    return True
+
+def return_request(request_id, reason=""):
+    """Возвращает заявку администратору"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    comment = f"Сотрудник отклонил предложение. {reason}" if reason else "Сотрудник отклонил предложение."
+    c.execute("UPDATE requests SET status = 'returned', admin_comment = ?, seen = 0, suggested_item_id = NULL WHERE id = ?", 
+              (comment, request_id))
     conn.commit()
     conn.close()
     return True
@@ -1623,8 +1634,8 @@ with tab5:
             for req in my_requests:
                 r = unpack_request(req)
                 
-                status_icon = {"pending": "⏳", "approved": "✅", "rejected": "❌", "suggested": "💡"}.get(r['status'], "❓")
-                status_text = {"pending": "На рассмотрении", "approved": "Одобрено (закупка)", "rejected": "Отклонено", "suggested": "Предложено со склада"}.get(r['status'], r['status'])
+                status_icon = {"pending": "⏳", "approved": "✅", "rejected": "❌", "suggested": "💡", "returned": "🔄"}.get(r['status'], "❓")
+                status_text = {"pending": "На рассмотрении", "approved": "Одобрено (закупка)", "rejected": "Отклонено", "suggested": "Предложено со склада", "returned": "Возвращено"}.get(r['status'], r['status'])
                 
                 with st.expander(f"{status_icon} {r['name']} — {r['quantity']} {r['unit']} | {r['date']}"):
                     st.markdown(f"**Статус:** {status_text}")
@@ -1645,8 +1656,35 @@ with tab5:
                         conn.close()
                         if item:
                             show_item_card_mini(item)
+                        
+                        # Кнопки для предложенного товара
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("✅ Подходит", key=f"accept_{r['id']}", use_container_width=True):
+                                mark_request_seen(r['id'])
+                                st.success("✅ Принято! Заявка закрыта.")
+                                st.rerun()
+                        with col2:
+                            if st.button("❌ Не подходит", key=f"return_{r['id']}", use_container_width=True):
+                                st.session_state[f"show_return_reason_{r['id']}"] = True
+                        
+                        if st.session_state.get(f"show_return_reason_{r['id']}"):
+                            with st.form(f"return_form_{r['id']}"):
+                                st.warning("Укажите причину возврата:")
+                                reason = st.text_area("Причина", placeholder="Например: не тот размер, не подходит модель...", key=f"reason_{r['id']}")
+                                col_a, col_b = st.columns(2)
+                                with col_a:
+                                    if st.form_submit_button("📤 Отправить на пересмотр"):
+                                        return_request(r['id'], reason)
+                                        st.session_state[f"show_return_reason_{r['id']}"] = False
+                                        st.success("Заявка возвращена администратору!")
+                                        st.rerun()
+                                with col_b:
+                                    if st.form_submit_button("❌ Отмена"):
+                                        st.session_state[f"show_return_reason_{r['id']}"] = False
+                                        st.rerun()
                     
-                    if r['status'] in ["approved", "suggested"] and r['seen'] == 0:
+                    if r['status'] in ["approved"] and r['seen'] == 0:
                         if st.button("👁️ Отметить как прочитанное", key=f"seen_{r['id']}"):
                             mark_request_seen(r['id'])
                             st.rerun()
@@ -1654,7 +1692,7 @@ with tab5:
             st.info("У вас пока нет заявок")
     
     elif role == "admin":
-        tab5_1, tab5_2, tab5_3, tab5_4 = st.tabs(["⏳ Новые", "💡 Предложенные", "✅ Одобренные", "❌ Отклоненные"])
+        tab5_1, tab5_2, tab5_3, tab5_4, tab5_5 = st.tabs(["⏳ Новые", "🔄 Возвращенные", "💡 Предложенные", "✅ Одобренные", "❌ Отклоненные"])
         
         with tab5_1:
             pending_requests = get_requests(status="pending")
@@ -1732,6 +1770,74 @@ with tab5:
                 st.info("Нет новых заявок")
         
         with tab5_2:
+            returned_requests = get_requests(status="returned")
+            if returned_requests:
+                for req in returned_requests:
+                    r = unpack_request(req)
+                    
+                    with st.expander(f"🔄 {r['name']} — {r['quantity']} {r['unit']} | от {r['user']} | {r['date']}"):
+                        st.warning("⚠️ Сотрудник отклонил предложенный товар!")
+                        st.markdown(f"**От:** {r['user']}")
+                        if r['description']:
+                            st.markdown(f"**Описание:** {r['description']}")
+                        if r['admin_comment']:
+                            st.markdown(f"**Причина возврата:** {r['admin_comment']}")
+                        if r['photo'] and os.path.exists(r['photo']):
+                            st.image(r['photo'], caption="Фото", width=200)
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            if st.button("✅ Одобрить закупку", key=f"approve_ret_{r['id']}", use_container_width=True):
+                                update_request_status(r['id'], "approved", "Заявка одобрена повторно. Требуется закупка.")
+                                st.success("Заявка одобрена!")
+                                st.rerun()
+                        with col2:
+                            if st.button("💡 Предложить другой товар", key=f"suggest_ret_{r['id']}", use_container_width=True):
+                                st.session_state[f"show_suggest_{r['id']}"] = True
+                        with col3:
+                            if st.button("❌ Отклонить", key=f"reject_ret_{r['id']}", use_container_width=True):
+                                update_request_status(r['id'], "rejected", "Заявка отклонена.")
+                                st.success("Заявка отклонена!")
+                                st.rerun()
+                        
+                        if st.session_state.get(f"show_suggest_{r['id']}"):
+                            st.markdown("---")
+                            st.markdown("### 🔍 Найти другой товар на складе")
+                            
+                            suggest_search = st.text_input(
+                                "Поиск товара на складе", 
+                                key=f"suggest_search_ret_{r['id']}", 
+                                placeholder="Введите название существующего товара"
+                            )
+                            
+                            if suggest_search:
+                                found_items = search_items(suggest_search)
+                                if found_items:
+                                    st.success(f"Найдено товаров: {len(found_items)}")
+                                    for item in found_items:
+                                        with st.container():
+                                            st.markdown("---")
+                                            show_item_card_mini(item)
+                                            if st.button("📤 Предложить этот товар", key=f"select_item_ret_{r['id']}_{item[0]}"):
+                                                update_request_status(
+                                                    r['id'], 
+                                                    "suggested", 
+                                                    f"Предложен другой товар со склада: {item[1]}", 
+                                                    item[0]
+                                                )
+                                                st.session_state[f"show_suggest_{r['id']}"] = False
+                                                st.success(f"✅ Товар '{item[1]}' предложен сотруднику!")
+                                                st.rerun()
+                                else:
+                                    st.warning("Товары не найдены. Попробуйте другой запрос.")
+                            
+                            if st.button("❌ Закрыть поиск", key=f"close_suggest_ret_{r['id']}"):
+                                st.session_state[f"show_suggest_{r['id']}"] = False
+                                st.rerun()
+            else:
+                st.info("Нет возвращенных заявок")
+        
+        with tab5_3:
             suggested_requests = get_requests(status="suggested")
             if suggested_requests:
                 for req in suggested_requests:
@@ -1763,7 +1869,7 @@ with tab5:
             else:
                 st.info("Нет предложенных заявок")
         
-        with tab5_3:
+        with tab5_4:
             approved_requests = get_requests(status="approved")
             if approved_requests:
                 for req in approved_requests:
@@ -1844,7 +1950,7 @@ with tab5:
             else:
                 st.info("Нет одобренных заявок")
         
-        with tab5_4:
+        with tab5_5:
             rejected_requests = get_requests(status="rejected")
             if rejected_requests:
                 for req in rejected_requests:
