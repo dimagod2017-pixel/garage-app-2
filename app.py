@@ -104,9 +104,34 @@ def show_login():
                 font-size: 1.1rem;
                 text-align: center;
                 letter-spacing: 2px;
+                -webkit-text-security: disc !important;
             }
             .stTextInput input:focus { border-color: #4CAF50; }
+            /* Скрываем стрелки в поле ввода */
+            input[type="password"]::-webkit-inner-spin-button,
+            input[type="password"]::-webkit-outer-spin-button {
+                -webkit-appearance: none;
+                margin: 0;
+            }
+            input[type="password"] {
+                -moz-appearance: textfield;
+                appearance: textfield;
+            }
         </style>
+    """, unsafe_allow_html=True)
+    
+    # JavaScript для вызова цифровой клавиатуры
+    st.markdown("""
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const passwordInput = document.querySelector('input[type="password"]');
+                if (passwordInput) {
+                    passwordInput.setAttribute('inputmode', 'numeric');
+                    passwordInput.setAttribute('autocomplete', 'off');
+                    passwordInput.setAttribute('pattern', '[0-9]*');
+                }
+            });
+        </script>
     """, unsafe_allow_html=True)
     
     with st.container():
@@ -116,23 +141,29 @@ def show_login():
                 <p class="subtitle">Введите пароль для входа</p>
         """, unsafe_allow_html=True)
         
-        password = st.text_input("🔑 Пароль", type="password", placeholder="Введите пароль...", key="login_password_main")
+        password = st.text_input(
+            "🔑 Пароль", 
+            type="password", 
+            placeholder="Введите пароль...", 
+            key="login_password_main"
+        )
         
         if st.button("🔓 Войти", use_container_width=True):
             if password in USERS:
                 st.session_state.user = USERS[password]
                 st.rerun()
             else:
-                st.error("❌ Неверный пароль!")
+                st.error("❌ Неверный пароль! Попробуйте еще раз.")
         
         st.markdown("""
             <div class="hint">
-                💡 <strong>Для сотрудника:</strong> введите пароль <code>1111</code><br>
-                🔑 <strong>Для администратора:</strong> введите пароль <code>12345</code>
+                💡 <strong>Для сотрудника:</strong> введите пароль <code>1111</code>
             </div>
         """, unsafe_allow_html=True)
+        
         st.markdown("</div>", unsafe_allow_html=True)
 
+# --- ПРОВЕРКА АВТОРИЗАЦИИ ---
 if st.session_state.user is None:
     st.set_page_config(page_title="Мой Склад", page_icon="🌿", layout="wide")
     show_login()
