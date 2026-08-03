@@ -679,23 +679,23 @@ def export_to_excel():
             writer.sheets['Инвентарь'].column_dimensions[chr(65 + col_idx)].width = column_width + 2
     return output.getvalue()
 
-def show_photo_carousel(item_id, photos):
+def show_photo_carousel(unique_id, photos):
     """Показывает карусель фотографий с возможностью перелистывания"""
     if not photos:
         return
     
-    if item_id not in st.session_state.photo_index:
-        st.session_state.photo_index[item_id] = 0
+    if unique_id not in st.session_state.photo_index:
+        st.session_state.photo_index[unique_id] = 0
     
     total_photos = len(photos)
-    current_index = st.session_state.photo_index[item_id]
+    current_index = st.session_state.photo_index[unique_id]
     
     if total_photos > 0:
         col1, col2, col3 = st.columns([1, 4, 1])
         
         with col1:
-            if st.button("◀", key=f"prev_{item_id}", use_container_width=True):
-                st.session_state.photo_index[item_id] = (current_index - 1) % total_photos
+            if st.button("◀", key=f"prev_{unique_id}", use_container_width=True):
+                st.session_state.photo_index[unique_id] = (current_index - 1) % total_photos
                 st.rerun()
         
         with col2:
@@ -704,11 +704,11 @@ def show_photo_carousel(item_id, photos):
                 st.caption(f"Фото {current_index + 1} из {total_photos}")
         
         with col3:
-            if st.button("▶", key=f"next_{item_id}", use_container_width=True):
-                st.session_state.photo_index[item_id] = (current_index + 1) % total_photos
+            if st.button("▶", key=f"next_{unique_id}", use_container_width=True):
+                st.session_state.photo_index[unique_id] = (current_index + 1) % total_photos
                 st.rerun()
 
-def show_item_card(item, expanded=False):
+def show_item_card(item, expanded=False, tab_prefix=""):
     """Отображает карточку товара с фото-каруселью и кнопками действий"""
     item_id, name, category, location, room, description, item_photo, location_photo, date_added, quantity, unit, threshold, application, installed_photo, equipment_id, unit_id = item
     
@@ -757,32 +757,33 @@ def show_item_card(item, expanded=False):
         
         with col2:
             if photos:
-                show_photo_carousel(item_id, photos)
+                show_photo_carousel(f"{tab_prefix}_{item_id}", photos)
         
         # Кнопки действий
         st.divider()
         
-        # Используем уникальные ключи с префиксом роли
+        # Используем уникальные ключи с префиксом роли и вкладки
         role_prefix = "admin" if role == "admin" else "emp"
+        unique_prefix = f"{tab_prefix}_{role_prefix}_{item_id}"
         
         if role == "admin":
             # Кнопки для администратора
             col_a, col_b, col_c, col_d = st.columns(4)
             
             with col_a:
-                if st.button("✏️ Редактировать", key=f"{role_prefix}_edit_btn_{item_id}", use_container_width=True):
+                if st.button("✏️ Редактировать", key=f"{unique_prefix}_edit_btn", use_container_width=True):
                     st.session_state[f"show_edit_{item_id}"] = True
             
             with col_b:
-                if st.button("📊 Изменить количество", key=f"{role_prefix}_qty_btn_{item_id}", use_container_width=True):
+                if st.button("📊 Изменить количество", key=f"{unique_prefix}_qty_btn", use_container_width=True):
                     st.session_state[f"show_qty_{item_id}"] = True
             
             with col_c:
-                if st.button("📤 Списать", key=f"{role_prefix}_consume_btn_{item_id}", use_container_width=True):
+                if st.button("📤 Списать", key=f"{unique_prefix}_consume_btn", use_container_width=True):
                     st.session_state[f"show_consume_{item_id}"] = True
             
             with col_d:
-                if st.button("🗑️ Удалить", key=f"{role_prefix}_delete_btn_{item_id}", use_container_width=True):
+                if st.button("🗑️ Удалить", key=f"{unique_prefix}_delete_btn", use_container_width=True):
                     if st.session_state.get(f"confirm_delete_{item_id}"):
                         delete_item(item_id)
                         st.success("🗑️ Вещь удалена!")
@@ -796,16 +797,16 @@ def show_item_card(item, expanded=False):
             col_a, col_b = st.columns(2)
             
             with col_a:
-                if st.button("📤 Списать", key=f"{role_prefix}_consume_btn_{item_id}", use_container_width=True):
+                if st.button("📤 Списать", key=f"{unique_prefix}_consume_btn", use_container_width=True):
                     st.session_state[f"show_consume_{item_id}"] = True
             
             with col_b:
-                if st.button("📍 Переместить", key=f"{role_prefix}_move_btn_{item_id}", use_container_width=True):
+                if st.button("📍 Переместить", key=f"{unique_prefix}_move_btn", use_container_width=True):
                     st.session_state[f"show_move_{item_id}"] = True
         
         # Модальное окно: Редактирование (только админ)
         if st.session_state.get(f"show_edit_{item_id}"):
-            with st.form(f"edit_form_{item_id}"):
+            with st.form(f"edit_form_{unique_prefix}"):
                 st.markdown("### ✏️ Редактировать вещь")
                 new_name = st.text_input("Название", value=name)
                 new_category = st.text_input("Категория", value=category or "")
@@ -871,7 +872,7 @@ def show_item_card(item, expanded=False):
         
         # Модальное окно: Изменить количество (только админ)
         if st.session_state.get(f"show_qty_{item_id}"):
-            with st.form(f"qty_form_{item_id}"):
+            with st.form(f"qty_form_{unique_prefix}"):
                 st.markdown("### 📊 Изменить количество")
                 new_qty = st.number_input("Новое количество", value=float(quantity), min_value=0.0, step=0.5)
                 col1, col2 = st.columns(2)
@@ -888,12 +889,12 @@ def show_item_card(item, expanded=False):
         
         # Модальное окно: Списание (для всех)
         if st.session_state.get(f"show_consume_{item_id}"):
-            with st.form(f"consume_form_{item_id}"):
+            with st.form(f"consume_form_{unique_prefix}"):
                 st.markdown("### 📤 Списать со склада")
                 consume_qty = st.number_input("Количество", min_value=0.1, max_value=float(quantity), value=1.0, step=0.5)
                 
                 st.markdown("**🔍 Поиск техники/агрегата:**")
-                search_query = st.text_input("Введите название или номер техники", placeholder="Например: МТЗ, 1234", key=f"search_eq_{item_id}")
+                search_query = st.text_input("Введите название или номер техники", placeholder="Например: МТЗ, 1234", key=f"search_eq_{unique_prefix}")
                 
                 if search_query:
                     search_results = search_equipment(search_query)
@@ -909,7 +910,7 @@ def show_item_card(item, expanded=False):
                         
                         selected = st.selectbox("Выберите технику/агрегат", 
                                                [opt[2] for opt in options],
-                                               key=f"select_eq_{item_id}")
+                                               key=f"select_eq_{unique_prefix}")
                         
                         if selected:
                             for opt in options:
@@ -921,11 +922,11 @@ def show_item_card(item, expanded=False):
                                     break
                     else:
                         st.info("Ничего не найдено")
-                        object_name = st.text_input("Или введите вручную", key=f"manual_obj_{item_id}")
+                        object_name = st.text_input("Или введите вручную", key=f"manual_obj_{unique_prefix}")
                 else:
-                    object_name = st.text_input("На что списываем*", placeholder="Введите вручную или начните поиск", key=f"manual_obj_{item_id}")
+                    object_name = st.text_input("На что списываем*", placeholder="Введите вручную или начните поиск", key=f"manual_obj_{unique_prefix}")
                 
-                consume_photo = st.file_uploader("📷 Фото (опционально)", type=["jpg", "jpeg", "png"], key=f"consume_photo_{item_id}")
+                consume_photo = st.file_uploader("📷 Фото (опционально)", type=["jpg", "jpeg", "png"], key=f"consume_photo_{unique_prefix}")
                 
                 col1, col2 = st.columns(2)
                 with col1:
@@ -955,7 +956,7 @@ def show_item_card(item, expanded=False):
         
         # Модальное окно: Переместить (только сотрудник)
         if st.session_state.get(f"show_move_{item_id}"):
-            with st.form(f"move_form_{item_id}"):
+            with st.form(f"move_form_{unique_prefix}"):
                 st.markdown("### 📍 Переместить вещь")
                 st.info(f"Текущее местоположение: **{room}** → **{location}**")
                 
@@ -1199,7 +1200,7 @@ with tab1:
     
     if items:
         for item in items:
-            show_item_card(item, expanded=item[9] <= item[11])
+            show_item_card(item, expanded=item[9] <= item[11], tab_prefix="tab1")
     else:
         st.info("Ничего не найдено. Добавьте вещи через боковую панель.")
 
@@ -1214,7 +1215,7 @@ with tab2:
     
     if items:
         for item in items:
-            show_item_card(item)
+            show_item_card(item, tab_prefix="tab2")
     else:
         st.info("Склад пуст. Добавьте вещи через боковую панель.")
 
