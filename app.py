@@ -492,34 +492,30 @@ with st.sidebar:
     st.markdown(f"### 👤 {user_name}")
     st.caption(f"Роль: {'🔑 Администратор' if role == 'admin' else '🔧 Сотрудник'}")
     
-    # Счетчики
     notifications = get_all_notifications()
     total_unread = len(notifications)
     
     if total_unread > 0:
         if st.sidebar.button(f"🔔 Уведомлений: {total_unread}", key="side_notif", use_container_width=True):
-            st.session_state.active_tab = 5
+            st.session_state.active_tab = 0
             st.rerun()
     
     if role == "admin":
         pending = len(get_requests(status='pending'))
-        returned = len(get_requests(status='returned'))
         low = len(get_low_stock_items())
-        
         if pending:
             if st.sidebar.button(f"📝 Новые заявки: {pending}", key="side_pending", use_container_width=True):
                 st.session_state.active_tab = 3
                 st.rerun()
         if low:
             if st.sidebar.button(f"⚠️ Заканчивается: {low}", key="side_low", use_container_width=True):
-                st.session_state.active_tab = 0
+                st.session_state.active_tab = 1
                 st.session_state.show_low_stock = True
                 st.rerun()
     else:
         my_reqs = get_requests(user=user_name)
         approved = len([r for r in my_reqs if unpack_request(r)['status'] == 'approved' and unpack_request(r)['seen'] == 0])
         suggested = len([r for r in my_reqs if unpack_request(r)['status'] == 'suggested' and unpack_request(r)['seen'] == 0])
-        
         if approved:
             if st.sidebar.button(f"✅ Одобрено: {approved}", key="side_approved", use_container_width=True):
                 st.session_state.active_tab = 3
@@ -556,11 +552,122 @@ with st.sidebar:
 # --- ЗАГОЛОВОК ---
 st.title("🌿 Мой Склад")
 
-# --- ВКЛАДКИ ---
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🔍 Поиск", "📋 Все вещи", "🚜 Парк", "📝 Заявки", "📤 Списания", "🔔 Уведомления"])
+# --- ВКЛАДКИ (Уведомления на первом месте) ---
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🔔 Уведомления", "🔍 Поиск", "📋 Все вещи", "🚜 Парк", "📝 Заявки", "📤 Списания"])
 
-# Вкладка 1: Поиск
+# Вкладка 1: Уведомления (теперь первая)
 with tab1:
+    st.markdown("## 📬 Лента уведомлений")
+    
+    notifications = get_all_notifications()
+    
+    if notifications:
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            if st.button("🗑️ Очистить все", use_container_width=True, type="primary"):
+                for n in notifications:
+                    st.session_state.dismissed_notifications.append(n['id'])
+                st.rerun()
+        
+        st.divider()
+        
+        for n in notifications:
+            with st.expander(f"{n['icon']} {n['title']}", expanded=True):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown(f"### {n['icon']} {n['title']}")
+                    st.write(n['text'])
+                    st.markdown(n['detail'])
+                    
+                    # Кнопки действий
+                    if n['type'] == 'pending' and role == 'admin':
+                        col_a, col_b, col_c = st.columns(3)
+                        with col_a:
+                            if st.button("🔧 Взять в работу", key=f"work_{n['request_id']}"):
+                                update_request_status(n['request_id'], "in_work", "Взято в работу администратором")
+                                st.session_state.dismissed_notifications.append(n['id'])
+                                st.success("✅ Взято в работу!")
+                                st.rerun()
+                        with col_b:
+                            if st.button("✅ Одобрить", key=f"fast_app_{n['request_id']}"):
+                                update_request_status(n['request_id'], "approved", "Одобрено")
+                                st.session_state.dismissed_notifications.append(n['id'])
+                                st.rerun()
+                        with col_c:
+                            if st.button("❌ Отклонить", key=f"fast_rej_{n['request_id']}"):
+                                update_request_status(n['request_id'], "rejected", "Отклонено")
+                                st.session_state.dismissed_notifications.append(n['id'])
+                                st.rerun()
+                    
+                    elif n['type'] == 'returned' and role == 'admin':
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            if st.button("✅ Одобрить", key=f"app_ret_{n['request_id']}"):
+                                update_request_status(n['request_id'], "approved", "Одобрено повторно")
+                                st.session_state.dismissed_notifications.append(n['id'])
+                                st.rerun()
+                        with col_b:
+                            if st.button("💡 Предложить со склада", key=f"sug_ret_{n['request_id']}"):
+                                st.session_state[f"sug_notif_{n['request_id']}"] = True
+                        
+                        if st.session_state.get(f"sug_notif_{n['request_id']}"):
+                            sq = st.text_input("Поиск товара", key=f"sq_notif_{n['request_id']}")
+                            if sq:
+                                for item in search_items(sq):
+                                    show_item_card_mini(item)
+                                    if st.button("📤 Предложить", key=f"sel_notif_{n['request_id']}_{item[0]}"):
+                                        update_request_status(n['request_id'], "suggested", f"Предложен: {item[1]}", item[0])
+                                        st.session_state.dismissed_notifications.append(n['id'])
+                                        st.session_state[f"sug_notif_{n['request_id']}"] = False
+                                        st.rerun()
+                    
+                    elif n['type'] == 'suggested' and role == 'employee':
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            if st.button("✅ Подходит", key=f"ok_notif_{n['request_id']}"):
+                                mark_request_seen(n['request_id'])
+                                st.session_state.dismissed_notifications.append(n['id'])
+                                st.rerun()
+                        with col_b:
+                            if st.button("❌ Не подходит", key=f"no_notif_{n['request_id']}"):
+                                st.session_state[f"ret_notif_{n['request_id']}"] = True
+                        
+                        if st.session_state.get(f"ret_notif_{n['request_id']}"):
+                            reason = st.text_area("Причина", key=f"reason_notif_{n['request_id']}")
+                            if st.button("📤 Отправить", key=f"send_ret_notif_{n['request_id']}"):
+                                return_request(n['request_id'], reason)
+                                st.session_state.dismissed_notifications.append(n['id'])
+                                st.session_state[f"ret_notif_{n['request_id']}"] = False
+                                st.rerun()
+                    
+                    elif n['type'] == 'approved' and role == 'employee':
+                        if st.button("✅ Принять", key=f"accept_notif_{n['request_id']}"):
+                            mark_request_seen(n['request_id'])
+                            st.session_state.dismissed_notifications.append(n['id'])
+                            st.rerun()
+                    
+                    elif n['type'] == 'low_stock' and role == 'admin':
+                        if st.button("📦 Перейти к товару", key=f"goto_low_{n['item_id']}"):
+                            st.session_state.active_tab = 1
+                            st.rerun()
+                
+                with col2:
+                    if st.button("🗑️ Скрыть", key=f"dismiss_{n['id']}"):
+                        st.session_state.dismissed_notifications.append(n['id'])
+                        st.rerun()
+                    st.caption(f"📅 {n['date']}")
+        
+        st.divider()
+        if st.button("🗑️ Очистить все уведомления", use_container_width=True):
+            for n in notifications:
+                st.session_state.dismissed_notifications.append(n['id'])
+            st.rerun()
+    else:
+        st.success("✅ Нет новых уведомлений!")
+        st.balloons()
+
+# Вкладка 2: Поиск
+with tab2:
     if st.session_state.get("show_low_stock"):
         st.warning("⚠️ Показаны заканчивающиеся товары")
         items = get_low_stock_items()
@@ -589,8 +696,8 @@ with tab1:
     else:
         st.info("Ничего не найдено")
 
-# Вкладка 2: Все вещи
-with tab2:
+# Вкладка 3: Все вещи
+with tab3:
     items = get_all_items()
     if items:
         for item in items:
@@ -598,8 +705,8 @@ with tab2:
     else:
         st.info("Склад пуст")
 
-# Вкладка 3: Парк
-with tab3:
+# Вкладка 4: Парк
+with tab4:
     st.markdown("### 🚜 Парк техники")
     if role == "admin":
         with st.form("add_eq"):
@@ -621,8 +728,8 @@ with tab3:
                 st.write(f"  {'🔴' if item[9] <= item[11] else '🟢'} {item[1]} — {item[9]} {item[10]}")
             conn.close()
 
-# Вкладка 4: Заявки
-with tab4:
+# Вкладка 5: Заявки
+with tab5:
     st.markdown("### 📝 Заявки на пополнение")
     
     if role == "employee":
@@ -689,26 +796,26 @@ with tab4:
                                 st.rerun()
     
     elif role == "admin":
-        tabs = st.tabs(["⏳ Новые", "🔄 Возвраты", "💡 Предложенные", "✅ Одобренные", "❌ Отклоненные"])
+        tabs = st.tabs(["⏳ Новые", "🔧 В работе", "🔄 Возвраты", "💡 Предложенные", "✅ Одобренные", "❌ Отклоненные"])
         
-        for tab, status in zip(tabs, ["pending", "returned", "suggested", "approved", "rejected"]):
+        for tab, status in zip(tabs, ["pending", "in_work", "returned", "suggested", "approved", "rejected"]):
             with tab:
                 for req in get_requests(status=status):
                     r = unpack_request(req)
                     with st.expander(f"{r['name']} — {r['quantity']} {r['unit']} | {r['user']}"):
-                        if r['status'] in ['pending', 'returned']:
+                        if r['status'] == 'pending':
                             col1, col2, col3 = st.columns(3)
                             with col1:
+                                if st.button("🔧 В работу", key=f"work_{r['id']}"):
+                                    update_request_status(r['id'], "in_work", "Взято в работу")
+                                    st.rerun()
+                            with col2:
                                 if st.button("✅ Одобрить", key=f"app_{r['id']}"):
                                     update_request_status(r['id'], "approved")
                                     st.rerun()
-                            with col2:
+                            with col3:
                                 if st.button("💡 Со склада", key=f"sug_{r['id']}"):
                                     st.session_state[f"sug_{r['id']}"] = True
-                            with col3:
-                                if st.button("❌ Отклонить", key=f"rej_{r['id']}"):
-                                    update_request_status(r['id'], "rejected")
-                                    st.rerun()
                             
                             if st.session_state.get(f"sug_{r['id']}"):
                                 sq = st.text_input("Поиск товара", key=f"sq_{r['id']}")
@@ -719,6 +826,44 @@ with tab4:
                                             update_request_status(r['id'], "suggested", f"Предложен: {item[1]}", item[0])
                                             st.session_state[f"sug_{r['id']}"] = False
                                             st.rerun()
+                        
+                        elif r['status'] == 'in_work':
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                if st.button("✅ Выполнено", key=f"done_{r['id']}"):
+                                    update_request_status(r['id'], "approved", "Выполнено")
+                                    st.rerun()
+                            with col2:
+                                if st.button("💡 Со склада", key=f"sug_w_{r['id']}"):
+                                    st.session_state[f"sug_{r['id']}"] = True
+                            with col3:
+                                if st.button("❌ Отклонить", key=f"rej_w_{r['id']}"):
+                                    update_request_status(r['id'], "rejected", "Отклонено")
+                                    st.rerun()
+                            
+                            if st.session_state.get(f"sug_{r['id']}"):
+                                sq = st.text_input("Поиск товара", key=f"sq_w_{r['id']}")
+                                if sq:
+                                    for item in search_items(sq):
+                                        show_item_card_mini(item)
+                                        if st.button("Предложить", key=f"sel_w_{r['id']}_{item[0]}"):
+                                            update_request_status(r['id'], "suggested", f"Предложен: {item[1]}", item[0])
+                                            st.session_state[f"sug_{r['id']}"] = False
+                                            st.rerun()
+                        
+                        elif r['status'] in ['returned']:
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                if st.button("✅ Одобрить", key=f"app_r_{r['id']}"):
+                                    update_request_status(r['id'], "approved")
+                                    st.rerun()
+                            with col2:
+                                if st.button("💡 Со склада", key=f"sug_r_{r['id']}"):
+                                    st.session_state[f"sug_{r['id']}"] = True
+                            with col3:
+                                if st.button("❌ Отклонить", key=f"rej_r_{r['id']}"):
+                                    update_request_status(r['id'], "rejected")
+                                    st.rerun()
                         
                         if r['status'] == 'approved':
                             if st.button("📦 Создать товар", key=f"create_{r['id']}"):
@@ -737,85 +882,9 @@ with tab4:
                                             st.session_state[f"create_{r['id']}"] = False
                                             st.rerun()
 
-# Вкладка 5: Списания
-with tab5:
+# Вкладка 6: Списания
+with tab6:
     st.markdown("### 📤 История списаний")
     for record in get_all_consumption():
         record_id, item_id, qty, unit, object_name, user, date, status, photo, item_name = record
         st.write(f"{'✅' if status == 'confirmed' else '⏳'} {item_name} — {qty} {unit} → {object_name} | {date}")
-
-# Вкладка 6: Уведомления
-with tab6:
-    st.markdown("## 📬 Лента уведомлений")
-    
-    notifications = get_all_notifications()
-    
-    if notifications:
-        # Кнопка очистить все
-        col1, col2 = st.columns([3, 1])
-        with col2:
-            if st.button("🗑️ Очистить все", use_container_width=True, type="primary"):
-                for n in notifications:
-                    st.session_state.dismissed_notifications.append(n['id'])
-                st.rerun()
-        
-        st.divider()
-        
-        # Лента
-        for n in notifications:
-            with st.expander(f"{n['icon']} {n['title']}", expanded=True):
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.markdown(f"### {n['icon']} {n['title']}")
-                    st.write(n['text'])
-                    st.markdown(n['detail'])
-                    
-                    # Кнопки действий
-                    if n['type'] == 'pending' and role == 'admin':
-                        col_a, col_b = st.columns(2)
-                        with col_a:
-                            if st.button("✅ Быстро одобрить", key=f"fast_{n['request_id']}"):
-                                update_request_status(n['request_id'], "approved", "Одобрено")
-                                st.session_state.dismissed_notifications.append(n['id'])
-                                st.rerun()
-                    
-                    elif n['type'] == 'suggested' and role == 'employee':
-                        col_a, col_b = st.columns(2)
-                        with col_a:
-                            if st.button("✅ Подходит", key=f"ok_notif_{n['request_id']}"):
-                                mark_request_seen(n['request_id'])
-                                st.session_state.dismissed_notifications.append(n['id'])
-                                st.rerun()
-                        with col_b:
-                            if st.button("❌ Не подходит", key=f"no_notif_{n['request_id']}"):
-                                st.session_state[f"ret_notif_{n['request_id']}"] = True
-                        
-                        if st.session_state.get(f"ret_notif_{n['request_id']}"):
-                            reason = st.text_area("Причина", key=f"reason_notif_{n['request_id']}")
-                            if st.button("📤 Отправить", key=f"send_ret_notif_{n['request_id']}"):
-                                return_request(n['request_id'], reason)
-                                st.session_state.dismissed_notifications.append(n['id'])
-                                st.session_state[f"ret_notif_{n['request_id']}"] = False
-                                st.rerun()
-                    
-                    elif n['type'] == 'approved' and role == 'employee':
-                        if st.button("✅ Принять", key=f"accept_notif_{n['request_id']}"):
-                            mark_request_seen(n['request_id'])
-                            st.session_state.dismissed_notifications.append(n['id'])
-                            st.rerun()
-                
-                with col2:
-                    if st.button("🗑️ Скрыть", key=f"dismiss_{n['id']}"):
-                        st.session_state.dismissed_notifications.append(n['id'])
-                        st.rerun()
-                    st.caption(f"📅 {n['date']}")
-        
-        # Кнопка внизу
-        st.divider()
-        if st.button("🗑️ Очистить все уведомления", use_container_width=True):
-            for n in notifications:
-                st.session_state.dismissed_notifications.append(n['id'])
-            st.rerun()
-    else:
-        st.success("✅ Нет новых уведомлений!")
-        st.balloons()
