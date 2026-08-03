@@ -390,27 +390,53 @@ def get_equipment_by_id(eq_id):
 
 def search_equipment(query):
     """Поиск техники и агрегатов по ключевым словам"""
+    if not query:
+        return []
+    
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     results = []
     
-    c.execute("""
-        SELECT 'equipment' as type, id, name, number, date_added, NULL as unit_name, NULL as unit_id
-        FROM equipment 
-        WHERE name LIKE ? OR number LIKE ?
-    """, (f'%{query}%', f'%{query}%'))
-    equipment_results = c.fetchall()
+    # Разбиваем запрос на слова и создаем условия для каждого слова
+    words = query.strip().split()
     
-    c.execute("""
-        SELECT 'unit' as type, e.id as eq_id, e.name as eq_name, e.number, e.date_added, u.name as unit_name, u.id as unit_id
-        FROM units u
-        JOIN equipment e ON u.equipment_id = e.id
-        WHERE u.name LIKE ? OR e.name LIKE ? OR e.number LIKE ?
-    """, (f'%{query}%', f'%{query}%', f'%{query}%'))
-    unit_results = c.fetchall()
+    # Строим условия для поиска техники
+    equipment_conditions = []
+    equipment_params = []
+    for word in words:
+        word_pattern = f'%{word}%'
+        equipment_conditions.append("(name LIKE ? OR number LIKE ?)")
+        equipment_params.extend([word_pattern, word_pattern])
     
-    results.extend(equipment_results)
-    results.extend(unit_results)
+    if equipment_conditions:
+        where_clause = " AND ".join(equipment_conditions)
+        c.execute(f"""
+            SELECT 'equipment' as type, id, name, number, date_added, NULL as unit_name, NULL as unit_id
+            FROM equipment 
+            WHERE {where_clause}
+        """, equipment_params)
+        equipment_results = c.fetchall()
+        results.extend(equipment_results)
+    
+    # Строим условия для поиска агрегатов
+    unit_conditions = []
+    unit_params = []
+    for word in words:
+        word_pattern = f'%{word}%'
+        unit_conditions.append("(u.name LIKE ? OR e.name LIKE ? OR e.number LIKE ?)")
+        unit_params.extend([word_pattern, word_pattern, word_pattern])
+    
+    if unit_conditions:
+        where_clause = " AND ".join(unit_conditions)
+        c.execute(f"""
+            SELECT 'unit' as type, e.id as eq_id, e.name as eq_name, e.number, e.date_added, u.name as unit_name, u.id as unit_id
+            FROM units u
+            JOIN equipment e ON u.equipment_id = e.id
+            WHERE {where_clause}
+        """, unit_params)
+        unit_results = c.fetchall()
+        results.extend(unit_results)
+    
     conn.close()
     return results
 
@@ -896,6 +922,7 @@ def show_item_card(item, expanded=False, tab_prefix=""):
                 st.markdown("**🔍 Поиск техники/агрегата:**")
                 search_query = st.text_input("Введите название или номер техники", placeholder="Например: МТЗ, 1234", key=f"search_eq_{unique_prefix}")
                 
+                object_name = ""
                 if search_query:
                     search_results = search_equipment(search_query)
                     if search_results:
@@ -903,26 +930,20 @@ def show_item_card(item, expanded=False, tab_prefix=""):
                         for result in search_results:
                             if result[0] == 'equipment':
                                 label = f"🚜 {result[2]}" + (f" (№{result[3]})" if result[3] else "")
-                                options.append(("equipment", result[1], label, None))
+                                options.append(label)
                             else:
                                 label = f"🔧 {result[5]} → 🚜 {result[2]}" + (f" (№{result[3]})" if result[3] else "")
-                                options.append(("unit", result[1], label, result[6]))
+                                options.append(label)
                         
                         selected = st.selectbox("Выберите технику/агрегат", 
-                                               [opt[2] for opt in options],
+                                               options,
                                                key=f"select_eq_{unique_prefix}")
                         
                         if selected:
-                            for opt in options:
-                                if opt[2] == selected:
-                                    if opt[0] == 'equipment':
-                                        object_name = f"Техника: {opt[2]}"
-                                    else:
-                                        object_name = f"Агрегат: {opt[2]}"
-                                    break
+                            object_name = selected
                     else:
-                        st.info("Ничего не найдено")
-                        object_name = st.text_input("Или введите вручную", key=f"manual_obj_{unique_prefix}")
+                        st.info("Ничего не найдено. Введите вручную:")
+                        object_name = st.text_input("На что списываем*", key=f"manual_obj_{unique_prefix}")
                 else:
                     object_name = st.text_input("На что списываем*", placeholder="Введите вручную или начните поиск", key=f"manual_obj_{unique_prefix}")
                 
