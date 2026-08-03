@@ -208,6 +208,13 @@ def add_item(name, location, room, quantity, unit):
     conn.commit()
     conn.close()
 
+def update_quantity(item_id, new_quantity):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE items SET quantity = ? WHERE id = ?", (new_quantity, item_id))
+    conn.commit()
+    conn.close()
+
 def consume_item(item_id, quantity, object_name, user="Пользователь"):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -232,8 +239,7 @@ def get_all_consumption():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute("""SELECT c.id, c.item_id, c.quantity, c.unit, c.object_name, c.user, c.date, c.status, c.photo, i.name 
-                 FROM consumption c 
-                 JOIN items i ON c.item_id = i.id 
+                 FROM consumption c JOIN items i ON c.item_id = i.id 
                  ORDER BY c.date DESC LIMIT 200""")
     results = c.fetchall()
     conn.close()
@@ -300,7 +306,7 @@ def unpack_request(req):
     }
 
 def show_item_card_mini(item):
-    st.markdown(f"**{item[1]}** — {item[9]} {item[10]} | {item[4]}")
+    st.markdown(f"**{item[1]}** — {item[9]} {item[10]} | {item[4]} | 📍 {item[3]}")
     if item[6] and os.path.exists(item[6]):
         st.image(item[6], width=100)
 
@@ -356,39 +362,92 @@ def get_all_notifications():
         for req in get_requests(user=user_name):
             r = unpack_request(req)
             config = status_configs.get(r['status'], {'icon': '📋', 'title_prefix': r['status']})
-            
             notif_id = f"{r['status']}_{r['id']}"
+            
             if notif_id not in st.session_state.dismissed_notifications:
-                if r['status'] == 'pending':
-                    text = f'Заявка отправлена: {r["quantity"]} {r["unit"]}'
-                    detail = f'**Описание:** {r["description"] or "Нет описания"}\n**Дата:** {r["date"]}\n⏳ Ожидает рассмотрения'
-                elif r['status'] == 'in_work':
-                    text = 'Администратор взял заявку в работу'
-                    detail = f'**Комментарий:** {r["admin_comment"] or "В обработке"}\n**Дата:** {r["date"]}'
-                elif r['status'] == 'approved':
-                    text = f'Заявка выполнена: {r["quantity"]} {r["unit"]}'
-                    detail = f'**Комментарий:** {r["admin_comment"] or "Без комментария"}\n**Дата:** {r["date"]}'
-                elif r['status'] == 'rejected':
-                    text = 'Заявка отклонена'
-                    detail = f'**Причина:** {r["admin_comment"] or "Не указана"}\n**Дата:** {r["date"]}'
-                elif r['status'] == 'suggested':
-                    text = 'Администратор предложил товар со склада'
-                    detail = f'**Комментарий:** {r["admin_comment"]}\n**Дата:** {r["date"]}'
-                elif r['status'] == 'returned':
-                    text = 'Заявка возвращена на рассмотрение'
-                    detail = f'**Причина:** {r["admin_comment"] or "Не указана"}\n**Дата:** {r["date"]}'
-                else:
-                    text = f'Статус: {r["status"]}'
-                    detail = f'**Дата:** {r["date"]}'
+                texts = {
+                    'pending': ('Заявка отправлена', 'Ожидает рассмотрения'),
+                    'in_work': ('Администратор взял заявку в работу', 'В обработке'),
+                    'approved': (f'Заявка выполнена: {r["quantity"]} {r["unit"]}', 'Без комментария'),
+                    'rejected': ('Заявка отклонена', 'Не указана'),
+                    'suggested': ('Предложен товар со склада', ''),
+                    'returned': ('Заявка возвращена', 'Не указана')
+                }
+                text, default_comment = texts.get(r['status'], (f'Статус: {r["status"]}', ''))
                 
                 notifications.append({
                     'id': notif_id, 'type': r['status'], 'icon': config['icon'],
                     'title': f'{config["title_prefix"]}: {r["name"]}',
-                    'text': text, 'detail': detail,
+                    'text': text,
+                    'detail': f'**Комментарий:** {r["admin_comment"] or default_comment}\n**Дата:** {r["date"]}',
                     'date': r['date'], 'request_id': r['id'], 'status': r['status']
                 })
     
     return sorted(notifications, key=lambda x: x['date'], reverse=True)
+
+def get_shopping_list():
+    """Формирует список покупок для админа"""
+    shopping_list = []
+    
+    # Заявки в работе
+    for req in get_requests(status='in_work'):
+        r = unpack_request(req)
+        shopping_list.append({
+            'type': 'request_in_work',
+            'icon': '🔧',
+            'name': r['name'],
+            'quantity': r['quantity'],
+            'unit': r['unit'],
+            'from': r['user'],
+            'date': r['date'],
+            'id': r['id'],
+            'description': r['description']
+        })
+    
+    # Заявки на рассмотрении
+    for req in get_requests(status='pending'):
+        r = unpack_request(req)
+        shopping_list.append({
+            'type': 'request_pending',
+            'icon': '📝',
+            'name': r['name'],
+            'quantity': r['quantity'],
+            'unit': r['unit'],
+            'from': r['user'],
+            'date': r['date'],
+            'id': r['id'],
+            'description': r['description']
+        })
+    
+    # Товары с низким остатком
+    for item in get_low_stock_items():
+        shopping_list.append({
+            'type': 'low_stock',
+            'icon': '⚠️',
+            'name': item[1],
+            'quantity': item[9],
+            'unit': item[10],
+            'threshold': item[11],
+            'room': item[4],
+            'location': item[3],
+            'id': item[0]
+        })
+    
+    # Одобренные заявки (ожидают закупки)
+    for req in get_requests(status='approved'):
+        r = unpack_request(req)
+        shopping_list.append({
+            'type': 'request_approved',
+            'icon': '✅',
+            'name': r['name'],
+            'quantity': r['quantity'],
+            'unit': r['unit'],
+            'from': r['user'],
+            'date': r['date'],
+            'id': r['id']
+        })
+    
+    return sorted(shopping_list, key=lambda x: x.get('date', ''), reverse=True)
 
 # --- БОКОВАЯ ПАНЕЛЬ ---
 with st.sidebar:
@@ -404,12 +463,11 @@ with st.sidebar:
             st.rerun()
     
     if role == "admin":
-        pending = len(get_requests(status='pending'))
-        low = len(get_low_stock_items())
-        if pending:
-            st.sidebar.button(f"📝 Новые заявки: {pending}", key="side_pending", use_container_width=True)
-        if low:
-            st.sidebar.button(f"⚠️ Заканчивается: {low}", key="side_low", use_container_width=True)
+        shopping = get_shopping_list()
+        if shopping:
+            if st.sidebar.button(f"📋 Список покупок: {len(shopping)}", key="side_shopping", use_container_width=True):
+                st.session_state.active_tab = 6
+                st.rerun()
     
     if st.button("🚪 Выйти", use_container_width=True):
         st.query_params.clear()
@@ -439,10 +497,13 @@ with st.sidebar:
 st.title("🌿 Мой Склад")
 
 # --- ВКЛАДКИ ---
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🔔 Уведомления", "🔍 Поиск", "📋 Все вещи", "🚜 Парк", "📝 Заявки", "📤 Списания"])
+if role == "admin":
+    tabs = st.tabs(["🔔 Уведомления", "🔍 Поиск", "📋 Все вещи", "🚜 Парк", "📝 Заявки", "📤 Списания", "🛒 Список покупок"])
+else:
+    tabs = st.tabs(["🔔 Уведомления", "🔍 Поиск", "📋 Все вещи", "🚜 Парк", "📝 Заявки", "📤 Списания"])
 
 # Вкладка 1: Уведомления
-with tab1:
+with tabs[0]:
     st.markdown("## 📬 Лента уведомлений")
     
     notifications = get_all_notifications()
@@ -462,7 +523,6 @@ with tab1:
                 st.write(n['text'])
                 st.markdown(n['detail'])
                 
-                # Кнопки действий
                 if n['type'] == 'pending' and role == 'admin':
                     col_a, col_b, col_c = st.columns(3)
                     with col_a:
@@ -500,7 +560,7 @@ with tab1:
                             st.session_state[f"ret_{n['request_id']}"] = False
                             st.rerun()
                 
-                elif n['type'] in ['approved', 'rejected', 'in_work', 'returned'] and role == 'employee':
+                elif n['type'] in ['approved', 'rejected', 'in_work', 'returned', 'pending'] and role == 'employee':
                     if st.button("👁️ Понятно", key=f"seen_{notif_key}"):
                         st.session_state.dismissed_notifications.append(n['id'])
                         st.rerun()
@@ -514,7 +574,7 @@ with tab1:
         st.balloons()
 
 # Вкладка 2: Поиск
-with tab2:
+with tabs[1]:
     search_query = st.text_input("🔍 Поиск", key="search_main")
     if search_query:
         items = search_items(search_query)
@@ -531,7 +591,7 @@ with tab2:
         st.info("Ничего не найдено")
 
 # Вкладка 3: Все вещи
-with tab3:
+with tabs[2]:
     items = get_all_items()
     if items:
         for item in items:
@@ -540,7 +600,7 @@ with tab3:
         st.info("Склад пуст")
 
 # Вкладка 4: Парк
-with tab4:
+with tabs[3]:
     st.markdown("### 🚜 Парк техники")
     if role == "admin":
         with st.form("add_eq"):
@@ -563,7 +623,7 @@ with tab4:
             conn.close()
 
 # Вкладка 5: Заявки
-with tab5:
+with tabs[4]:
     st.markdown("### 📝 Заявки на пополнение")
     
     if role == "employee":
@@ -637,9 +697,9 @@ with tab5:
                                 st.rerun()
     
     elif role == "admin":
-        tabs = st.tabs(["⏳ Новые", "🔧 В работе", "🔄 Возвраты", "💡 Предложенные", "✅ Выполненные", "❌ Отклоненные"])
+        subtabs = st.tabs(["⏳ Новые", "🔧 В работе", "🔄 Возвраты", "💡 Предложенные", "✅ Выполненные", "❌ Отклоненные"])
         
-        for tab, status in zip(tabs, ["pending", "in_work", "returned", "suggested", "approved", "rejected"]):
+        for tab, status in zip(subtabs, ["pending", "in_work", "returned", "suggested", "approved", "rejected"]):
             with tab:
                 for req in get_requests(status=status):
                     r = unpack_request(req)
@@ -658,14 +718,39 @@ with tab5:
                                 if st.button("❌ Отклонить", key=f"rej_{req_key}"):
                                     update_request_status(r['id'], "rejected", "Отклонено")
                                     st.rerun()
+                            
+                            if st.session_state.get(f"sug_{req_key}"):
+                                sq = st.text_input("Поиск товара", key=f"sq_{req_key}")
+                                if sq:
+                                    for item in search_items(sq):
+                                        show_item_card_mini(item)
+                                        if st.button("Предложить", key=f"sel_{req_key}_{item[0]}"):
+                                            update_request_status(r['id'], "suggested", f"Предложен: {item[1]}", item[0])
+                                            st.session_state[f"sug_{req_key}"] = False
+                                            st.rerun()
                         
                         if r['status'] == 'in_work':
                             if st.button("✅ Выполнено", key=f"done_{req_key}"):
                                 update_request_status(r['id'], "approved", "Выполнено")
                                 st.rerun()
+                        
+                        if r['status'] == 'approved':
+                            if st.button("📦 Создать товар", key=f"create_{req_key}"):
+                                st.session_state[f"create_{req_key}"] = True
+                            
+                            if st.session_state.get(f"create_{req_key}"):
+                                with st.form(f"create_form_{req_key}"):
+                                    rooms = get_room_names()
+                                    if rooms:
+                                        new_room = st.selectbox("Помещение", rooms)
+                                        new_loc = st.text_input("Место*")
+                                        if st.form_submit_button("Сохранить") and new_loc:
+                                            add_item(r['name'], new_loc, new_room, r['quantity'], r['unit'])
+                                            st.session_state[f"create_{req_key}"] = False
+                                            st.rerun()
 
 # Вкладка 6: Списания
-with tab6:
+with tabs[5]:
     st.markdown("### 📤 История списаний")
     consumption = get_all_consumption()
     if consumption:
@@ -675,3 +760,137 @@ with tab6:
             st.write(f"{status_icon} {item_name} — {qty} {unit} → {object_name} | {date}")
     else:
         st.info("История списаний пуста")
+
+# Вкладка 7: Список покупок (только для админа)
+if role == "admin":
+    with tabs[6]:
+        st.markdown("## 🛒 Список покупок")
+        st.caption("Здесь собраны все заявки в работе и товары с низким остатком")
+        
+        shopping = get_shopping_list()
+        
+        if shopping:
+            # Статистика
+            in_work_count = len([s for s in shopping if s['type'] == 'request_in_work'])
+            pending_count = len([s for s in shopping if s['type'] == 'request_pending'])
+            low_count = len([s for s in shopping if s['type'] == 'low_stock'])
+            approved_count = len([s for s in shopping if s['type'] == 'request_approved'])
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("🔧 В работе", in_work_count)
+            with col2:
+                st.metric("📝 Новые заявки", pending_count)
+            with col3:
+                st.metric("⚠️ Заканчиваются", low_count)
+            with col4:
+                st.metric("✅ К закупке", approved_count)
+            
+            st.divider()
+            
+            # Группировка по типу
+            st.subheader("🔧 Заявки в работе")
+            in_work_items = [s for s in shopping if s['type'] == 'request_in_work']
+            if in_work_items:
+                for item in in_work_items:
+                    with st.expander(f"🔧 {item['name']} — {item['quantity']} {item['unit']} | От: {item['from']}"):
+                        st.write(f"**Дата:** {item['date']}")
+                        if item.get('description'):
+                            st.write(f"**Описание:** {item['description']}")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("✅ Выполнено", key=f"shop_done_{item['id']}"):
+                                update_request_status(item['id'], "approved", "Выполнено")
+                                st.rerun()
+                        with col2:
+                            if st.button("📦 Создать товар", key=f"shop_create_{item['id']}"):
+                                rooms = get_room_names()
+                                if rooms:
+                                    room = st.selectbox("Помещение", rooms, key=f"shop_room_{item['id']}")
+                                    loc = st.text_input("Место", key=f"shop_loc_{item['id']}")
+                                    if st.button("💾 Сохранить", key=f"shop_save_{item['id']}") and loc:
+                                        add_item(item['name'], loc, room, item['quantity'], item['unit'])
+                                        update_request_status(item['id'], "approved", "Создан товар")
+                                        st.rerun()
+            else:
+                st.info("Нет заявок в работе")
+            
+            st.subheader("📝 Новые заявки")
+            pending_items = [s for s in shopping if s['type'] == 'request_pending']
+            if pending_items:
+                for item in pending_items:
+                    with st.expander(f"📝 {item['name']} — {item['quantity']} {item['unit']} | От: {item['from']}"):
+                        st.write(f"**Дата:** {item['date']}")
+                        if item.get('description'):
+                            st.write(f"**Описание:** {item['description']}")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("🔧 В работу", key=f"shop_work_{item['id']}"):
+                                update_request_status(item['id'], "in_work", "Взято в работу")
+                                st.rerun()
+                        with col2:
+                            if st.button("✅ Одобрить", key=f"shop_app_{item['id']}"):
+                                update_request_status(item['id'], "approved", "Одобрено")
+                                st.rerun()
+            else:
+                st.info("Нет новых заявок")
+            
+            st.subheader("⚠️ Товары с низким остатком")
+            low_items = [s for s in shopping if s['type'] == 'low_stock']
+            if low_items:
+                for item in low_items:
+                    with st.expander(f"⚠️ {item['name']} — {item['quantity']} {item['unit']} (порог: {item['threshold']})"):
+                        st.write(f"**Помещение:** {item['room']}")
+                        st.write(f"**Место:** {item['location']}")
+                        new_qty = st.number_input("Новое количество", value=float(item['quantity']), key=f"shop_qty_{item['id']}")
+                        if st.button("💾 Обновить количество", key=f"shop_upd_{item['id']}"):
+                            update_quantity(item['id'], new_qty)
+                            st.success("✅ Обновлено!")
+                            st.rerun()
+            else:
+                st.info("Нет товаров с низким остатком")
+            
+            st.subheader("✅ Одобренные заявки (ожидают закупки)")
+            approved_items = [s for s in shopping if s['type'] == 'request_approved']
+            if approved_items:
+                for item in approved_items:
+                    with st.expander(f"✅ {item['name']} — {item['quantity']} {item['unit']} | От: {item['from']}"):
+                        st.write(f"**Дата:** {item['date']}")
+                        if st.button("📦 Создать товар", key=f"shop_create_app_{item['id']}"):
+                            rooms = get_room_names()
+                            if rooms:
+                                room = st.selectbox("Помещение", rooms, key=f"shop_room_app_{item['id']}")
+                                loc = st.text_input("Место", key=f"shop_loc_app_{item['id']}")
+                                if st.button("💾 Сохранить", key=f"shop_save_app_{item['id']}") and loc:
+                                    add_item(item['name'], loc, room, item['quantity'], item['unit'])
+                                    st.success("✅ Товар создан!")
+                                    st.rerun()
+            else:
+                st.info("Нет одобренных заявок")
+            
+            # Экспорт списка покупок
+            st.divider()
+            if st.button("📥 Экспортировать список покупок в Excel"):
+                data = []
+                for item in shopping:
+                    data.append({
+                        'Тип': item['icon'],
+                        'Название': item['name'],
+                        'Количество': item['quantity'],
+                        'Ед. изм.': item['unit'],
+                        'От кого/Где': item.get('from', item.get('room', '')),
+                        'Дата': item.get('date', '')
+                    })
+                df = pd.DataFrame(data)
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Список покупок')
+                st.download_button(
+                    label="⬇️ Скачать Excel",
+                    data=output.getvalue(),
+                    file_name=f"список_покупок_{datetime.now().strftime('%Y-%m-%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        else:
+            st.success("✅ Список покупок пуст! Все товары в наличии и нет активных заявок.")
+            st.balloons()
