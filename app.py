@@ -58,24 +58,108 @@ if "qr_mode" not in st.session_state:
 if "show_details" not in st.session_state:
     st.session_state.show_details = {}
 
-# --- ФУНКЦИЯ ВХОДА ---
-def login():
-    st.sidebar.title("🔐 Вход")
+# --- ФУНКЦИЯ ВХОДА НА ГЛАВНОЙ СТРАНИЦЕ ---
+def show_login():
+    st.markdown("""
+        <style>
+            .login-container {
+                max-width: 400px;
+                margin: 80px auto;
+                padding: 40px;
+                background: white;
+                border-radius: 16px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+                text-align: center;
+            }
+            .login-container h1 {
+                color: #2E7D32;
+                font-size: 2rem;
+                margin-bottom: 10px;
+            }
+            .login-container .subtitle {
+                color: #666;
+                margin-bottom: 30px;
+            }
+            .login-container .hint {
+                color: #888;
+                font-size: 0.85rem;
+                margin-top: 15px;
+                padding: 10px;
+                background: #f5f5f5;
+                border-radius: 8px;
+            }
+            .login-container .hint code {
+                background: #e0e0e0;
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            .stButton button {
+                width: 100%;
+                background-color: #4CAF50 !important;
+                color: white !important;
+                font-weight: bold;
+                border-radius: 8px;
+                padding: 10px;
+            }
+            .stButton button:hover {
+                background-color: #2E7D32 !important;
+            }
+            .stTextInput input {
+                border-radius: 8px;
+                border: 2px solid #e0e0e0;
+                padding: 12px;
+                font-size: 1.1rem;
+                text-align: center;
+                letter-spacing: 2px;
+            }
+            .stTextInput input:focus {
+                border-color: #4CAF50;
+            }
+            .stAlert {
+                border-radius: 8px;
+            }
+        </style>
+    """, unsafe_allow_html=True)
     
-    if st.session_state.user is not None:
-        return
-    
-    password = st.sidebar.text_input("Введите пароль:", type="password")
-    
-    if st.sidebar.button("🔓 Войти"):
-        if password in USERS:
-            st.session_state.user = USERS[password]
-            st.rerun()
-        else:
-            st.sidebar.error("❌ Неверный пароль!")
+    # Контейнер входа
+    with st.container():
+        st.markdown("""
+            <div class="login-container">
+                <h1>🌿 Мой Склад</h1>
+                <p class="subtitle">Введите пароль для входа</p>
+        """, unsafe_allow_html=True)
+        
+        # Поле ввода пароля
+        password = st.text_input(
+            "🔑 Пароль",
+            type="password",
+            placeholder="Введите пароль...",
+            key="login_password_main"
+        )
+        
+        # Кнопка входа
+        if st.button("🔓 Войти", use_container_width=True):
+            if password in USERS:
+                st.session_state.user = USERS[password]
+                st.rerun()
+            else:
+                st.error("❌ Неверный пароль! Попробуйте еще раз.")
+        
+        # Подсказка
+        st.markdown("""
+            <div class="hint">
+                💡 <strong>Для сотрудника:</strong> введите пароль <code>1111</code><br>
+                🔑 <strong>Для администратора:</strong> введите пароль <code>12345</code>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
 
+# --- ПРОВЕРКА АВТОРИЗАЦИИ ---
 if st.session_state.user is None:
-    login()
+    st.set_page_config(page_title="Мой Склад", page_icon="🌿", layout="wide")
+    show_login()
     st.stop()
 
 user = st.session_state.user
@@ -836,7 +920,7 @@ with tab2:
                 
                 st.divider()
                 
-                # --- НИЖНЯЯ ЧАСТЬ КАРТОЧКИ: ВСЕ НАСТРОЙКИ ДЛЯ АДМИНИСТРАТОРА ---
+                # --- ДЕЙСТВИЯ ДЛЯ АДМИНИСТРАТОРА (ВСЕ КНОПКИ) ---
                 if role == "admin":
                     st.write("**📋 Управление вещью:**")
                     col1, col2, col3, col4, col5 = st.columns(5)
