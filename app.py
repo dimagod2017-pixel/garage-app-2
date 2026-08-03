@@ -387,42 +387,28 @@ def search_equipment(query):
     c = conn.cursor()
     results = []
     
-    words = query.strip().split()
+    query_like = f"%{query}%"
     
-    equipment_conditions = []
-    equipment_params = []
-    for word in words:
-        word_pattern = f'%{word}%'
-        equipment_conditions.append("(name LIKE ? OR number LIKE ?)")
-        equipment_params.extend([word_pattern, word_pattern])
+    # Поиск техники
+    c.execute("""
+        SELECT 'equipment' as type, id, name, number, date_added, NULL as unit_name, NULL as unit_id
+        FROM equipment 
+        WHERE name LIKE ? OR number LIKE ?
+        ORDER BY name
+    """, (query_like, query_like))
+    equipment_results = c.fetchall()
+    results.extend(equipment_results)
     
-    if equipment_conditions:
-        where_clause = " AND ".join(equipment_conditions)
-        c.execute(f"""
-            SELECT 'equipment' as type, id, name, number, date_added, NULL as unit_name, NULL as unit_id
-            FROM equipment 
-            WHERE {where_clause}
-        """, equipment_params)
-        equipment_results = c.fetchall()
-        results.extend(equipment_results)
-    
-    unit_conditions = []
-    unit_params = []
-    for word in words:
-        word_pattern = f'%{word}%'
-        unit_conditions.append("(u.name LIKE ? OR e.name LIKE ? OR e.number LIKE ?)")
-        unit_params.extend([word_pattern, word_pattern, word_pattern])
-    
-    if unit_conditions:
-        where_clause = " AND ".join(unit_conditions)
-        c.execute(f"""
-            SELECT 'unit' as type, e.id as eq_id, e.name as eq_name, e.number, e.date_added, u.name as unit_name, u.id as unit_id
-            FROM units u
-            JOIN equipment e ON u.equipment_id = e.id
-            WHERE {where_clause}
-        """, unit_params)
-        unit_results = c.fetchall()
-        results.extend(unit_results)
+    # Поиск агрегатов
+    c.execute("""
+        SELECT 'unit' as type, e.id as eq_id, e.name as eq_name, e.number, e.date_added, u.name as unit_name, u.id as unit_id
+        FROM units u
+        JOIN equipment e ON u.equipment_id = e.id
+        WHERE u.name LIKE ? OR e.name LIKE ? OR e.number LIKE ?
+        ORDER BY e.name, u.name
+    """, (query_like, query_like, query_like))
+    unit_results = c.fetchall()
+    results.extend(unit_results)
     
     conn.close()
     return results
@@ -614,66 +600,35 @@ def delete_item(item_id):
     conn.close()
 
 def search_items(query, room_filter=None):
-    """Улучшенный поиск с частичными совпадениями и сортировкой по релевантности"""
+    """Максимально простой поиск - находит любые совпадения"""
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     
-    # Разбиваем запрос на отдельные слова
-    words = query.strip().split()
-    if not words:
-        return []
-    
-    # Строим условия поиска для каждого слова
-    conditions = []
-    params = []
-    
-    for word in words:
-        word_pattern = f"%{word}%"
-        conditions.append("""(name LIKE ? OR category LIKE ? OR location LIKE ? 
-                          OR description LIKE ? OR application LIKE ? 
-                          OR room LIKE ?)""")
-        params.extend([word_pattern, word_pattern, word_pattern, 
-                      word_pattern, word_pattern, word_pattern])
-    
-    where_clause = " AND ".join(conditions)
-    
-    # Сортировка по релевантности: сначала точные совпадения в названии
-    order_params = []
-    for word in words:
-        order_params.extend([f"%{word}%", f"%{word}%", f"%{word}%", f"%{word}%", f"%{word}%"])
+    query_like = f"%{query}%"
     
     if room_filter and room_filter != "Все помещения":
-        query = f"""
+        c.execute("""
             SELECT * FROM items
-            WHERE ({where_clause}) AND room = ?
+            WHERE (name LIKE ? OR category LIKE ? OR location LIKE ? 
+                   OR room LIKE ? OR description LIKE ? OR application LIKE ?
+                   OR CAST(quantity AS TEXT) LIKE ? OR unit LIKE ?)
+            AND room = ?
             ORDER BY 
-                CASE 
-                    WHEN name LIKE ? THEN 1
-                    WHEN category LIKE ? THEN 2
-                    WHEN application LIKE ? THEN 3
-                    WHEN description LIKE ? THEN 4
-                    WHEN location LIKE ? THEN 5
-                    ELSE 6
-                END,
+                CASE WHEN name LIKE ? THEN 1 ELSE 2 END,
                 name ASC
-        """
-        c.execute(query, params + [room_filter] + order_params[:5])
+        """, (query_like, query_like, query_like, query_like, query_like, query_like,
+              query_like, query_like, room_filter, query_like))
     else:
-        query = f"""
+        c.execute("""
             SELECT * FROM items
-            WHERE {where_clause}
+            WHERE name LIKE ? OR category LIKE ? OR location LIKE ? 
+                   OR room LIKE ? OR description LIKE ? OR application LIKE ?
+                   OR CAST(quantity AS TEXT) LIKE ? OR unit LIKE ?
             ORDER BY 
-                CASE 
-                    WHEN name LIKE ? THEN 1
-                    WHEN category LIKE ? THEN 2
-                    WHEN application LIKE ? THEN 3
-                    WHEN description LIKE ? THEN 4
-                    WHEN location LIKE ? THEN 5
-                    ELSE 6
-                END,
+                CASE WHEN name LIKE ? THEN 1 ELSE 2 END,
                 name ASC
-        """
-        c.execute(query, params + order_params[:5])
+        """, (query_like, query_like, query_like, query_like, query_like, query_like,
+              query_like, query_like, query_like))
     
     results = c.fetchall()
     conn.close()
