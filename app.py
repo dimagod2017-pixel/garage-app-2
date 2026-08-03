@@ -716,15 +716,16 @@ with tab1:
     rooms = ["Все помещения"] + get_room_names()
     col1, col2 = st.columns([3, 1])
     with col1:
-        search_query = st.text_input("🔍 Что ищем?", placeholder="Введите название, категорию, место...")
+        search_query = st.text_input("🔍 Что ищем?", placeholder="Введите название, категорию, место...", key="search_query_tab1")
     with col2:
-        room_filter = st.selectbox("🏠 Помещение", rooms)
+        room_filter = st.selectbox("🏠 Помещение", rooms, key="room_filter_tab1")
     
     if search_query:
         items = search_items(search_query, room_filter)
         if items:
             st.subheader(f"📌 Найдено: {len(items)}")
-            for item in items:
+            for idx, item in enumerate(items):
+                unique_id = f"search_{item[0]}_{idx}"
                 with st.container(border=True):
                     col1, col2 = st.columns([3, 1])
                     with col1:
@@ -733,7 +734,7 @@ with tab1:
                         st.caption(f"📦 {item[9]} {item[10]}")
                     with col2:
                         if role == "admin":
-                            if st.button("🗑️ Удалить", key=f"del_search_{item[0]}"):
+                            if st.button("🗑️ Удалить", key=f"del_search_{unique_id}"):
                                 delete_item(item[0])
                                 st.rerun()
         else:
@@ -750,25 +751,29 @@ with tab2:
         rooms = ["Все помещения"] + get_room_names()
         room_filter = st.selectbox("🏠 Фильтр по помещению", rooms, key="filter_room_all")
         
+        filtered_items = items
         if room_filter != "Все помещения":
-            items = [item for item in items if item[4] == room_filter]
+            filtered_items = [item for item in items if item[4] == room_filter]
         
         # Поиск
         search_col1, search_col2 = st.columns([3, 1])
         with search_col1:
-            search_term = st.text_input("🔍 Поиск по названию", placeholder="Введите название...")
+            search_term = st.text_input("🔍 Поиск по названию", placeholder="Введите название...", key="search_term_all")
         with search_col2:
             st.write("")
             st.write("")
-            if st.button("🔄 Обновить", use_container_width=True):
+            if st.button("🔄 Обновить", use_container_width=True, key="refresh_all"):
                 st.rerun()
         
         if search_term:
-            items = [item for item in items if search_term.lower() in item[1].lower()]
+            filtered_items = [item for item in filtered_items if search_term.lower() in item[1].lower()]
         
-        st.caption(f"📌 Найдено позиций: {len(items)}")
+        st.caption(f"📌 Найдено позиций: {len(filtered_items)}")
         
-        for item in items:
+        for idx, item in enumerate(filtered_items):
+            # Используем уникальный ID для каждой карточки
+            unique_id = f"{item[0]}_{idx}"
+            
             # Распаковываем данные
             item_id = item[0]
             name = item[1]
@@ -803,7 +808,7 @@ with tab2:
             
             # Карточка вещи
             with st.container(border=True):
-                # Заголовок с названием и статусом
+                # Заголовок
                 col1, col2, col3 = st.columns([4, 2, 1])
                 with col1:
                     st.markdown(f"### {status_emoji} {name}")
@@ -824,9 +829,8 @@ with tab2:
                     """, unsafe_allow_html=True)
                 with col3:
                     if role == "admin":
-                        # Кнопка меню для администратора
-                        menu_key = f"menu_{item_id}"
-                        if st.button("⚙️", key=f"menu_btn_{item_id}", help="Управление"):
+                        menu_key = f"menu_{unique_id}"
+                        if st.button("⚙️", key=f"menu_btn_{unique_id}", help="Управление"):
                             st.session_state.show_menu[menu_key] = not st.session_state.show_menu.get(menu_key, False)
                             st.rerun()
                 
@@ -841,7 +845,6 @@ with tab2:
                 with col4:
                     st.metric("📍 Место", location)
                 
-                # Категория и описание
                 if category:
                     st.caption(f"📂 Категория: {category}")
                 if description:
@@ -870,38 +873,38 @@ with tab2:
                 
                 # --- МЕНЮ ДЛЯ АДМИНИСТРАТОРА ---
                 if role == "admin":
-                    menu_key = f"menu_{item_id}"
+                    menu_key = f"menu_{unique_id}"
                     if st.session_state.show_menu.get(menu_key, False):
                         with st.container(border=True):
                             st.write("**📋 Управление вещью:**")
                             col1, col2, col3, col4, col5 = st.columns(5)
                             
                             with col1:
-                                if st.button("✏️ Редактировать", key=f"edit_{item_id}", use_container_width=True):
+                                if st.button("✏️ Редактировать", key=f"edit_{unique_id}", use_container_width=True):
                                     st.session_state.edit_mode[item_id] = True
                                     st.session_state.show_menu[menu_key] = False
                                     st.rerun()
                             
                             with col2:
-                                if st.button("📤 Списать", key=f"cons_{item_id}", use_container_width=True):
+                                if st.button("📤 Списать", key=f"cons_{unique_id}", use_container_width=True):
                                     st.session_state.cons_mode[item_id] = True
                                     st.session_state.show_menu[menu_key] = False
                                     st.rerun()
                             
                             with col3:
-                                if st.button("🚚 Переместить", key=f"move_{item_id}", use_container_width=True):
+                                if st.button("🚚 Переместить", key=f"move_{unique_id}", use_container_width=True):
                                     st.session_state.move_mode[item_id] = True
                                     st.session_state.show_menu[menu_key] = False
                                     st.rerun()
                             
                             with col4:
-                                if st.button("📷 QR", key=f"qr_{item_id}", use_container_width=True):
+                                if st.button("📷 QR", key=f"qr_{unique_id}", use_container_width=True):
                                     st.session_state.qr_mode[item_id] = True
                                     st.session_state.show_menu[menu_key] = False
                                     st.rerun()
                             
                             with col5:
-                                if st.button("🗑️ Удалить", key=f"del_{item_id}", use_container_width=True):
+                                if st.button("🗑️ Удалить", key=f"del_{unique_id}", use_container_width=True):
                                     delete_item(item_id)
                                     st.success(f"✅ '{name}' удалена!")
                                     st.rerun()
@@ -911,22 +914,24 @@ with tab2:
                     with st.container(border=True):
                         st.write(f"**✏️ Редактирование: {name}**")
                         
-                        with st.form(key=f"edit_form_{item_id}"):
+                        with st.form(key=f"edit_form_{unique_id}"):
                             col1, col2 = st.columns(2)
                             with col1:
-                                new_name = st.text_input("Название*", value=name)
-                                new_category = st.text_input("Категория", value=category)
+                                new_name = st.text_input("Название*", value=name, key=f"edit_name_{unique_id}")
+                                new_category = st.text_input("Категория", value=category, key=f"edit_cat_{unique_id}")
                                 room_names = get_room_names()
                                 new_room = st.selectbox("Помещение*", room_names, 
-                                                       index=room_names.index(room) if room in room_names else 0)
-                                new_location = st.text_input("Место*", value=location)
+                                                       index=room_names.index(room) if room in room_names else 0,
+                                                       key=f"edit_room_{unique_id}")
+                                new_location = st.text_input("Место*", value=location, key=f"edit_loc_{unique_id}")
                             with col2:
-                                new_quantity = st.number_input("Количество", min_value=0.0, step=0.5, value=float(quantity))
+                                new_quantity = st.number_input("Количество", min_value=0.0, step=0.5, value=float(quantity), key=f"edit_qty_{unique_id}")
                                 new_unit = st.selectbox("Ед. изм.", ["шт", "л", "кг", "м", "комплект", "упаковка", "м²"], 
-                                                       index=["шт", "л", "кг", "м", "комплект", "упаковка", "м²"].index(unit) if unit in ["шт", "л", "кг", "м", "комплект", "упаковка", "м²"] else 0)
-                                new_threshold = st.number_input("Порог", min_value=0, step=1, value=int(threshold))
-                                new_description = st.text_area("Описание", value=description)
-                                new_application = st.text_area("Область применения", value=application)
+                                                       index=["шт", "л", "кг", "м", "комплект", "упаковка", "м²"].index(unit) if unit in ["шт", "л", "кг", "м", "комплект", "упаковка", "м²"] else 0,
+                                                       key=f"edit_unit_{unique_id}")
+                                new_threshold = st.number_input("Порог", min_value=0, step=1, value=int(threshold), key=f"edit_threshold_{unique_id}")
+                                new_description = st.text_area("Описание", value=description, key=f"edit_desc_{unique_id}")
+                                new_application = st.text_area("Область применения", value=application, key=f"edit_app_{unique_id}")
                             
                             col1, col2 = st.columns(2)
                             with col1:
@@ -934,7 +939,6 @@ with tab2:
                                     if new_name and new_room and new_location:
                                         update_item(item_id, new_name, new_category, new_location, new_room, 
                                                    new_description, new_application, None, None)
-                                        # Обновляем количество, единицу и порог
                                         conn = sqlite3.connect('storage.db')
                                         c = conn.cursor()
                                         c.execute("UPDATE items SET quantity = ?, unit = ?, threshold = ? WHERE id = ?", 
@@ -958,15 +962,16 @@ with tab2:
                         st.write(f"**📤 Списание: {name}**")
                         st.caption(f"Доступно: {quantity} {unit}")
                         
-                        with st.form(key=f"cons_form_{item_id}"):
+                        with st.form(key=f"cons_form_{unique_id}"):
                             col1, col2 = st.columns(2)
                             with col1:
                                 cons_qty = st.number_input("Количество для списания", min_value=0.0, step=0.5, 
-                                                          max_value=float(quantity), value=min(1.0, float(quantity)))
-                                cons_user = st.text_input("Кто списывает", value=user_name)
+                                                          max_value=float(quantity), value=min(1.0, float(quantity)),
+                                                          key=f"cons_qty_{unique_id}")
+                                cons_user = st.text_input("Кто списывает", value=user_name, key=f"cons_user_{unique_id}")
                             with col2:
-                                cons_object = st.text_input("Куда списывается*", placeholder="Объект, техника...")
-                                cons_note = st.text_area("Примечание")
+                                cons_object = st.text_input("Куда списывается*", placeholder="Объект, техника...", key=f"cons_obj_{unique_id}")
+                                cons_note = st.text_area("Примечание", key=f"cons_note_{unique_id}")
                             
                             col1, col2 = st.columns(2)
                             with col1:
@@ -994,8 +999,8 @@ with tab2:
                         
                         available_rooms = [r for r in get_room_names() if r != room]
                         if available_rooms:
-                            with st.form(key=f"move_form_{item_id}"):
-                                new_room = st.selectbox("Новое помещение", available_rooms)
+                            with st.form(key=f"move_form_{unique_id}"):
+                                new_room = st.selectbox("Новое помещение", available_rooms, key=f"move_room_{unique_id}")
                                 
                                 col1, col2 = st.columns(2)
                                 with col1:
@@ -1010,7 +1015,7 @@ with tab2:
                                         st.rerun()
                         else:
                             st.warning("Нет доступных помещений")
-                            if st.button("❌ Закрыть", key=f"close_move_{item_id}", use_container_width=True):
+                            if st.button("❌ Закрыть", key=f"close_move_{unique_id}", use_container_width=True):
                                 st.session_state.move_mode[item_id] = False
                                 st.rerun()
                 
@@ -1028,9 +1033,10 @@ with tab2:
                             label="⬇️ Скачать QR",
                             data=buf.getvalue(),
                             file_name=f"qr_{name}_{item_id}.png",
-                            mime="image/png"
+                            mime="image/png",
+                            key=f"download_qr_{unique_id}"
                         )
-                        if st.button("❌ Закрыть QR", key=f"close_qr_{item_id}", use_container_width=True):
+                        if st.button("❌ Закрыть QR", key=f"close_qr_{unique_id}", use_container_width=True):
                             st.session_state.qr_mode[item_id] = False
                             st.rerun()
                 
@@ -1038,9 +1044,9 @@ with tab2:
         
         # Экспорт CSV
         st.divider()
-        if items:
+        if filtered_items:
             data = []
-            for item in items:
+            for item in filtered_items:
                 data.append({
                     "Название": item[1],
                     "Категория": item[2] or "",
@@ -1057,7 +1063,8 @@ with tab2:
                 label="📥 Скачать таблицу (CSV)",
                 data=csv,
                 file_name=f"все_вещи_{datetime.now().strftime('%Y-%m-%d')}.csv",
-                mime="text/csv"
+                mime="text/csv",
+                key="download_csv_all"
             )
 
 # --- ВКЛАДКА 3: ПАРК ---
@@ -1077,7 +1084,7 @@ with tab3:
                     st.image(photo, caption="Фото", use_container_width=True)
         else:
             st.info(f"🌱 Нет списаний на '{eq_name}'")
-        if st.button("⬅️ Назад"):
+        if st.button("⬅️ Назад", key="back_from_equipment"):
             st.session_state.selected_equipment = None
             st.rerun()
         st.divider()
@@ -1087,7 +1094,7 @@ with tab3:
             with st.form("add_equipment_form", clear_on_submit=True):
                 col1, col2 = st.columns([3, 1])
                 with col1:
-                    eq_name = st.text_input("Название техники*", placeholder="МТЗ-82, К-700")
+                    eq_name = st.text_input("Название техники*", placeholder="МТЗ-82, К-700", key="eq_name_input")
                 with col2:
                     st.write("")
                     st.write("")
@@ -1137,15 +1144,16 @@ with tab4:
                     "Все": "Все записи",
                     "pending": "⏳ Ожидают подтверждения",
                     "confirmed": "✅ Подтвержденные"
-                }.get(x, x)
+                }.get(x, x),
+                key="status_filter_cons"
             )
         with col2:
             users = list(set([c[5] for c in all_cons]))
-            user_filter = st.selectbox("👤 Пользователь", ["Все"] + users)
+            user_filter = st.selectbox("👤 Пользователь", ["Все"] + users, key="user_filter_cons")
         with col3:
             st.write("")
             st.write("")
-            if st.button("🔄 Обновить", use_container_width=True):
+            if st.button("🔄 Обновить", use_container_width=True, key="refresh_cons"):
                 st.rerun()
         
         # Фильтруем
@@ -1157,7 +1165,8 @@ with tab4:
         
         st.caption(f"📌 Найдено записей: {len(filtered)}")
         
-        for c in filtered:
+        for idx, c in enumerate(filtered):
+            unique_id = f"cons_{c[0]}_{idx}"
             record_id = c[0]
             item_id = c[1]
             quantity = c[2]
@@ -1201,12 +1210,12 @@ with tab4:
                     if role == "admin" and status == "pending":
                         col_btn1, col_btn2 = st.columns(2)
                         with col_btn1:
-                            if st.button("✅", key=f"approve_{record_id}", help="Подтвердить"):
+                            if st.button("✅", key=f"approve_{unique_id}", help="Подтвердить"):
                                 approve_consumption(record_id)
                                 st.success("✅ Заявка подтверждена!")
                                 st.rerun()
                         with col_btn2:
-                            if st.button("❌", key=f"reject_{record_id}", help="Отклонить"):
+                            if st.button("❌", key=f"reject_{unique_id}", help="Отклонить"):
                                 delete_consumption_record(record_id)
                                 st.success("❌ Заявка отклонена!")
                                 st.rerun()
@@ -1221,12 +1230,12 @@ with tab4:
                 with col4:
                     st.metric("🕒 Дата", date[:16] if len(date) > 16 else date)
                 
-                if st.button(f"📋 Подробнее", key=f"details_{record_id}", use_container_width=True):
-                    show_key = f"show_details_{record_id}"
+                if st.button(f"📋 Подробнее", key=f"details_btn_{unique_id}", use_container_width=True):
+                    show_key = f"show_details_{unique_id}"
                     st.session_state.show_details[show_key] = not st.session_state.show_details.get(show_key, False)
                     st.rerun()
                 
-                if st.session_state.show_details.get(f"show_details_{record_id}", False):
+                if st.session_state.show_details.get(f"show_details_{unique_id}", False):
                     with st.container(border=True):
                         st.markdown("### 📋 Детали списания")
                         col1, col2 = st.columns(2)
@@ -1250,18 +1259,18 @@ with tab4:
                             st.divider()
                             col1, col2, col3 = st.columns(3)
                             with col1:
-                                if st.button("🗑️ Удалить запись", key=f"del_{record_id}", use_container_width=True):
+                                if st.button("🗑️ Удалить запись", key=f"del_{unique_id}", use_container_width=True):
                                     delete_consumption_record(record_id)
                                     st.success("✅ Запись удалена!")
                                     st.rerun()
                             with col2:
                                 if status == "pending":
-                                    if st.button("✅ Подтвердить", key=f"approve2_{record_id}", use_container_width=True):
+                                    if st.button("✅ Подтвердить", key=f"approve2_{unique_id}", use_container_width=True):
                                         approve_consumption(record_id)
                                         st.success("✅ Заявка подтверждена!")
                                         st.rerun()
                             with col3:
-                                if st.button("📧 Отправить отчет", key=f"report_{record_id}", use_container_width=True):
+                                if st.button("📧 Отправить отчет", key=f"report_{unique_id}", use_container_width=True):
                                     subject = f"📊 Отчет по списанию: {item_name}"
                                     body = f"""
                                     📊 Отчет по списанию
@@ -1281,8 +1290,8 @@ with tab4:
                                     else:
                                         st.error(msg)
                         
-                        if st.button("✖️ Закрыть", key=f"close_{record_id}", use_container_width=True):
-                            st.session_state.show_details[f"show_details_{record_id}"] = False
+                        if st.button("✖️ Закрыть", key=f"close_{unique_id}", use_container_width=True):
+                            st.session_state.show_details[f"show_details_{unique_id}"] = False
                             st.rerun()
                 
                 st.divider()
@@ -1294,9 +1303,9 @@ with tab5:
     # Фильтры
     col1, col2 = st.columns([2, 1])
     with col1:
-        search_stock = st.text_input("🔍 Поиск по названию", placeholder="Введите название...")
+        search_stock = st.text_input("🔍 Поиск по названию", placeholder="Введите название...", key="search_stock")
     with col2:
-        sort_by = st.selectbox("📊 Сортировка", ["По убыванию остатка", "По возрастанию остатка", "По алфавиту"])
+        sort_by = st.selectbox("📊 Сортировка", ["По убыванию остатка", "По возрастанию остатка", "По алфавиту"], key="sort_stock")
     
     items = get_all_items()
     
@@ -1317,7 +1326,8 @@ with tab5:
         total_count = sum([item[9] for item in items])
         st.caption(f"📌 Всего позиций: {len(items)} | Общее количество: {total_count:.1f} шт.")
         
-        for item in items:
+        for idx, item in enumerate(items):
+            unique_id = f"stock_{item[0]}_{idx}"
             with st.container(border=True):
                 col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
                 
@@ -1371,13 +1381,13 @@ with tab6:
             with st.form("purchase_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
-                    item_name = st.text_input("🔧 Название вещи*", placeholder="Например: Болт М10")
-                    quantity = st.number_input("📦 Количество*", min_value=0.0, step=0.5, value=1.0)
-                    unit = st.selectbox("📏 Ед. измерения", ["шт", "л", "кг", "м", "комплект", "упаковка"])
+                    item_name = st.text_input("🔧 Название вещи*", placeholder="Например: Болт М10", key="purchase_name")
+                    quantity = st.number_input("📦 Количество*", min_value=0.0, step=0.5, value=1.0, key="purchase_qty")
+                    unit = st.selectbox("📏 Ед. измерения", ["шт", "л", "кг", "м", "комплект", "упаковка"], key="purchase_unit")
                 with col2:
-                    location = st.text_input("📍 Куда будет установлено*", placeholder="Стеллаж №3, Гараж...")
-                    description = st.text_area("📝 Описание / Причина", placeholder="Для замены изношенных деталей...")
-                    photo = st.file_uploader("📷 Фото (опционально)", type=["jpg", "jpeg", "png"])
+                    location = st.text_input("📍 Куда будет установлено*", placeholder="Стеллаж №3, Гараж...", key="purchase_location")
+                    description = st.text_area("📝 Описание / Причина", placeholder="Для замены изношенных деталей...", key="purchase_desc")
+                    photo = st.file_uploader("📷 Фото (опционально)", type=["jpg", "jpeg", "png"], key="purchase_photo")
                 
                 if st.form_submit_button("📤 Отправить заявку", use_container_width=True):
                     if item_name and quantity > 0 and location:
@@ -1391,7 +1401,6 @@ with tab6:
                         success, msg = add_purchase_request(item_name, quantity, unit, description, photo_path, location, user_name)
                         if success:
                             st.success(msg)
-                            # Отправляем уведомление админу
                             send_email(
                                 "🛒 Новая заявка на закупку!",
                                 f"Сотрудник {user_name} создал заявку на закупку:\n\n"
@@ -1413,20 +1422,19 @@ with tab6:
     if not all_requests:
         st.info("🌱 Нет заявок")
     else:
-        # Фильтр для админа
         if role == "admin":
-            status_filter = st.selectbox("📊 Фильтр по статусу", ["Все", "pending", "approved", "rejected", "purchased"])
+            status_filter = st.selectbox("📊 Фильтр по статусу", ["Все", "pending", "approved", "rejected", "purchased"], key="purchase_status_filter")
             if status_filter != "Все":
                 all_requests = [req for req in all_requests if req[9] == status_filter]
         
-        # Если сотрудник - показывает только свои заявки
         if role == "employee":
             all_requests = [req for req in all_requests if req[7] == user_name]
         
         if not all_requests:
             st.info("🌱 Нет заявок")
         else:
-            for req in all_requests:
+            for idx, req in enumerate(all_requests):
+                unique_id = f"req_{req[0]}_{idx}"
                 req_id = req[0]
                 item_name = req[1]
                 quantity = req[2]
@@ -1475,30 +1483,28 @@ with tab6:
                     if photo and os.path.exists(photo):
                         st.image(photo, caption="📷 Фото", width=150)
                     
-                    # Действия для админа
                     if role == "admin" and status == "pending":
                         col1, col2, col3, col4 = st.columns(4)
                         with col1:
-                            if st.button("✅ Одобрить", key=f"app_req_{req_id}", use_container_width=True):
+                            if st.button("✅ Одобрить", key=f"app_req_{unique_id}", use_container_width=True):
                                 update_purchase_request(req_id, "approved", "Одобрено администратором")
                                 st.success("✅ Заявка одобрена!")
                                 st.rerun()
                         with col2:
-                            if st.button("❌ Отклонить", key=f"rej_req_{req_id}", use_container_width=True):
-                                admin_comment_text = st.text_input("Причина отклонения", key=f"rej_comment_{req_id}")
+                            if st.button("❌ Отклонить", key=f"rej_req_{unique_id}", use_container_width=True):
+                                admin_comment_text = st.text_input("Причина отклонения", key=f"rej_comment_{unique_id}")
                                 if admin_comment_text:
                                     update_purchase_request(req_id, "rejected", admin_comment_text)
                                     st.success("❌ Заявка отклонена!")
                                     st.rerun()
                         with col3:
-                            if st.button("🛒 Закуплено", key=f"buy_req_{req_id}", use_container_width=True):
-                                # Добавляем вещь на склад
+                            if st.button("🛒 Закуплено", key=f"buy_req_{unique_id}", use_container_width=True):
                                 add_item(item_name, "Закуплено", location, "Склад", description, "", "", quantity, unit, 1, "", "", None, None)
                                 update_purchase_request(req_id, "purchased", "Добавлено на склад")
                                 st.success("✅ Вещь добавлена на склад!")
                                 st.rerun()
                         with col4:
-                            if st.button("🗑️ Удалить", key=f"del_req_{req_id}", use_container_width=True):
+                            if st.button("🗑️ Удалить", key=f"del_req_{unique_id}", use_container_width=True):
                                 delete_purchase_request(req_id)
                                 st.success("✅ Заявка удалена!")
                                 st.rerun()
@@ -1536,7 +1542,8 @@ with tab7:
     # 1. Критический остаток
     st.subheader("⚠️ Критический остаток")
     if low_items:
-        for item in low_items:
+        for idx, item in enumerate(low_items):
+            unique_id = f"low_{item[0]}_{idx}"
             with st.container(border=True):
                 col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
                 with col1:
@@ -1557,7 +1564,8 @@ with tab7:
     # 2. Ожидающие подтверждения списания
     st.subheader("⏳ Ожидающие подтверждения списания")
     if pending_consumption:
-        for c in pending_consumption:
+        for idx, c in enumerate(pending_consumption):
+            unique_id = f"pend_{c[0]}_{idx}"
             record_id, item_id, qty, unit, obj_name, user, date, status, photo, item_name = c
             with st.container(border=True):
                 col1, col2, col3 = st.columns([3, 2, 1])
@@ -1567,11 +1575,11 @@ with tab7:
                 with col2:
                     st.metric("📦 Количество", f"{qty} {unit}")
                 with col3:
-                    if st.button("✅ Подтвердить", key=f"notif_approve_{record_id}", use_container_width=True):
+                    if st.button("✅ Подтвердить", key=f"notif_approve_{unique_id}", use_container_width=True):
                         approve_consumption(record_id)
                         st.success("✅ Подтверждено!")
                         st.rerun()
-                    if st.button("❌ Отклонить", key=f"notif_reject_{record_id}", use_container_width=True):
+                    if st.button("❌ Отклонить", key=f"notif_reject_{unique_id}", use_container_width=True):
                         delete_consumption_record(record_id)
                         st.success("❌ Отклонено!")
                         st.rerun()
@@ -1583,7 +1591,8 @@ with tab7:
     # 3. Заявки на закупку
     st.subheader("🛒 Заявки на закупку")
     if pending_requests:
-        for req in pending_requests:
+        for idx, req in enumerate(pending_requests):
+            unique_id = f"pend_req_{req[0]}_{idx}"
             req_id = req[0]
             item_name = req[1]
             quantity = req[2]
@@ -1607,17 +1616,17 @@ with tab7:
                 with col3:
                     col_btn1, col_btn2, col_btn3 = st.columns(3)
                     with col_btn1:
-                        if st.button("✅", key=f"notif_app_req_{req_id}", help="Одобрить"):
+                        if st.button("✅", key=f"notif_app_req_{unique_id}", help="Одобрить"):
                             update_purchase_request(req_id, "approved", "Одобрено из уведомлений")
                             st.success("✅ Одобрено!")
                             st.rerun()
                     with col_btn2:
-                        if st.button("❌", key=f"notif_rej_req_{req_id}", help="Отклонить"):
+                        if st.button("❌", key=f"notif_rej_req_{unique_id}", help="Отклонить"):
                             update_purchase_request(req_id, "rejected", "Отклонено из уведомлений")
                             st.success("❌ Отклонено!")
                             st.rerun()
                     with col_btn3:
-                        if st.button("🛒", key=f"notif_buy_req_{req_id}", help="Закуплено"):
+                        if st.button("🛒", key=f"notif_buy_req_{unique_id}", help="Закуплено"):
                             add_item(item_name, "Закуплено", location, "Склад", description, "", "", quantity, unit, 1, "", "", None, None)
                             update_purchase_request(req_id, "purchased", "Добавлено на склад")
                             st.success("✅ Закуплено!")
