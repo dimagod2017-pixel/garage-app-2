@@ -55,8 +55,6 @@ if "move_mode" not in st.session_state:
     st.session_state.move_mode = {}
 if "qr_mode" not in st.session_state:
     st.session_state.qr_mode = {}
-if "show_menu" not in st.session_state:
-    st.session_state.show_menu = {}
 if "show_details" not in st.session_state:
     st.session_state.show_details = {}
 
@@ -168,7 +166,6 @@ def init_db():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     
-    # Таблица вещей
     c.execute('''CREATE TABLE IF NOT EXISTS items
                  (id TEXT PRIMARY KEY,
                   name TEXT,
@@ -187,21 +184,18 @@ def init_db():
                   equipment_id INTEGER,
                   unit_id INTEGER)''')
     
-    # Таблица техники
     c.execute('''CREATE TABLE IF NOT EXISTS equipment
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT UNIQUE,
                   number TEXT,
                   date_added TEXT)''')
     
-    # Таблица агрегатов
     c.execute('''CREATE TABLE IF NOT EXISTS units
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT,
                   equipment_id INTEGER,
                   date_added TEXT)''')
     
-    # Таблица списаний
     c.execute('''CREATE TABLE IF NOT EXISTS consumption
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   item_id TEXT,
@@ -213,13 +207,11 @@ def init_db():
                   status TEXT DEFAULT 'pending',
                   photo TEXT)''')
     
-    # Таблица помещений
     c.execute('''CREATE TABLE IF NOT EXISTS rooms
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT UNIQUE,
                   date_added TEXT)''')
     
-    # Таблица заявок на закупку
     c.execute('''CREATE TABLE IF NOT EXISTS purchase_requests
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   item_name TEXT,
@@ -233,7 +225,6 @@ def init_db():
                   status TEXT DEFAULT 'pending',
                   admin_comment TEXT)''')
     
-    # Проверка существующих колонок
     c.execute("PRAGMA table_info(items)")
     columns = [col[1] for col in c.fetchall()]
     if 'application' not in columns:
@@ -361,17 +352,6 @@ def update_item(item_id, name, category, location, room, description, applicatio
     conn.commit()
     conn.close()
 
-def update_item_photos(item_id, item_photo_path, location_photo_path, installed_photo_path):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("""
-        UPDATE items
-        SET item_photo = ?, location_photo = ?, installed_photo = ?
-        WHERE id = ?
-    """, (item_photo_path, location_photo_path, installed_photo_path, item_id))
-    conn.commit()
-    conn.close()
-
 def update_item_room(item_id, new_room):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -452,7 +432,6 @@ def get_statistics():
     c.execute("SELECT category, COUNT(*) FROM items GROUP BY category ORDER BY COUNT(*) DESC LIMIT 3")
     top_categories = c.fetchall()
     
-    # Количество заявок
     c.execute("SELECT COUNT(*) FROM purchase_requests WHERE status = 'pending'")
     pending_requests = c.fetchone()[0]
     
@@ -611,7 +590,6 @@ init_db()
 # --- ИНТЕРФЕЙС ---
 total_items, low_stock_count, total_rooms, total_equipment, total_consumption, top_categories, pending_requests = get_statistics()
 
-# Статистика
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 with col1:
     st.metric("📦 Вещи", total_items)
@@ -627,7 +605,6 @@ with col6:
     if role == "admin":
         st.metric("🛒 Заявки", pending_requests, delta="Новые" if pending_requests > 0 else None)
 
-# Уведомления о низких остатках
 if role == "admin":
     low_items = get_low_stock_items()
     if low_items:
@@ -641,7 +618,6 @@ with st.sidebar:
     st.caption(f"Роль: {'🔑 Администратор' if role == 'admin' else '🔧 Сотрудник'}")
     st.divider()
     
-    # Тест Email
     st.subheader("📧 Тест Email")
     if st.button("📧 Отправить тестовое письмо", use_container_width=True):
         success, msg = send_email(
@@ -740,14 +716,13 @@ with tab1:
         else:
             st.info("🌱 Ничего не найдено")
 
-# --- ВКЛАДКА 2: ВСЕ ВЕЩИ (С РЕДАКТИРОВАНИЕМ) ---
+# --- ВКЛАДКА 2: ВСЕ ВЕЩИ (С РЕДАКТИРОВАНИЕМ ВНИЗУ КАРТОЧКИ) ---
 with tab2:
     st.subheader("📋 Все вещи в базе данных")
     items = get_all_items()
     if not items:
         st.info("🌱 В базе пока нет вещей")
     else:
-        # Фильтр по помещению
         rooms = ["Все помещения"] + get_room_names()
         room_filter = st.selectbox("🏠 Фильтр по помещению", rooms, key="filter_room_all")
         
@@ -755,7 +730,6 @@ with tab2:
         if room_filter != "Все помещения":
             filtered_items = [item for item in items if item[4] == room_filter]
         
-        # Поиск
         search_col1, search_col2 = st.columns([3, 1])
         with search_col1:
             search_term = st.text_input("🔍 Поиск по названию", placeholder="Введите название...", key="search_term_all")
@@ -771,10 +745,8 @@ with tab2:
         st.caption(f"📌 Найдено позиций: {len(filtered_items)}")
         
         for idx, item in enumerate(filtered_items):
-            # Используем уникальный ID для каждой карточки
             unique_id = f"{item[0]}_{idx}"
             
-            # Распаковываем данные
             item_id = item[0]
             name = item[1]
             category = item[2] or ""
@@ -792,7 +764,6 @@ with tab2:
             equipment_id = item[14] if len(item) > 14 else None
             unit_id = item[15] if len(item) > 15 else None
             
-            # Определяем статус
             if quantity <= 0:
                 status_emoji = "🔴"
                 status_text = "КРИТИЧНО!"
@@ -806,10 +777,9 @@ with tab2:
                 status_text = "В норме"
                 status_color = "#66BB6A"
             
-            # Карточка вещи
             with st.container(border=True):
-                # Заголовок
-                col1, col2, col3 = st.columns([4, 2, 1])
+                # Верхняя часть карточки - информация
+                col1, col2 = st.columns([4, 1])
                 with col1:
                     st.markdown(f"### {status_emoji} {name}")
                     st.caption(f"🆔 ID: {item_id}")
@@ -823,18 +793,12 @@ with tab2:
                             border: 1px solid {status_color};
                             color: {status_color};
                             font-weight: bold;
+                            text-align: center;
                         ">
                             {status_emoji} {status_text}
                         </div>
                     """, unsafe_allow_html=True)
-                with col3:
-                    if role == "admin":
-                        menu_key = f"menu_{unique_id}"
-                        if st.button("⚙️", key=f"menu_btn_{unique_id}", help="Управление"):
-                            st.session_state.show_menu[menu_key] = not st.session_state.show_menu.get(menu_key, False)
-                            st.rerun()
                 
-                # Основная информация
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("📦 Количество", f"{quantity} {unit}")
@@ -853,7 +817,6 @@ with tab2:
                     st.caption(f"🔧 Область применения: {application}")
                 st.caption(f"🕒 Добавлено: {date_added}")
                 
-                # Фото
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     if item_photo and os.path.exists(item_photo):
@@ -871,45 +834,46 @@ with tab2:
                     else:
                         st.image("https://via.placeholder.com/150/cccccc/969696?text=Нет+фото", use_container_width=True)
                 
-                # --- МЕНЮ ДЛЯ АДМИНИСТРАТОРА ---
-                if role == "admin":
-                    menu_key = f"menu_{unique_id}"
-                    if st.session_state.show_menu.get(menu_key, False):
-                        with st.container(border=True):
-                            st.write("**📋 Управление вещью:**")
-                            col1, col2, col3, col4, col5 = st.columns(5)
-                            
-                            with col1:
-                                if st.button("✏️ Редактировать", key=f"edit_{unique_id}", use_container_width=True):
-                                    st.session_state.edit_mode[item_id] = True
-                                    st.session_state.show_menu[menu_key] = False
-                                    st.rerun()
-                            
-                            with col2:
-                                if st.button("📤 Списать", key=f"cons_{unique_id}", use_container_width=True):
-                                    st.session_state.cons_mode[item_id] = True
-                                    st.session_state.show_menu[menu_key] = False
-                                    st.rerun()
-                            
-                            with col3:
-                                if st.button("🚚 Переместить", key=f"move_{unique_id}", use_container_width=True):
-                                    st.session_state.move_mode[item_id] = True
-                                    st.session_state.show_menu[menu_key] = False
-                                    st.rerun()
-                            
-                            with col4:
-                                if st.button("📷 QR", key=f"qr_{unique_id}", use_container_width=True):
-                                    st.session_state.qr_mode[item_id] = True
-                                    st.session_state.show_menu[menu_key] = False
-                                    st.rerun()
-                            
-                            with col5:
-                                if st.button("🗑️ Удалить", key=f"del_{unique_id}", use_container_width=True):
-                                    delete_item(item_id)
-                                    st.success(f"✅ '{name}' удалена!")
-                                    st.rerun()
+                st.divider()
                 
-                # --- ДИАЛОГ РЕДАКТИРОВАНИЯ ---
+                # --- НИЖНЯЯ ЧАСТЬ КАРТОЧКИ: ВСЕ НАСТРОЙКИ ДЛЯ АДМИНИСТРАТОРА ---
+                if role == "admin":
+                    st.write("**📋 Управление вещью:**")
+                    col1, col2, col3, col4, col5 = st.columns(5)
+                    
+                    with col1:
+                        if st.button("✏️ Редактировать", key=f"edit_{unique_id}", use_container_width=True):
+                            st.session_state.edit_mode[item_id] = True
+                            st.rerun()
+                    
+                    with col2:
+                        if st.button("📤 Списать", key=f"cons_{unique_id}", use_container_width=True):
+                            st.session_state.cons_mode[item_id] = True
+                            st.rerun()
+                    
+                    with col3:
+                        if st.button("🚚 Переместить", key=f"move_{unique_id}", use_container_width=True):
+                            st.session_state.move_mode[item_id] = True
+                            st.rerun()
+                    
+                    with col4:
+                        if st.button("📷 QR", key=f"qr_{unique_id}", use_container_width=True):
+                            st.session_state.qr_mode[item_id] = True
+                            st.rerun()
+                    
+                    with col5:
+                        if st.button("🗑️ Удалить", key=f"del_{unique_id}", use_container_width=True):
+                            delete_item(item_id)
+                            st.success(f"✅ '{name}' удалена!")
+                            st.rerun()
+                
+                # --- КНОПКА ДЛЯ СОТРУДНИКА: СПИСАТЬ ---
+                if role == "employee":
+                    if st.button("📤 Списать", key=f"employee_cons_{unique_id}", use_container_width=True):
+                        st.session_state.cons_mode[item_id] = True
+                        st.rerun()
+                
+                # --- ДИАЛОГ РЕДАКТИРОВАНИЯ (ТОЛЬКО ДЛЯ АДМИНА) ---
                 if role == "admin" and st.session_state.edit_mode.get(item_id, False):
                     with st.container(border=True):
                         st.write(f"**✏️ Редактирование: {name}**")
@@ -956,8 +920,8 @@ with tab2:
                                     st.session_state.edit_mode[item_id] = False
                                     st.rerun()
                 
-                # --- ДИАЛОГ СПИСАНИЯ ---
-                if role == "admin" and st.session_state.cons_mode.get(item_id, False):
+                # --- ДИАЛОГ СПИСАНИЯ (ДЛЯ ВСЕХ) ---
+                if st.session_state.cons_mode.get(item_id, False):
                     with st.container(border=True):
                         st.write(f"**📤 Списание: {name}**")
                         st.caption(f"Доступно: {quantity} {unit}")
@@ -972,15 +936,38 @@ with tab2:
                             with col2:
                                 cons_object = st.text_input("Куда списывается*", placeholder="Объект, техника...", key=f"cons_obj_{unique_id}")
                                 cons_note = st.text_area("Примечание", key=f"cons_note_{unique_id}")
+                                cons_photo = st.file_uploader("📷 Фото причины", type=["jpg", "jpeg", "png"], key=f"cons_photo_{unique_id}")
                             
                             col1, col2 = st.columns(2)
                             with col1:
                                 if st.form_submit_button("✅ Списать", use_container_width=True):
                                     if cons_qty > 0 and cons_object:
-                                        success, msg = consume_item(item_id, cons_qty, cons_object, cons_user, cons_note, "", "confirmed")
+                                        photo_path = ""
+                                        if cons_photo:
+                                            ext = cons_photo.name.split('.')[-1]
+                                            photo_path = f"images/cons_{uuid.uuid4()}.{ext}"
+                                            with open(photo_path, "wb") as f:
+                                                f.write(cons_photo.getbuffer())
+                                        
+                                        if role == "admin":
+                                            status = "confirmed"
+                                        else:
+                                            status = "pending"
+                                        
+                                        success, msg = consume_item(item_id, cons_qty, cons_object, cons_user, cons_note, photo_path, status)
                                         if success:
                                             st.session_state.cons_mode[item_id] = False
                                             st.success(msg)
+                                            if role == "employee":
+                                                send_email(
+                                                    "📤 Новая заявка на списание!",
+                                                    f"Сотрудник {user_name} создал заявку на списание:\n\n"
+                                                    f"📦 Вещь: {name}\n"
+                                                    f"📦 Количество: {cons_qty} {unit}\n"
+                                                    f"🚗 Объект: {cons_object}\n"
+                                                    f"📝 Примечание: {cons_note or '—'}\n\n"
+                                                    f"Зайдите в приложение для подтверждения."
+                                                )
                                             st.rerun()
                                         else:
                                             st.error(msg)
@@ -991,7 +978,7 @@ with tab2:
                                     st.session_state.cons_mode[item_id] = False
                                     st.rerun()
                 
-                # --- ДИАЛОГ ПЕРЕМЕЩЕНИЯ ---
+                # --- ДИАЛОГ ПЕРЕМЕЩЕНИЯ (ТОЛЬКО ДЛЯ АДМИНА) ---
                 if role == "admin" and st.session_state.move_mode.get(item_id, False):
                     with st.container(border=True):
                         st.write(f"**🚚 Перемещение: {name}**")
@@ -1019,7 +1006,7 @@ with tab2:
                                 st.session_state.move_mode[item_id] = False
                                 st.rerun()
                 
-                # --- ДИАЛОГ QR ---
+                # --- ДИАЛОГ QR (ТОЛЬКО ДЛЯ АДМИНА) ---
                 if role == "admin" and st.session_state.qr_mode.get(item_id, False):
                     with st.container(border=True):
                         st.write(f"**📷 QR-код для: {name}**")
@@ -1039,8 +1026,6 @@ with tab2:
                         if st.button("❌ Закрыть QR", key=f"close_qr_{unique_id}", use_container_width=True):
                             st.session_state.qr_mode[item_id] = False
                             st.rerun()
-                
-                st.divider()
         
         # Экспорт CSV
         st.divider()
@@ -1134,7 +1119,6 @@ with tab4:
     if not all_cons:
         st.info("🌱 Пока нет списаний")
     else:
-        # Фильтры
         col1, col2, col3 = st.columns([2, 2, 1])
         with col1:
             status_filter = st.selectbox(
@@ -1156,7 +1140,6 @@ with tab4:
             if st.button("🔄 Обновить", use_container_width=True, key="refresh_cons"):
                 st.rerun()
         
-        # Фильтруем
         filtered = all_cons
         if status_filter != "Все":
             filtered = [c for c in filtered if c[7] == status_filter]
@@ -1296,11 +1279,10 @@ with tab4:
                 
                 st.divider()
 
-# --- ВКЛАДКА 5: ОСТАТКИ (ДИНАМИКА) ---
+# --- ВКЛАДКА 5: ОСТАТКИ ---
 with tab5:
     st.subheader("📦 Управление остатками")
     
-    # Фильтры
     col1, col2 = st.columns([2, 1])
     with col1:
         search_stock = st.text_input("🔍 Поиск по названию", placeholder="Введите название...", key="search_stock")
@@ -1312,7 +1294,6 @@ with tab5:
     if search_stock:
         items = [item for item in items if search_stock.lower() in item[1].lower()]
     
-    # Сортировка
     if sort_by == "По убыванию остатка":
         items.sort(key=lambda x: x[9], reverse=True)
     elif sort_by == "По возрастанию остатка":
@@ -1342,7 +1323,6 @@ with tab5:
                     st.caption(f"🔴 Порог: {item[11]} {item[10]}")
                 
                 with col3:
-                    # Динамика: было (история)
                     conn = sqlite3.connect('storage.db')
                     c = conn.cursor()
                     c.execute("SELECT SUM(quantity) FROM consumption WHERE item_id = ? AND status = 'confirmed'", (item[0],))
@@ -1375,7 +1355,6 @@ with tab5:
 with tab6:
     st.subheader("🛒 Заявки на закупку")
     
-    # Раздел для сотрудника - создание заявки
     if role == "employee":
         with st.expander("📝 Создать заявку на закупку", expanded=True):
             with st.form("purchase_form", clear_on_submit=True):
@@ -1416,7 +1395,6 @@ with tab6:
         
         st.divider()
     
-    # Просмотр заявок
     all_requests = get_purchase_requests(None)
     
     if not all_requests:
@@ -1520,13 +1498,11 @@ with tab7:
     
     st.subheader("📊 Центр уведомлений")
     
-    # Получаем все данные
     all_items = get_all_items()
     low_items = get_low_stock_items()
     pending_consumption = [c for c in get_all_consumption() if c[7] == "pending"]
     pending_requests = get_purchase_requests("pending")
     
-    # Счетчики
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("⚠️ Критический остаток", len(low_items), delta="Требуют внимания" if low_items else None)
@@ -1539,7 +1515,6 @@ with tab7:
     
     st.divider()
     
-    # 1. Критический остаток
     st.subheader("⚠️ Критический остаток")
     if low_items:
         for idx, item in enumerate(low_items):
@@ -1561,7 +1536,6 @@ with tab7:
     
     st.divider()
     
-    # 2. Ожидающие подтверждения списания
     st.subheader("⏳ Ожидающие подтверждения списания")
     if pending_consumption:
         for idx, c in enumerate(pending_consumption):
@@ -1588,7 +1562,6 @@ with tab7:
     
     st.divider()
     
-    # 3. Заявки на закупку
     st.subheader("🛒 Заявки на закупку")
     if pending_requests:
         for idx, req in enumerate(pending_requests):
