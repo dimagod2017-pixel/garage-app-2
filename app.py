@@ -614,20 +614,67 @@ def delete_item(item_id):
     conn.close()
 
 def search_items(query, room_filter=None):
+    """Улучшенный поиск с частичными совпадениями и сортировкой по релевантности"""
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    query_like = f"%{query}%"
+    
+    # Разбиваем запрос на отдельные слова
+    words = query.strip().split()
+    if not words:
+        return []
+    
+    # Строим условия поиска для каждого слова
+    conditions = []
+    params = []
+    
+    for word in words:
+        word_pattern = f"%{word}%"
+        conditions.append("""(name LIKE ? OR category LIKE ? OR location LIKE ? 
+                          OR description LIKE ? OR application LIKE ? 
+                          OR room LIKE ?)""")
+        params.extend([word_pattern, word_pattern, word_pattern, 
+                      word_pattern, word_pattern, word_pattern])
+    
+    where_clause = " AND ".join(conditions)
+    
+    # Сортировка по релевантности: сначала точные совпадения в названии
+    order_params = []
+    for word in words:
+        order_params.extend([f"%{word}%", f"%{word}%", f"%{word}%", f"%{word}%", f"%{word}%"])
+    
     if room_filter and room_filter != "Все помещения":
-        c.execute("""
+        query = f"""
             SELECT * FROM items
-            WHERE (name LIKE ? OR category LIKE ? OR location LIKE ? OR description LIKE ? OR application LIKE ?)
-            AND room = ?
-        """, (query_like, query_like, query_like, query_like, query_like, room_filter))
+            WHERE ({where_clause}) AND room = ?
+            ORDER BY 
+                CASE 
+                    WHEN name LIKE ? THEN 1
+                    WHEN category LIKE ? THEN 2
+                    WHEN application LIKE ? THEN 3
+                    WHEN description LIKE ? THEN 4
+                    WHEN location LIKE ? THEN 5
+                    ELSE 6
+                END,
+                name ASC
+        """
+        c.execute(query, params + [room_filter] + order_params[:5])
     else:
-        c.execute("""
+        query = f"""
             SELECT * FROM items
-            WHERE name LIKE ? OR category LIKE ? OR location LIKE ? OR description LIKE ? OR application LIKE ?
-        """, (query_like, query_like, query_like, query_like, query_like))
+            WHERE {where_clause}
+            ORDER BY 
+                CASE 
+                    WHEN name LIKE ? THEN 1
+                    WHEN category LIKE ? THEN 2
+                    WHEN application LIKE ? THEN 3
+                    WHEN description LIKE ? THEN 4
+                    WHEN location LIKE ? THEN 5
+                    ELSE 6
+                END,
+                name ASC
+        """
+        c.execute(query, params + order_params[:5])
+    
     results = c.fetchall()
     conn.close()
     return results
@@ -1219,6 +1266,8 @@ with tab1:
         search_query = st.text_input("🔍 Поиск по названию, категории, месту, описанию, применению", key="search_query")
         if search_query:
             items = search_items(search_query, room_filter)
+            if items:
+                st.success(f"Найдено: {len(items)} позиций")
         else:
             items = get_all_items(room_filter)
     
