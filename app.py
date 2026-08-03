@@ -1042,7 +1042,7 @@ else:
                                 st.session_state.move_mode[item_id] = False
                                 st.rerun()
                 
-                # --- ВЗЯТЬ (СОТРУДНИК) - С ИСПРАВЛЕННЫМ ПОИСКОМ ---
+                # --- ВЗЯТЬ (СОТРУДНИК) ---
                 if role == "employee" and st.session_state.take_mode.get(item_id, False):
                     with st.container(border=True):
                         st.write(f"**📤 Взять: {name}**")
@@ -1059,7 +1059,7 @@ else:
                                     key=f"main_take_qty_{item_id}"
                                 )
                             with col2:
-                                # --- ПОИСК С ЧАСТИЧНЫМ СОВПАДЕНИЕМ ---
+                                # --- ИНТЕРАКТИВНЫЙ ПОИСК С АВТОДОПОЛНЕНИЕМ ---
                                 equipment_list = get_equipment()
                                 
                                 # Собираем все варианты для поиска
@@ -1071,33 +1071,42 @@ else:
                                     for unit in units:
                                         search_options.append(f"{eq_name} → {unit[1]}")
                                 
-                                # Поле для поиска с автодополнением
+                                # Поле для поиска
                                 search_tech = st.text_input(
                                     "🔍 На что взял?", 
                                     placeholder="Начните вводить название техники или агрегата...",
-                                    key=f"main_take_search_{item_id}"
+                                    key=f"main_take_search_{item_id}",
+                                    value=""
                                 )
                                 
-                                # Фильтруем варианты по частичному совпадению (без учета регистра)
-                                if search_tech:
+                                # Динамическая фильтрация по мере ввода
+                                if search_tech and len(search_tech) >= 1:
                                     filtered_options = [
                                         opt for opt in search_options 
                                         if search_tech.lower() in opt.lower()
                                     ]
+                                    # Добавляем "Другое" в начало списка, если его нет
+                                    if "Другое" not in filtered_options:
+                                        filtered_options = ["Другое"] + filtered_options
+                                    # Ограничиваем количество вариантов для удобства
+                                    if len(filtered_options) > 50:
+                                        filtered_options = filtered_options[:50]
                                 else:
-                                    filtered_options = search_options[:10]  # Показываем первые 10 для удобства
-                                
-                                # Если ничего не найдено
-                                if not filtered_options:
-                                    st.warning("🔍 Ничего не найдено. Введите название вручную или выберите 'Другое'")
+                                    # Если ничего не введено, показываем подсказку
                                     filtered_options = ["Другое"]
+                                    st.info("💡 Начните вводить название, чтобы увидеть варианты")
                                 
-                                # Выбор из отфильтрованных вариантов
-                                selected_tech = st.selectbox(
-                                    "Выберите объект", 
-                                    filtered_options,
-                                    key=f"main_take_sel_{item_id}"
-                                )
+                                # Если найдены варианты
+                                if len(filtered_options) > 1:
+                                    selected_tech = st.selectbox(
+                                        "Выберите объект из списка*", 
+                                        filtered_options,
+                                        key=f"main_take_sel_{item_id}",
+                                        help="Выберите технику или агрегат из списка"
+                                    )
+                                else:
+                                    selected_tech = "Другое"
+                                    st.info("🔍 Ничего не найдено. Выберите 'Другое' или уточните запрос.")
                                 
                                 # Если выбрано "Другое" - показываем поле для ручного ввода
                                 if selected_tech == "Другое":
@@ -1106,9 +1115,20 @@ else:
                                         placeholder="Например: Машина №5, Трактор МТЗ...",
                                         key=f"main_take_custom_{item_id}"
                                     )
+                                    if object_name_input:
+                                        st.success(f"✅ Введено: **{object_name_input}**")
+                                    else:
+                                        st.info("✏️ Введите название объекта")
                                 else:
                                     object_name_input = selected_tech
-                                    st.caption(f"✅ Выбрано: **{selected_tech}**")
+                                    st.success(f"✅ Выбрано: **{selected_tech}**")
+                                    
+                                    # Показываем дополнительную информацию о выбранной технике
+                                    if " → " in selected_tech:
+                                        parts = selected_tech.split(" → ")
+                                        st.caption(f"📌 Техника: {parts[0]}")
+                                        if len(parts) > 1:
+                                            st.caption(f"🔧 Агрегат: {parts[1]}")
                             
                             take_photo = st.file_uploader(
                                 "📷 Фото (причина замены)", 
@@ -1124,10 +1144,17 @@ else:
                             col1, col2 = st.columns(2)
                             with col1:
                                 if st.form_submit_button("✅ Подтвердить", use_container_width=True):
+                                    errors = []
                                     if take_qty <= 0:
-                                        st.error("⚠️ Количество должно быть больше 0!")
-                                    elif not object_name_input:
-                                        st.error("⚠️ Укажите объект (технику или агрегат)!")
+                                        errors.append("⚠️ Количество должно быть больше 0!")
+                                    if not object_name_input:
+                                        errors.append("⚠️ Укажите объект (технику или агрегат)!")
+                                    elif object_name_input == "Другое":
+                                        errors.append("⚠️ Выберите конкретный объект или введите название вручную!")
+                                    
+                                    if errors:
+                                        for err in errors:
+                                            st.error(err)
                                     else:
                                         photo_path = ""
                                         if take_photo:
