@@ -122,7 +122,6 @@ def show_login():
         </style>
     """, unsafe_allow_html=True)
     
-    # Контейнер входа
     with st.container():
         st.markdown("""
             <div class="login-container">
@@ -130,7 +129,6 @@ def show_login():
                 <p class="subtitle">Введите пароль для входа</p>
         """, unsafe_allow_html=True)
         
-        # Поле ввода пароля
         password = st.text_input(
             "🔑 Пароль",
             type="password",
@@ -138,7 +136,6 @@ def show_login():
             key="login_password_main"
         )
         
-        # Кнопка входа
         if st.button("🔓 Войти", use_container_width=True):
             if password in USERS:
                 st.session_state.user = USERS[password]
@@ -146,11 +143,9 @@ def show_login():
             else:
                 st.error("❌ Неверный пароль! Попробуйте еще раз.")
         
-        # Подсказка
         st.markdown("""
             <div class="hint">
-                💡 <strong>Для сотрудника:</strong> введите пароль <code>1111</code><br>
-                🔑 <strong>Для администратора:</strong> введите пароль <code>12345</code>
+                💡 <strong>Для сотрудника:</strong> введите пароль <code>1111</code>
             </div>
         """, unsafe_allow_html=True)
         
@@ -800,7 +795,7 @@ with tab1:
         else:
             st.info("🌱 Ничего не найдено")
 
-# --- ВКЛАДКА 2: ВСЕ ВЕЩИ (С РЕДАКТИРОВАНИЕМ ВНИЗУ КАРТОЧКИ) ---
+# --- ВКЛАДКА 2: ВСЕ ВЕЩИ ---
 with tab2:
     st.subheader("📋 Все вещи в базе данных")
     items = get_all_items()
@@ -862,7 +857,6 @@ with tab2:
                 status_color = "#66BB6A"
             
             with st.container(border=True):
-                # Верхняя часть карточки - информация
                 col1, col2 = st.columns([4, 1])
                 with col1:
                     st.markdown(f"### {status_emoji} {name}")
@@ -920,7 +914,7 @@ with tab2:
                 
                 st.divider()
                 
-                # --- ДЕЙСТВИЯ ДЛЯ АДМИНИСТРАТОРА (ВСЕ КНОПКИ) ---
+                # --- КНОПКИ ДЛЯ АДМИНИСТРАТОРА (ВСЕ КНОПКИ) ---
                 if role == "admin":
                     st.write("**📋 Управление вещью:**")
                     col1, col2, col3, col4, col5 = st.columns(5)
@@ -1695,3 +1689,4 @@ with tab7:
         st.success("✅ Нет новых заявок на закупку")
 
 st.caption("📱 Мой Склад v2.0 | Уведомления, остатки, заявки")
+
