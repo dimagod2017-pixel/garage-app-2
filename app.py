@@ -159,14 +159,10 @@ if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 if "active_tab" not in st.session_state:
     st.session_state.active_tab = 0
-if "selected_room" not in st.session_state:
-    st.session_state.selected_room = None
-if "selected_equipment" not in st.session_state:
-    st.session_state.selected_equipment = None
-if "show_low_stock" not in st.session_state:
-    st.session_state.show_low_stock = False
 if "photo_index" not in st.session_state:
     st.session_state.photo_index = {}
+if "show_low_stock" not in st.session_state:
+    st.session_state.show_low_stock = False
 
 with st.sidebar:
     st.markdown(f"### 👤 {user_name}")
@@ -185,6 +181,30 @@ with st.sidebar:
             st.rerun()
     
     st.divider()
+    
+    # Счетчики заявок
+    if role == "admin":
+        conn = sqlite3.connect('storage.db')
+        c = conn.cursor()
+        try:
+            c.execute("SELECT COUNT(*) FROM requests WHERE status = 'pending'")
+            pending_count = c.fetchone()[0]
+            if pending_count > 0:
+                st.sidebar.warning(f"🔔 Новых заявок: {pending_count}")
+        except:
+            pass
+        conn.close()
+    else:
+        conn = sqlite3.connect('storage.db')
+        c = conn.cursor()
+        try:
+            c.execute("SELECT COUNT(*) FROM requests WHERE user = ? AND status = 'approved' AND seen = 0", (user_name,))
+            approved_count = c.fetchone()[0]
+            if approved_count > 0:
+                st.sidebar.success(f"✅ Одобрено заявок: {approved_count}")
+        except:
+            pass
+        conn.close()
 
 if st.session_state.dark_mode:
     st.markdown("""
@@ -224,11 +244,6 @@ if st.session_state.dark_mode:
                 border-right: 2px solid #2e5a2e !important;
             }
             div[data-testid="stSidebar"] * { color: #d4e8d4 !important; }
-            div[data-testid="stSidebar"] .stTextInput input {
-                background-color: #1a2a1a !important;
-                color: #d4e8d4 !important;
-                border-color: #2e5a2e !important;
-            }
         </style>
     """, unsafe_allow_html=True)
 
@@ -280,26 +295,18 @@ def init_db():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT UNIQUE,
                   date_added TEXT)''')
-    c.execute("PRAGMA table_info(items)")
-    columns = [col[1] for col in c.fetchall()]
-    if 'application' not in columns:
-        c.execute("ALTER TABLE items ADD COLUMN application TEXT")
-    if 'installed_photo' not in columns:
-        c.execute("ALTER TABLE items ADD COLUMN installed_photo TEXT")
-    if 'equipment_id' not in columns:
-        c.execute("ALTER TABLE items ADD COLUMN equipment_id INTEGER")
-    if 'unit_id' not in columns:
-        c.execute("ALTER TABLE items ADD COLUMN unit_id INTEGER")
-    c.execute("PRAGMA table_info(consumption)")
-    cons_columns = [col[1] for col in c.fetchall()]
-    if 'status' not in cons_columns:
-        c.execute("ALTER TABLE consumption ADD COLUMN status TEXT DEFAULT 'pending'")
-    if 'photo' not in cons_columns:
-        c.execute("ALTER TABLE consumption ADD COLUMN photo TEXT")
-    c.execute("PRAGMA table_info(equipment)")
-    eq_columns = [col[1] for col in c.fetchall()]
-    if 'number' not in eq_columns:
-        c.execute("ALTER TABLE equipment ADD COLUMN number TEXT")
+    c.execute('''CREATE TABLE IF NOT EXISTS requests
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  name TEXT,
+                  quantity REAL,
+                  unit TEXT,
+                  description TEXT,
+                  photo TEXT,
+                  user TEXT,
+                  date TEXT,
+                  status TEXT DEFAULT 'pending',
+                  seen INTEGER DEFAULT 0,
+                  admin_comment TEXT)''')
     conn.commit()
     conn.close()
 
@@ -380,7 +387,6 @@ def get_equipment_by_id(eq_id):
     return result
 
 def search_equipment(query):
-    """Поиск техники и агрегатов"""
     if not query:
         return []
     
@@ -392,7 +398,6 @@ def search_equipment(query):
     query_lower = f"%{query.lower()}%"
     query_upper = f"%{query.upper()}%"
     
-    # Поиск техники
     c.execute("""
         SELECT 'equipment' as type, id, name, number, date_added, NULL as unit_name, NULL as unit_id
         FROM equipment 
@@ -404,7 +409,6 @@ def search_equipment(query):
     equipment_results = c.fetchall()
     results.extend(equipment_results)
     
-    # Поиск агрегатов
     c.execute("""
         SELECT 'unit' as type, e.id as eq_id, e.name as eq_name, e.number, e.date_added, u.name as unit_name, u.id as unit_id
         FROM units u
@@ -609,11 +613,9 @@ def delete_item(item_id):
     conn.close()
 
 def search_items(query, room_filter=None):
-    """Максимально простой поиск - находит любые совпадения"""
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     
-    # Ищем и в верхнем, и в нижнем регистре
     query_like = f"%{query}%"
     query_lower = f"%{query.lower()}%"
     query_upper = f"%{query.upper()}%"
@@ -729,6 +731,57 @@ def export_to_excel():
             col_idx = df.columns.get_loc(column)
             writer.sheets['Инвентарь'].column_dimensions[chr(65 + col_idx)].width = column_width + 2
     return output.getvalue()
+
+def add_request(name, quantity, unit, description, photo_path, user):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO requests (name, quantity, unit, description, photo, user, date) VALUES (?,?,?,?,?,?,?)",
+              (name, quantity, unit, description, photo_path, user, datetime.now().strftime("%Y-%m-%d %H:%M")))
+    conn.commit()
+    conn.close()
+    return True
+
+def get_requests(status=None, user=None):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if status and user:
+        c.execute("SELECT * FROM requests WHERE status = ? AND user = ? ORDER BY date DESC", (status, user))
+    elif status:
+        c.execute("SELECT * FROM requests WHERE status = ? ORDER BY date DESC", (status,))
+    elif user:
+        c.execute("SELECT * FROM requests WHERE user = ? ORDER BY date DESC", (user,))
+    else:
+        c.execute("SELECT * FROM requests ORDER BY date DESC")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def update_request_status(request_id, status, admin_comment=""):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE requests SET status = ?, admin_comment = ?, seen = 0 WHERE id = ?", 
+              (status, admin_comment, request_id))
+    conn.commit()
+    conn.close()
+    return True
+
+def mark_request_seen(request_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE requests SET seen = 1 WHERE id = ?", (request_id,))
+    conn.commit()
+    conn.close()
+
+def delete_request(request_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT photo FROM requests WHERE id = ?", (request_id,))
+    result = c.fetchone()
+    if result and result[0] and os.path.exists(result[0]):
+        os.remove(result[0])
+    c.execute("DELETE FROM requests WHERE id = ?", (request_id,))
+    conn.commit()
+    conn.close()
 
 def show_photo_carousel(unique_id, photos):
     if not photos:
@@ -849,7 +902,7 @@ def show_item_card(item, expanded=False, tab_prefix=""):
                 if st.button("📍 Переместить", key=f"{unique_prefix}_move_btn", use_container_width=True):
                     st.session_state[f"show_move_{item_id}"] = True
         
-        # Модальное окно: Редактирование
+        # Модальные окна (редактирование, количество, списание, перемещение)
         if st.session_state.get(f"show_edit_{item_id}"):
             with st.form(f"edit_form_{unique_prefix}"):
                 st.markdown("### ✏️ Редактировать вещь")
@@ -915,7 +968,6 @@ def show_item_card(item, expanded=False, tab_prefix=""):
                         st.session_state[f"show_edit_{item_id}"] = False
                         st.rerun()
         
-        # Модальное окно: Изменить количество
         if st.session_state.get(f"show_qty_{item_id}"):
             with st.form(f"qty_form_{unique_prefix}"):
                 st.markdown("### 📊 Изменить количество")
@@ -932,7 +984,6 @@ def show_item_card(item, expanded=False, tab_prefix=""):
                         st.session_state[f"show_qty_{item_id}"] = False
                         st.rerun()
         
-        # Модальное окно: Списание (поиск ВНЕ формы)
         if st.session_state.get(f"show_consume_{item_id}"):
             st.markdown("### 📤 Списать со склада")
             
@@ -985,7 +1036,6 @@ def show_item_card(item, expanded=False, tab_prefix=""):
                 if manual_input:
                     st.session_state[f"selected_object_{item_id}"] = manual_input
             
-            # Форма для отправки
             with st.form(f"consume_form_{unique_prefix}"):
                 consume_qty = st.number_input("Количество", min_value=0.1, max_value=float(quantity), value=1.0, step=0.5)
                 consume_photo = st.file_uploader("📷 Фото (опционально)", type=["jpg", "jpeg", "png"], key=f"consume_photo_{unique_prefix}")
@@ -1022,7 +1072,6 @@ def show_item_card(item, expanded=False, tab_prefix=""):
                         st.session_state[f"selected_object_{item_id}"] = ""
                         st.rerun()
         
-        # Модальное окно: Переместить
         if st.session_state.get(f"show_move_{item_id}"):
             with st.form(f"move_form_{unique_prefix}"):
                 st.markdown("### 📍 Переместить вещь")
@@ -1098,7 +1147,7 @@ with col1:
 
 with col2:
     if st.button("🏠\n" + str(total_rooms_list) + "\nПомещения", use_container_width=True, key="stat_rooms"):
-        st.session_state.active_tab = 4
+        st.session_state.active_tab = 5
         st.rerun()
 
 with col3:
@@ -1240,7 +1289,7 @@ with st.sidebar:
             use_container_width=True
         )
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔍 Поиск", "📋 Все вещи", "🚜 Парк", "📤 История списаний", "🏠 Помещения"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🔍 Поиск", "📋 Все вещи", "🚜 Парк", "📤 Списания", "📝 Заявки", "🏠 Помещения"])
 
 with tab1:
     if st.session_state.active_tab == 0:
@@ -1478,6 +1527,215 @@ with tab4:
             st.info("История списаний пуста")
 
 with tab5:
+    st.markdown("### 📝 Заявки на пополнение")
+    
+    if role == "employee":
+        st.subheader("➕ Создать заявку")
+        with st.form("request_form", clear_on_submit=True):
+            req_name = st.text_input("Название*", placeholder="Что нужно закупить?")
+            col1, col2 = st.columns(2)
+            with col1:
+                req_qty = st.number_input("Количество", min_value=0.1, step=0.5, value=1.0)
+            with col2:
+                req_unit = st.selectbox("Ед. изм.", ["шт", "л", "кг", "м", "комплект", "упаковка", "м²", "другой"])
+                if req_unit == "другой":
+                    req_unit = st.text_input("Своя единица")
+            req_desc = st.text_area("Описание/примечание", placeholder="Для чего нужно, срочность и т.д.")
+            req_photo = st.file_uploader("📷 Фото (опционально)", type=["jpg", "jpeg", "png"])
+            
+            if st.form_submit_button("📤 Отправить заявку"):
+                if req_name:
+                    photo_path = ""
+                    if req_photo:
+                        ext = req_photo.name.split('.')[-1]
+                        photo_path = f"images/request_{uuid.uuid4()}.{ext}"
+                        with open(photo_path, "wb") as f:
+                            f.write(req_photo.getbuffer())
+                    
+                    add_request(req_name, req_qty, req_unit, req_desc, photo_path, user_name)
+                    st.success("✅ Заявка отправлена!")
+                    
+                    send_email(
+                        "📝 Новая заявка на пополнение",
+                        f"Пользователь: {user_name}\n"
+                        f"Название: {req_name}\n"
+                        f"Количество: {req_qty} {req_unit}\n"
+                        f"Описание: {req_desc}\n"
+                        f"Дата: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                    )
+                    st.rerun()
+                else:
+                    st.error("Укажите название!")
+        
+        st.divider()
+        
+        st.subheader("📋 Мои заявки")
+        my_requests = get_requests(user=user_name)
+        
+        if my_requests:
+            for req in my_requests:
+                req_id, name, qty, unit, desc, photo, req_user, date, status, seen, comment = req
+                
+                status_icon = {"pending": "⏳", "approved": "✅", "rejected": "❌"}.get(status, "❓")
+                status_text = {"pending": "На рассмотрении", "approved": "Одобрено", "rejected": "Отклонено"}.get(status, status)
+                
+                with st.expander(f"{status_icon} {name} — {qty} {unit} | {date}"):
+                    st.markdown(f"**Статус:** {status_text}")
+                    if desc:
+                        st.markdown(f"**Описание:** {desc}")
+                    if comment:
+                        st.markdown(f"**Комментарий:** {comment}")
+                    if photo and os.path.exists(photo):
+                        st.image(photo, caption="Фото", width=200)
+                    
+                    if status == "approved" and seen == 0:
+                        if st.button("👁️ Отметить как прочитанное", key=f"seen_{req_id}"):
+                            mark_request_seen(req_id)
+                            st.rerun()
+        else:
+            st.info("У вас пока нет заявок")
+    
+    elif role == "admin":
+        tab5_1, tab5_2, tab5_3 = st.tabs(["⏳ Новые", "✅ Одобренные", "❌ Отклоненные"])
+        
+        with tab5_1:
+            pending_requests = get_requests(status="pending")
+            if pending_requests:
+                for req in pending_requests:
+                    req_id, name, qty, unit, desc, photo, req_user, date, status, seen, comment = req
+                    
+                    with st.expander(f"⏳ {name} — {qty} {unit} | от {req_user} | {date}"):
+                        st.markdown(f"**От:** {req_user}")
+                        if desc:
+                            st.markdown(f"**Описание:** {desc}")
+                        if photo and os.path.exists(photo):
+                            st.image(photo, caption="Фото", width=200)
+                        
+                        with st.form(f"approve_{req_id}"):
+                            admin_comment = st.text_area("Комментарий", placeholder="Причина отказа или примечание")
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                if st.form_submit_button("✅ Одобрить"):
+                                    update_request_status(req_id, "approved", admin_comment)
+                                    st.success("Заявка одобрена!")
+                                    st.rerun()
+                            with col2:
+                                if st.form_submit_button("❌ Отклонить"):
+                                    update_request_status(req_id, "rejected", admin_comment)
+                                    st.success("Заявка отклонена!")
+                                    st.rerun()
+                            with col3:
+                                if st.form_submit_button("🗑️ Удалить"):
+                                    delete_request(req_id)
+                                    st.success("Заявка удалена!")
+                                    st.rerun()
+            else:
+                st.info("Нет новых заявок")
+        
+        with tab5_2:
+            approved_requests = get_requests(status="approved")
+            if approved_requests:
+                for req in approved_requests:
+                    req_id, name, qty, unit, desc, photo, req_user, date, status, seen, comment = req
+                    
+                    with st.expander(f"✅ {name} — {qty} {unit} | от {req_user} | {date}"):
+                        st.markdown(f"**От:** {req_user}")
+                        if desc:
+                            st.markdown(f"**Описание:** {desc}")
+                        if comment:
+                            st.markdown(f"**Комментарий:** {comment}")
+                        if photo and os.path.exists(photo):
+                            st.image(photo, caption="Фото", width=200)
+                        
+                        if st.button("📦 Создать товар из заявки", key=f"create_{req_id}"):
+                            st.session_state[f"create_from_request_{req_id}"] = True
+                        
+                        if st.session_state.get(f"create_from_request_{req_id}"):
+                            with st.form(f"create_item_{req_id}"):
+                                st.markdown("### 📦 Создать товар")
+                                st.info(f"Название: **{name}**, Количество: **{qty} {unit}**")
+                                
+                                room_names = get_room_names()
+                                if room_names:
+                                    new_room = st.selectbox("Помещение*", room_names)
+                                else:
+                                    st.error("Нет помещений!")
+                                    new_room = None
+                                
+                                new_location = st.text_input("Место внутри помещения*")
+                                new_category = st.text_input("Категория")
+                                new_application = st.text_area("Область применения")
+                                
+                                equipment_list = get_equipment()
+                                if equipment_list:
+                                    eq_names = ["Не выбрано"] + [eq[1] for eq in equipment_list]
+                                    new_eq = st.selectbox("Техника", eq_names)
+                                    if new_eq != "Не выбрано":
+                                        new_eq_id = [eq[0] for eq in equipment_list if eq[1] == new_eq][0]
+                                        units = get_units(new_eq_id)
+                                        if units:
+                                            unit_names = ["Не выбрано"] + [u[1] for u in units]
+                                            new_unit = st.selectbox("Агрегат", unit_names)
+                                            if new_unit != "Не выбрано":
+                                                new_unit_id = [u[0] for u in units if u[1] == new_unit][0]
+                                            else:
+                                                new_unit_id = None
+                                        else:
+                                            new_unit_id = None
+                                    else:
+                                        new_eq_id = None
+                                        new_unit_id = None
+                                else:
+                                    new_eq_id = None
+                                    new_unit_id = None
+                                
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.form_submit_button("💾 Сохранить"):
+                                        if new_room and new_location:
+                                            add_item(name, new_category, new_location, new_room, desc or "", 
+                                                    photo if photo and os.path.exists(photo) else "", 
+                                                    "", qty, unit, 1, new_application, "", new_eq_id, new_unit_id)
+                                            st.success(f"✅ Товар '{name}' создан!")
+                                            st.session_state[f"create_from_request_{req_id}"] = False
+                                            st.rerun()
+                                        else:
+                                            st.error("Укажите помещение и место!")
+                                with col2:
+                                    if st.form_submit_button("❌ Отмена"):
+                                        st.session_state[f"create_from_request_{req_id}"] = False
+                                        st.rerun()
+                        
+                        if st.button("🗑️ Удалить заявку", key=f"del_req_{req_id}"):
+                            delete_request(req_id)
+                            st.success("Заявка удалена!")
+                            st.rerun()
+            else:
+                st.info("Нет одобренных заявок")
+        
+        with tab5_3:
+            rejected_requests = get_requests(status="rejected")
+            if rejected_requests:
+                for req in rejected_requests:
+                    req_id, name, qty, unit, desc, photo, req_user, date, status, seen, comment = req
+                    
+                    with st.expander(f"❌ {name} — {qty} {unit} | от {req_user} | {date}"):
+                        st.markdown(f"**От:** {req_user}")
+                        if desc:
+                            st.markdown(f"**Описание:** {desc}")
+                        if comment:
+                            st.markdown(f"**Причина отказа:** {comment}")
+                        if photo and os.path.exists(photo):
+                            st.image(photo, caption="Фото", width=200)
+                        
+                        if st.button("🗑️ Удалить", key=f"del_rej_{req_id}"):
+                            delete_request(req_id)
+                            st.success("Заявка удалена!")
+                            st.rerun()
+            else:
+                st.info("Нет отклоненных заявок")
+
+with tab6:
     st.markdown("### 🏠 Помещения")
     
     if role == "admin":
