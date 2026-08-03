@@ -380,6 +380,7 @@ def get_equipment_by_id(eq_id):
     return result
 
 def search_equipment(query):
+    """Поиск техники и агрегатов без учета регистра"""
     if not query:
         return []
     
@@ -387,13 +388,14 @@ def search_equipment(query):
     c = conn.cursor()
     results = []
     
-    query_like = f"%{query}%"
+    query_lower = query.lower()
+    query_like = f"%{query_lower}%"
     
     # Поиск техники
     c.execute("""
         SELECT 'equipment' as type, id, name, number, date_added, NULL as unit_name, NULL as unit_id
         FROM equipment 
-        WHERE name LIKE ? OR number LIKE ?
+        WHERE LOWER(name) LIKE ? OR LOWER(number) LIKE ?
         ORDER BY name
     """, (query_like, query_like))
     equipment_results = c.fetchall()
@@ -404,7 +406,7 @@ def search_equipment(query):
         SELECT 'unit' as type, e.id as eq_id, e.name as eq_name, e.number, e.date_added, u.name as unit_name, u.id as unit_id
         FROM units u
         JOIN equipment e ON u.equipment_id = e.id
-        WHERE u.name LIKE ? OR e.name LIKE ? OR e.number LIKE ?
+        WHERE LOWER(u.name) LIKE ? OR LOWER(e.name) LIKE ? OR LOWER(e.number) LIKE ?
         ORDER BY e.name, u.name
     """, (query_like, query_like, query_like))
     unit_results = c.fetchall()
@@ -600,32 +602,34 @@ def delete_item(item_id):
     conn.close()
 
 def search_items(query, room_filter=None):
-    """Максимально простой поиск - находит любые совпадения"""
+    """Максимально простой поиск - находит любые совпадения без учета регистра"""
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     
-    query_like = f"%{query}%"
+    # Приводим запрос к нижнему регистру
+    query_lower = query.lower()
+    query_like = f"%{query_lower}%"
     
     if room_filter and room_filter != "Все помещения":
         c.execute("""
             SELECT * FROM items
-            WHERE (name LIKE ? OR category LIKE ? OR location LIKE ? 
-                   OR room LIKE ? OR description LIKE ? OR application LIKE ?
-                   OR CAST(quantity AS TEXT) LIKE ? OR unit LIKE ?)
+            WHERE (LOWER(name) LIKE ? OR LOWER(category) LIKE ? OR LOWER(location) LIKE ? 
+                   OR LOWER(room) LIKE ? OR LOWER(description) LIKE ? OR LOWER(application) LIKE ?
+                   OR CAST(quantity AS TEXT) LIKE ? OR LOWER(unit) LIKE ?)
             AND room = ?
             ORDER BY 
-                CASE WHEN name LIKE ? THEN 1 ELSE 2 END,
+                CASE WHEN LOWER(name) LIKE ? THEN 1 ELSE 2 END,
                 name ASC
         """, (query_like, query_like, query_like, query_like, query_like, query_like,
               query_like, query_like, room_filter, query_like))
     else:
         c.execute("""
             SELECT * FROM items
-            WHERE name LIKE ? OR category LIKE ? OR location LIKE ? 
-                   OR room LIKE ? OR description LIKE ? OR application LIKE ?
-                   OR CAST(quantity AS TEXT) LIKE ? OR unit LIKE ?
+            WHERE LOWER(name) LIKE ? OR LOWER(category) LIKE ? OR LOWER(location) LIKE ? 
+                   OR LOWER(room) LIKE ? OR LOWER(description) LIKE ? OR LOWER(application) LIKE ?
+                   OR CAST(quantity AS TEXT) LIKE ? OR LOWER(unit) LIKE ?
             ORDER BY 
-                CASE WHEN name LIKE ? THEN 1 ELSE 2 END,
+                CASE WHEN LOWER(name) LIKE ? THEN 1 ELSE 2 END,
                 name ASC
         """, (query_like, query_like, query_like, query_like, query_like, query_like,
               query_like, query_like, query_like))
