@@ -621,8 +621,7 @@ with tabs[2]:
                         st.caption("📷 Нет фото")
     else:
         st.info("Ничего не найдено")
-
-      # ============================================================
+# ============================================================
 # 7.4 ТОВАРЫ
 # ============================================================
 
@@ -715,9 +714,10 @@ with tabs[3]:
                 
                 st.divider()
                 
-                # --- ОСНОВНОЙ БЛОК ---
+                # --- ОСНОВНОЙ БЛОК: ИНФОРМАЦИЯ + ФОТО ---
                 col1, col2 = st.columns([2, 2])
                 
+                # --- ЛЕВАЯ КОЛОНКА: ИНФОРМАЦИЯ И УПРАВЛЕНИЕ ---
                 with col1:
                     st.markdown(f"**📦 Название:** {name}")
                     st.markdown(f"**📍 Место:** {location}")
@@ -790,14 +790,14 @@ with tabs[3]:
                                     st.success(f"✅ Обновлено: {new_qty} {unit}")
                                     st.rerun()
                         
-                        # УДАЛЕНИЕ
+                        # УДАЛЕНИЕ ТОВАРА
                         with st.expander("🗑️ Удалить товар", expanded=False):
-                            st.warning(f"⚠️ Удалить '{name}'?")
+                            st.warning(f"⚠️ Удалить товар '{name}'?")
                             col1, col2 = st.columns(2)
                             with col1:
                                 if st.button("✅ Да, удалить", key=f"del_yes_{uid}"):
                                     delete_item(item_id)
-                                    st.success(f"🗑️ '{name}' удалён")
+                                    st.success(f"🗑️ Товар '{name}' удалён")
                                     st.rerun()
                             with col2:
                                 if st.button("❌ Отмена", key=f"del_no_{uid}"):
@@ -856,8 +856,9 @@ with tabs[3]:
                             else:
                                 st.warning("🚫 Товара нет")
                 
+                # --- ПРАВАЯ КОЛОНКА: ФОТО ---
                 with col2:
-                    st.markdown("#### 📸 Фото")
+                    st.markdown("#### 📸 Фото товара")
                     photos = get_item_photos(item_id)
                     
                     # --- ОТОБРАЖЕНИЕ ФОТО ---
@@ -895,51 +896,44 @@ with tabs[3]:
                                 st.caption("⭐ Главное фото")
                             else:
                                 st.caption("📸 Обычное фото")
+                            
+                            # --- КНОПКИ УПРАВЛЕНИЯ ФОТО (ТОЛЬКО ДЛЯ АДМИНА) ---
+                            if role == "admin":
+                                st.divider()
+                                col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+                                
+                                # 1. Поворот влево
+                                with col_btn1:
+                                    if st.button("↺ Влево", key=f"rot_l_{uid}", use_container_width=True):
+                                        if rotate_photo(current_photo[1], 90):
+                                            st.rerun()
+                                
+                                # 2. Поворот вправо
+                                with col_btn2:
+                                    if st.button("↻ Вправо", key=f"rot_r_{uid}", use_container_width=True):
+                                        if rotate_photo(current_photo[1], -90):
+                                            st.rerun()
+                                
+                                # 3. Сделать главным
+                                with col_btn3:
+                                    if current_photo[2] != 1:
+                                        if st.button("⭐ Главное", key=f"main_{uid}", use_container_width=True):
+                                            set_main_photo(current_photo[0])
+                                            st.rerun()
+                                    else:
+                                        st.button("⭐ Главное", disabled=True, use_container_width=True)
+                                
+                                # 4. Удалить фото
+                                with col_btn4:
+                                    if st.button("🗑️ Удалить", key=f"del_p_{uid}", use_container_width=True):
+                                        delete_item_photo(current_photo[0])
+                                        st.session_state[photo_key] = 0
+                                        st.rerun()
                     else:
                         st.info("📷 Нет фото")
                     
-                    # --- КНОПКИ УПРАВЛЕНИЯ ФОТО (ТОЛЬКО ДЛЯ АДМИНА) ---
+                    # --- ДОБАВЛЕНИЕ ФОТО (ТОЛЬКО ДЛЯ АДМИНА) ---
                     if role == "admin":
-                        st.divider()
-                        st.markdown("**⚙️ Управление фото**")
-                        
-                        if photos and os.path.exists(photos[current_idx][1]):
-                            current_photo = photos[current_idx]
-                            
-                            # Строка кнопок управления
-                            col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
-                            
-                            # 1. Поворот влево
-                            with col_btn1:
-                                if st.button("↺ Влево", key=f"rot_l_{uid}", use_container_width=True):
-                                    if rotate_photo(current_photo[1], 90):
-                                        st.rerun()
-                            
-                            # 2. Поворот вправо
-                            with col_btn2:
-                                if st.button("↻ Вправо", key=f"rot_r_{uid}", use_container_width=True):
-                                    if rotate_photo(current_photo[1], -90):
-                                        st.rerun()
-                            
-                            # 3. Сделать главным
-                            with col_btn3:
-                                if current_photo[2] != 1:
-                                    if st.button("⭐ Главное", key=f"main_{uid}", use_container_width=True):
-                                        set_main_photo(current_photo[0])
-                                        st.rerun()
-                                else:
-                                    st.button("⭐ Главное", disabled=True, use_container_width=True)
-                            
-                            # 4. Удалить фото
-                            with col_btn4:
-                                if st.button("🗑️ Удалить фото", key=f"del_p_{uid}", use_container_width=True):
-                                    delete_item_photo(current_photo[0])
-                                    st.session_state[photo_key] = 0
-                                    st.rerun()
-                        else:
-                            st.info("Нет фото для управления")
-                        
-                        # --- ДОБАВЛЕНИЕ ФОТО ---
                         st.divider()
                         with st.expander("📤 Добавить фото", expanded=False):
                             uploaded = st.file_uploader(
@@ -967,6 +961,7 @@ with tabs[3]:
                 st.divider()
     else:
         st.info("📭 Склад пуст. Добавьте товары через боковую панель.")
+ 
 # ============================================================
 # 7.5 ЗАЯВКИ
 # ============================================================
