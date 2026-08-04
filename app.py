@@ -100,7 +100,6 @@ c_init.execute('''CREATE TABLE IF NOT EXISTS consumption
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, item_id TEXT, quantity REAL, unit TEXT,
                   object_name TEXT, user TEXT, date TEXT)''')
 
-# ДОБАВЛЯЕМ ТАБЛИЦУ ФОТО
 c_init.execute('''CREATE TABLE IF NOT EXISTS item_photos
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   item_id TEXT,
@@ -108,7 +107,6 @@ c_init.execute('''CREATE TABLE IF NOT EXISTS item_photos
                   date_added TEXT,
                   is_main INTEGER DEFAULT 0)''')
 
-# ДОБАВЛЯЕМ НЕДОСТАЮЩИЕ КОЛОНКИ
 try:
     c_init.execute("ALTER TABLE items ADD COLUMN photos_count INTEGER DEFAULT 0")
 except:
@@ -215,6 +213,13 @@ def add_item(name, location, room, quantity, unit):
     conn.close()
     return item_id
 
+def add_item_with_photo(name, location, room, quantity, unit, photo_path=None, is_main=True):
+    """Добавить товар с фото"""
+    item_id = add_item(name, location, room, quantity, unit)
+    if photo_path and os.path.exists(photo_path):
+        add_item_photo(item_id, photo_path, is_main)
+    return item_id
+
 def update_item(item_id, name, location, room, quantity, unit, threshold):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -259,8 +264,6 @@ def get_low_stock_items():
     results = c.fetchall()
     conn.close()
     return results
-
-# ===== ФУНКЦИИ ДЛЯ ФОТО =====
 
 def add_item_photo(item_id, photo_path, is_main=False):
     conn = sqlite3.connect('storage.db')
@@ -339,8 +342,6 @@ def rotate_photo_right(photo_path):
 def rotate_photo_180(photo_path):
     return rotate_photo(photo_path, 180)
 
-# ===== ФУНКЦИИ ДЛЯ СПИСАНИЙ =====
-
 def consume_item(item_id, quantity, object_name):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -385,8 +386,6 @@ def get_all_consumption():
     results = c.fetchall()
     conn.close()
     return results
-
-# ===== ФУНКЦИИ ДЛЯ ЗАЯВОК =====
 
 def add_request(name, quantity, unit, description, photo_path, user):
     conn = sqlite3.connect('storage.db')
@@ -582,7 +581,7 @@ def get_stats():
     conn.close()
     return stats
 
-# --- БОКОВАЯ ПАНЕЛЬ ---
+# --- БОКОВАЯ ПАНЕЛЬ (С ДОБАВЛЕНИЕМ ФОТО) ---
 with st.sidebar:
     st.markdown(f"### 👤 {user_name}")
     st.caption(f"Роль: {'🔑 Администратор' if role == 'admin' else '🔧 Сотрудник'}")
@@ -608,6 +607,7 @@ with st.sidebar:
     
     if role == "admin":
         with st.form("quick_add", clear_on_submit=True):
+            st.markdown("### ➕ Новый товар")
             name = st.text_input("Название*")
             loc = st.text_input("Место*")
             rooms = get_room_names()
@@ -617,8 +617,43 @@ with st.sidebar:
                 qty = st.number_input("Кол-во", min_value=0.0, value=1.0)
             with col2:
                 unit = st.selectbox("Ед.", ["шт", "л", "кг", "м", "комплект"])
+            
+            # --- ДОБАВЛЕНИЕ ФОТО ПРИ СОЗДАНИИ ---
+            st.markdown("---")
+            st.markdown("**📸 Фото товара**")
+            uploaded_photo = st.file_uploader(
+                "Выберите фото (опционально)",
+                type=["jpg", "jpeg", "png"],
+                key="quick_add_photo"
+            )
+            is_main = st.checkbox("⭐ Сделать главным", value=True)
+            
             if st.form_submit_button("💾 Сохранить") and name and loc and room != "Нет помещений":
+                # Сохраняем фото
+                photo_path = None
+                if uploaded_photo:
+                    if not os.path.exists("images/items"):
+                        os.makedirs("images/items")
+                    ext = uploaded_photo.name.split('.')[-1]
+                    item_id_temp = str(uuid.uuid4())[:8]
+                    photo_path = f"images/items/{item_id_temp}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+                    with open(photo_path, "wb") as f:
+                        f.write(uploaded_photo.getbuffer())
+                
+                # Добавляем товар с фото
                 add_item(name, loc, room, qty, unit)
+                
+                # Если есть фото - добавляем его к последнему добавленному товару
+                if photo_path:
+                    conn = sqlite3.connect('storage.db')
+                    c = conn.cursor()
+                    c.execute("SELECT id FROM items ORDER BY date_added DESC LIMIT 1")
+                    result = c.fetchone()
+                    if result:
+                        item_id = result[0]
+                        add_item_photo(item_id, photo_path, is_main)
+                    conn.close()
+                
                 st.success(f"✅ {name} добавлен!")
                 st.rerun()
 
@@ -872,6 +907,8 @@ with tabs[3]:
                             st.image(current_photo[1], use_container_width=True)
                             if current_photo[2] == 1:
                                 st.caption("⭐ Главное фото")
+                        else:
+                            st.info("📷 Файл фото не найден")
                     else:
                         st.info("📷 Нет фото")
                     
@@ -1289,7 +1326,8 @@ with tabs[7]:
             for item in c.fetchall():
                 st.write(f"  {'🔴' if item[6] <= item[7] else '🟢'} {item[1]} — {item[6]} {item[5]}")
             conn.close()
-        # Управление
+
+# Управление
 with tabs[8]:
     st.markdown("## ⚙️ Управление")
     if role == "admin":
@@ -1308,59 +1346,3 @@ with tabs[8]:
                 fname = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
                 shutil.copy2('storage.db', f"backups/{fname}")
                 st.success(f"✅ Бэкап создан: {fname}")
-
-# --- ПРИНУДИТЕЛЬНОЕ СОЗДАНИЕ ТЕСТОВЫХ ФОТО ---
-def force_create_photos():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    
-    # Получаем все товары
-    c.execute("SELECT id, name FROM items")
-    items = c.fetchall()
-    
-    if not items:
-        print("⚠️ Нет товаров в базе")
-        conn.close()
-        return
-    
-    for item_id, name in items:
-        # Проверяем, есть ли фото
-        c.execute("SELECT COUNT(*) FROM item_photos WHERE item_id=?", (item_id,))
-        count = c.fetchone()[0]
-        
-        if count == 0:
-            # Создаём папку
-            if not os.path.exists("images/items"):
-                os.makedirs("images/items")
-            
-            photo_path = f"images/items/test_{item_id}.jpg"
-            
-            try:
-                from PIL import Image, ImageDraw
-                img = Image.new('RGB', (400, 300), color='#e8f5e9')
-                d = ImageDraw.Draw(img)
-                d.rectangle([10, 10, 390, 290], outline='#2e7d32', width=3)
-                d.text((50, 130), name[:20] if name else "Товар", fill='#2e7d32')
-                img.save(photo_path)
-                print(f"✅ Создано фото для: {name}")
-            except Exception as e:
-                print(f"⚠️ Ошибка создания фото для {name}: {e}")
-                # Если ошибка - создаём пустой файл
-                with open(photo_path, 'w') as f:
-                    f.write("test")
-            
-            # Добавляем в БД
-            c.execute("""INSERT INTO item_photos (item_id, photo_path, date_added, is_main) 
-                         VALUES (?,?,?,?)""",
-                      (item_id, photo_path, datetime.now().strftime("%Y-%m-%d %H:%M"), 1))
-            
-            # Обновляем счётчик
-            c.execute("UPDATE items SET photos_count = photos_count + 1 WHERE id=?", (item_id,))
-    
-    conn.commit()
-    conn.close()
-    print("✅ Тестовые фото созданы!")
-
-# Запускаем создание тестовых фото
-force_create_photos()    
-    
