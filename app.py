@@ -873,70 +873,91 @@ with tabs[3]:
                             
                             st.image(current_photo[1], use_container_width=True)
                             if current_photo[2] == 1:
-                                st.caption("⭐ Главное")
+                                st.caption("⭐ Главное фото")
+                            else:
+                                st.caption("📸 Обычное фото")
                     else:
                         st.info("📷 Нет фото")
                     
                     # --- НАСТРОЙКИ ФОТО (ТОЛЬКО ДЛЯ АДМИНА) ---
                     if role == "admin":
                         with st.expander("⚙️ Настройки фото", expanded=False):
-                            if photos and os.path.exists(photos[current_idx][1]):
-                                current_photo = photos[current_idx]
-                                
-                                # Поворот
-                                st.caption("🔄 Поворот:")
-                                c1, c2, c3, c4 = st.columns(4)
-                                with c1:
-                                    if st.button("↺ 90°", key=f"rot_l_{uid}"):
-                                        if rotate_photo(current_photo[1], 90):
+                            st.markdown("**Управление фотографиями**")
+                            
+                            if photos:
+                                # Текущее фото для управления
+                                if current_idx < len(photos):
+                                    current_photo = photos[current_idx]
+                                    
+                                    if os.path.exists(current_photo[1]):
+                                        # --- ПОВОРОТ ---
+                                        st.markdown("**🔄 Поворот текущего фото**")
+                                        c1, c2, c3 = st.columns(3)
+                                        with c1:
+                                            if st.button("↺ 90°", key=f"rot_l_{uid}"):
+                                                if rotate_photo(current_photo[1], 90):
+                                                    st.rerun()
+                                        with c2:
+                                            if st.button("↻ 90°", key=f"rot_r_{uid}"):
+                                                if rotate_photo(current_photo[1], -90):
+                                                    st.rerun()
+                                        with c3:
+                                            if st.button("180°", key=f"rot_180_{uid}"):
+                                                if rotate_photo(current_photo[1], 180):
+                                                    st.rerun()
+                                        
+                                        st.divider()
+                                        
+                                        # --- СДЕЛАТЬ ГЛАВНЫМ ---
+                                        if current_photo[2] != 1:
+                                            if st.button("⭐ Сделать главным", key=f"main_{uid}", use_container_width=True):
+                                                set_main_photo(current_photo[0])
+                                                st.rerun()
+                                        
+                                        # --- УДАЛИТЬ ФОТО ---
+                                        if st.button("🗑️ Удалить это фото", key=f"del_p_{uid}", use_container_width=True):
+                                            delete_item_photo(current_photo[0])
+                                            st.session_state[photo_key] = 0
                                             st.rerun()
-                                with c2:
-                                    if st.button("↻ 90°", key=f"rot_r_{uid}"):
-                                        if rotate_photo(current_photo[1], -90):
-                                            st.rerun()
-                                with c3:
-                                    if st.button("180°", key=f"rot_180_{uid}"):
-                                        if rotate_photo(current_photo[1], 180):
-                                            st.rerun()
-                                with c4:
-                                    if st.button("↺", key=f"rot_reset_{uid}"):
-                                        if rotate_photo(current_photo[1], 0):
-                                            st.rerun()
-                                
-                                st.divider()
-                                
-                                if current_photo[2] != 1:
-                                    if st.button("⭐ Сделать главным", key=f"main_{uid}"):
-                                        set_main_photo(current_photo[0])
-                                        st.rerun()
-                                
-                                if st.button("🗑️ Удалить это фото", key=f"del_p_{uid}"):
-                                    delete_item_photo(current_photo[0])
-                                    st.session_state[photo_key] = 0
-                                    st.rerun()
+                                        
+                                        # --- СПИСОК ВСЕХ ФОТО ---
+                                        if len(photos) > 1:
+                                            st.divider()
+                                            st.markdown("**📸 Все фото товара**")
+                                            cols = st.columns(min(4, len(photos)))
+                                            for i, p in enumerate(photos):
+                                                with cols[i % 4]:
+                                                    if os.path.exists(p[1]):
+                                                        st.image(p[1], use_container_width=True)
+                                                        label = "⭐" if p[2] == 1 else f"{i+1}"
+                                                        if st.button(label, key=f"goto_{uid}_{p[0]}"):
+                                                            st.session_state[photo_key] = i
+                                                            st.rerun()
                             else:
                                 st.info("Нет фото для управления")
                             
+                            # --- ДОБАВЛЕНИЕ ФОТО ---
                             st.divider()
-                            st.caption("📤 Добавить фото:")
+                            st.markdown("**📤 Добавить новые фото**")
                             uploaded = st.file_uploader(
-                                "Выберите фото", 
-                                type=["jpg","jpeg","png"], 
-                                accept_multiple_files=True, 
+                                "Выберите фотографии (можно несколько)",
+                                type=["jpg", "jpeg", "png"],
+                                accept_multiple_files=True,
                                 key=f"upload_{uid}"
                             )
+                            
                             if uploaded:
                                 c1, c2 = st.columns(2)
                                 with c1:
-                                    is_main = st.checkbox("⭐ Главное", key=f"is_main_{uid}")
+                                    is_main_new = st.checkbox("⭐ Сделать главным", key=f"is_main_{uid}")
                                 with c2:
-                                    if st.button("📤 Загрузить", key=f"save_{uid}"):
+                                    if st.button("📤 Загрузить", key=f"save_{uid}", use_container_width=True):
                                         for i, uf in enumerate(uploaded):
                                             ext = uf.name.split('.')[-1]
                                             path = f"images/items/{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.{ext}"
                                             with open(path, "wb") as f:
                                                 f.write(uf.getbuffer())
-                                            add_item_photo(item_id, path, is_main=(i == 0 and is_main))
+                                            add_item_photo(item_id, path, is_main=(i == 0 and is_main_new))
                                         st.success(f"✅ Загружено {len(uploaded)} фото!")
                                         st.rerun()
                 
