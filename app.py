@@ -1289,8 +1289,7 @@ with tabs[7]:
             for item in c.fetchall():
                 st.write(f"  {'🔴' if item[6] <= item[7] else '🟢'} {item[1]} — {item[6]} {item[5]}")
             conn.close()
-
-# Управление
+    # Управление
 with tabs[8]:
     st.markdown("## ⚙️ Управление")
     if role == "admin":
@@ -1397,3 +1396,5 @@ def force_create_photos():
 # Запускаем
 force_create_photos()
                 st.success(f"✅ Бэкап создан: {fname}")
+
+
