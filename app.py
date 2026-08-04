@@ -735,6 +735,20 @@ with tabs[6]:
                             st.rerun()
     else:
         st.success("✅ Список покупок пуст!")
+# Список покупок
+with tabs[6]:
+    st.markdown("## 🛒 Список покупок")
+    items = get_shopping_list()
+    ...
+    (весь код до)
+    ...
+                elif item['type'] == 'approved':
+                    ...
+                        if st.button("📋 В работу", key=f"back_{item['id']}"):
+                            update_request_status(item['id'], "in_work")
+                            st.rerun()
+    else:
+        st.success("✅ Список покупок пуст!")
 # Парк
 with tabs[7]:
     st.markdown("## 🚜 Парк техники")
