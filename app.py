@@ -1289,7 +1289,7 @@ with tabs[7]:
             for item in c.fetchall():
                 st.write(f"  {'🔴' if item[6] <= item[7] else '🟢'} {item[1]} — {item[6]} {item[5]}")
             conn.close()
-    # Управление
+        # Управление
 with tabs[8]:
     st.markdown("## ⚙️ Управление")
     if role == "admin":
@@ -1308,11 +1308,9 @@ with tabs[8]:
                 fname = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
                 shutil.copy2('storage.db', f"backups/{fname}")
                 st.success(f"✅ Бэкап создан: {fname}")
-# --- ПРИНУДИТЕЛЬНОЕ СОЗДАНИЕ ФОТО С ИСПРАВЛЕНИЕМ ---
+
+# --- ПРИНУДИТЕЛЬНОЕ СОЗДАНИЕ ТЕСТОВЫХ ФОТО ---
 def force_create_photos():
-    import base64
-    from io import BytesIO
-    
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     
@@ -1320,81 +1318,49 @@ def force_create_photos():
     c.execute("SELECT id, name FROM items")
     items = c.fetchall()
     
+    if not items:
+        print("⚠️ Нет товаров в базе")
+        conn.close()
+        return
+    
     for item_id, name in items:
-        # Удаляем старые фото этого товара
-        c.execute("SELECT photo_path FROM item_photos WHERE item_id=?", (item_id,))
-        old_photos = c.fetchall()
-        for old in old_photos:
-            if os.path.exists(old[0]):
-                try:
-                    os.remove(old[0])
-                    print(f"🗑️ Удалён старый файл: {old[0]}")
-                except:
-                    pass
+        # Проверяем, есть ли фото
+        c.execute("SELECT COUNT(*) FROM item_photos WHERE item_id=?", (item_id,))
+        count = c.fetchone()[0]
         
-        c.execute("DELETE FROM item_photos WHERE item_id=?", (item_id,))
-        
-        # Создаём новое фото
-        if not os.path.exists("images/items"):
-            os.makedirs("images/items")
-        
-        photo_path = f"images/items/test_{item_id}.jpg"
-        
-        try:
-            # ПРОБУЕМ СОЗДАТЬ ЧЕРЕЗ PIL
-            from PIL import Image, ImageDraw, ImageFont
+        if count == 0:
+            # Создаём папку
+            if not os.path.exists("images/items"):
+                os.makedirs("images/items")
             
-            # Создаём изображение
-            img = Image.new('RGB', (400, 300), color='#e3f2fd')
-            d = ImageDraw.Draw(img)
+            photo_path = f"images/items/test_{item_id}.jpg"
             
-            # Рисуем рамку
-            d.rectangle([10, 10, 390, 290], outline='#1565c0', width=4)
-            
-            # Текст
-            text = name[:20] if name else "Товар"
-            d.text((50, 120), text, fill='#1565c0')
-            d.text((50, 160), "📦 Тестовое фото", fill='#1565c0')
-            
-            # Сохраняем
-            img.save(photo_path, 'JPEG', quality=95)
-            print(f"✅ Создано фото через PIL для: {name}")
-            
-        except Exception as e:
-            print(f"⚠️ PIL не работает, создаю через base64: {e}")
-            
-            # Если PIL не работает - создаём через base64
             try:
-                # Простой зелёный квадрат с текстом через HTML
                 from PIL import Image, ImageDraw
-                img = Image.new('RGB', (400, 300), color='lightgreen')
+                img = Image.new('RGB', (400, 300), color='#e8f5e9')
                 d = ImageDraw.Draw(img)
-                d.text((50, 130), name[:20] if name else "Товар", fill='darkgreen')
+                d.rectangle([10, 10, 390, 290], outline='#2e7d32', width=3)
+                d.text((50, 130), name[:20] if name else "Товар", fill='#2e7d32')
                 img.save(photo_path)
-                print(f"✅ Создано фото через простой метод для: {name}")
-            except:
-                # Если вообще ничего не работает - создаём пустой JPEG
-                with open(photo_path, 'wb') as f:
-                    # Минимальный валидный JPEG
-                    f.write(b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c $.\' ",#\x1c\x1c(7),01444\x1c\'9=82<.342\xff\xc0\x00\x0b\x08\x00\xc8\x01\x90\x01\x01\x11\x00\xff\xc4\x00\x14\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x03\xff\xc4\x00\x14\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x03\xff\xda\x00\x0c\x03\x01\x00\x02\x11\x03\x11\x00?\x00\xff\xd9')
-                print(f"✅ Создан бинарный JPEG для: {name}")
-        
-        # Добавляем в БД
-        c.execute("""INSERT INTO item_photos (item_id, photo_path, date_added, is_main) 
-                     VALUES (?,?,?,?)""",
-                  (item_id, photo_path, datetime.now().strftime("%Y-%m-%d %H:%M"), 1))
-        
-        # Обновляем счётчик
-        c.execute("UPDATE items SET photos_count = photos_count + 1 WHERE id=?", (item_id,))
-        print(f"✅ Добавлен в БД для: {name}")
+                print(f"✅ Создано фото для: {name}")
+            except Exception as e:
+                print(f"⚠️ Ошибка создания фото для {name}: {e}")
+                # Если ошибка - создаём пустой файл
+                with open(photo_path, 'w') as f:
+                    f.write("test")
+            
+            # Добавляем в БД
+            c.execute("""INSERT INTO item_photos (item_id, photo_path, date_added, is_main) 
+                         VALUES (?,?,?,?)""",
+                      (item_id, photo_path, datetime.now().strftime("%Y-%m-%d %H:%M"), 1))
+            
+            # Обновляем счётчик
+            c.execute("UPDATE items SET photos_count = photos_count + 1 WHERE id=?", (item_id,))
     
     conn.commit()
     conn.close()
-    print("=" * 50)
-    print("✅ ВСЕ ФОТО ПЕРЕСОЗДАНЫ!")
+    print("✅ Тестовые фото созданы!")
 
-# Запускаем
-force_create_photos()
-                st.success(f"✅ Бэкап создан: {fname}")
-
-
+# Запускаем создание тестовых фото
+force_create_photos()    
+    
