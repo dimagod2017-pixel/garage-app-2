@@ -1309,7 +1309,7 @@ with tabs[8]:
                 fname = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
                 shutil.copy2('storage.db', f"backups/{fname}")
                 st.success(f"✅ Бэкап создан: {fname}")
-                # --- ПРИНУДИТЕЛЬНОЕ СОЗДАНИЕ ФОТО С ИСПРАВЛЕНИЕМ ---
+# --- ПРИНУДИТЕЛЬНОЕ СОЗДАНИЕ ФОТО С ИСПРАВЛЕНИЕМ ---
 def force_create_photos():
     import base64
     from io import BytesIO
