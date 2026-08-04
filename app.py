@@ -469,6 +469,7 @@ with tabs[1]:
 with tabs[2]:
     st.markdown("## 🔍 Поиск товаров")
     search = st.text_input("Поиск по названию, месту, помещению")
+    
     if search:
         items = search_items(search)
         if items:
@@ -478,10 +479,30 @@ with tabs[2]:
     
     if items:
         for item in items:
-            with st.expander(f"{'🔴' if item[6] <= item[7] else '🟢'} {item[1]} — {item[6]} {item[5]} | {item[3]}"):
-                st.write(f"📍 {item[2]}")
+            # item: id(0), name(1), location(2), room(3), date(4), unit(5), quantity(6), threshold(7), photo(8)
+            qty = item[6] if len(item) > 6 else 0
+            threshold = item[7] if len(item) > 7 else 1
+            photo = item[8] if len(item) > 8 else ""
+            
+            with st.expander(f"{'🔴' if qty <= threshold else '🟢'} {item[1]} — {qty} {item[5]} | {item[3]}"):
+                col1, col2 = st.columns([2, 1])
+                with col1:
+                    st.write(f"📍 Место: {item[2]}")
+                    st.write(f"🏠 Помещение: {item[3]}")
+                    st.write(f"📦 Количество: {qty} {item[5]}")
+                    st.write(f"⚠️ Порог: {threshold}")
+                    st.write(f"📅 Добавлен: {item[4][:10] if item[4] else 'Н/Д'}")
+                    
+                    if qty <= threshold:
+                        st.warning(f"⚠️ Осталось мало!")
+                
+                with col2:
+                    if photo and os.path.exists(photo):
+                        st.image(photo, caption=item[1], use_container_width=True)
+                    else:
+                        st.caption("📷 Нет фото")
     else:
-        st.info("Ничего не найдено")найдено")
+        st.info("Ничего не найдено")
 # Товары
 with tabs[3]:
     st.markdown("## 📋 Все товары")
