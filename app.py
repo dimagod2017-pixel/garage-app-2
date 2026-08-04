@@ -78,7 +78,7 @@ def init_db():
     
     # --- СОЗДАЕМ ТАБЛИЦЫ ЕСЛИ ИХ НЕТ ---
     
-    # Таблица товаров (без photo, добавим позже ALTER TABLE)
+    # Таблица товаров
     c.execute('''CREATE TABLE IF NOT EXISTS items
                  (id TEXT PRIMARY KEY, 
                   name TEXT, 
@@ -87,7 +87,8 @@ def init_db():
                   date_added TEXT, 
                   quantity REAL, 
                   unit TEXT, 
-                  threshold INTEGER DEFAULT 1)''')
+                  threshold INTEGER DEFAULT 1,
+                  photos_count INTEGER DEFAULT 0)''')
     
     # Таблица техники
     c.execute('''CREATE TABLE IF NOT EXISTS equipment
@@ -117,7 +118,7 @@ def init_db():
                   admin_comment TEXT, 
                   suggested_item_id TEXT)''')
     
-    # Таблица списаний (без доп. полей, добавим позже)
+    # Таблица списаний
     c.execute('''CREATE TABLE IF NOT EXISTS consumption
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   item_id TEXT, 
@@ -127,27 +128,34 @@ def init_db():
                   user TEXT, 
                   date TEXT)''')
     
-    # --- ДОБАВЛЯЕМ НЕДОСТАЮЩИЕ КОЛОНКИ ЧЕРЕЗ ALTER TABLE ---
+    # --- НОВАЯ ТАБЛИЦА ДЛЯ ФОТОГРАФИЙ ТОВАРОВ ---
+    c.execute('''CREATE TABLE IF NOT EXISTS item_photos
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  item_id TEXT,
+                  photo_path TEXT,
+                  date_added TEXT,
+                  is_main INTEGER DEFAULT 0,
+                  FOREIGN KEY (item_id) REFERENCES items(id))''')
     
-    # Для таблицы items - добавляем photo
+    # --- ДОБАВЛЯЕМ НЕДОСТАЮЩИЕ КОЛОНКИ ---
+    
+    # Для таблицы items
     try:
-        c.execute("ALTER TABLE items ADD COLUMN photo TEXT")
+        c.execute("ALTER TABLE items ADD COLUMN photos_count INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
-        pass  # колонка уже существует
+        pass
     
-    # Для таблицы consumption - добавляем equipment_name
+    # Для таблицы consumption
     try:
         c.execute("ALTER TABLE consumption ADD COLUMN equipment_name TEXT")
     except sqlite3.OperationalError:
         pass
     
-    # Для таблицы consumption - добавляем equipment_number
     try:
         c.execute("ALTER TABLE consumption ADD COLUMN equipment_number TEXT")
     except sqlite3.OperationalError:
         pass
     
-    # Для таблицы consumption - добавляем photo
     try:
         c.execute("ALTER TABLE consumption ADD COLUMN photo TEXT")
     except sqlite3.OperationalError:
@@ -157,6 +165,596 @@ def init_db():
     conn.close()
     print("✅ База данных инициализирована")
 
+# ===== ФУНКЦИИ ДЛЯ РАБОТЫ С ПОМЕЩЕНИЯМИ =====
+
+def add_room(name):
+    """Добавить новое помещение"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO rooms (name, date_added) VALUES (?,?)", 
+                  (name, datetime.now().strftime("%Y-%m-%d %H:%M")))
+        conn.commit()
+        return True
+    except:
+        return False
+    finally:
+        conn.close()
+
+def get_room_names():
+    """Получить список всех помещений"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT name FROM rooms ORDER BY name")
+    names = [row[0] for row in c.fetchall()]
+    conn.close()
+    return names
+
+# ===== ФУНКЦИИ ДЛЯ РАБОТЫ С ТЕХНИКОЙ =====
+
+def add_equipment(name, number=""):
+    """Добавить новую технику"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO equipment (name, number, date_added) VALUES (?,?,?)",
+                  (name, number, datetime.now().strftime("%Y-%m-%d %H:%M")))
+        conn.commit()
+        return True
+    except:
+        return False
+    finally:
+        conn.close()
+
+def get_equipment():
+    """Получить список всей техники"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM equipment ORDER BY name")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_equipment_for_search(query=""):
+    """Поиск техники по названию или номеру"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if query:
+        ql = f"%{query}%"
+        c.execute("SELECT * FROM equipment WHERE name LIKE ? OR number LIKE ? ORDER BY name", (ql, ql))
+    else:
+        c.execute("SELECT * FROM equipment ORDER BY name")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+# ===== ФУНКЦИИ ДЛЯ РАБОТЫ С ТОВАРАМИ =====
+
+def get_all_items():
+    """Получить все товары с фото"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT id, name, location, room, date_added, unit, quantity, threshold, photos_count FROM items ORDER BY date_added DESC")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def search_items(query):
+    """Поиск товаров с фото"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    ql = f"%{query}%"
+    c.execute("SELECT id, name, location, room, date_added, unit, quantity, threshold, photos_count FROM items WHERE name LIKE ? OR location LIKE ? OR room LIKE ?", (ql, ql, ql))
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_item_by_id(item_id):
+    """Получить товар по ID"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT id, name, location, room, date_added, unit, quantity, threshold, photos_count FROM items WHERE id=?", (item_id,))
+    result = c.fetchone()
+    conn.close()
+    return result
+
+def add_item(name, location, room, quantity, unit):
+    """Добавить новый товар"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    item_id = str(uuid.uuid4())[:8]
+    c.execute("INSERT INTO items (id, name, location, room, date_added, quantity, unit, threshold) VALUES (?,?,?,?,?,?,?,?)",
+              (item_id, name, location, room, datetime.now().strftime("%Y-%m-%d %H:%M"), quantity, unit, 1))
+    conn.commit()
+    conn.close()
+    return item_id
+
+def update_item(item_id, name, location, room, quantity, unit, threshold):
+    """Полное обновление товара"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("""UPDATE items 
+                 SET name=?, location=?, room=?, quantity=?, unit=?, threshold=? 
+                 WHERE id=?""", (name, location, room, quantity, unit, threshold, item_id))
+    conn.commit()
+    conn.close()
+
+def update_quantity(item_id, new_quantity):
+    """Обновить количество товара"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE items SET quantity = ? WHERE id = ?", (new_quantity, item_id))
+    conn.commit()
+    conn.close()
+
+def move_item(item_id, new_location, new_room):
+    """Переместить товар в другое место"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE items SET location=?, room=? WHERE id=?", (new_location, new_room, item_id))
+    conn.commit()
+    conn.close()
+
+def delete_item(item_id):
+    """Удалить товар и все его фотографии"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    
+    # Получаем все фото товара
+    c.execute("SELECT photo_path FROM item_photos WHERE item_id=?", (item_id,))
+    photos = c.fetchall()
+    
+    # Удаляем файлы
+    for photo in photos:
+        if os.path.exists(photo[0]):
+            try:
+                os.remove(photo[0])
+            except:
+                pass
+    
+    # Удаляем записи из БД
+    c.execute("DELETE FROM item_photos WHERE item_id=?", (item_id,))
+    c.execute("DELETE FROM items WHERE id = ?", (item_id,))
+    
+    conn.commit()
+    conn.close()
+
+def get_low_stock_items():
+    """Получить товары с низким запасом"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT id, name, location, room, date_added, unit, quantity, threshold, photos_count FROM items WHERE quantity <= threshold ORDER BY quantity ASC")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+# ===== ФУНКЦИИ ДЛЯ РАБОТЫ С ФОТОГРАФИЯМИ ТОВАРОВ =====
+
+def add_item_photo(item_id, photo_path, is_main=False):
+    """Добавить фотографию к товару"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    
+    # Если это главное фото, снимаем флаг is_main со всех остальных
+    if is_main:
+        c.execute("UPDATE item_photos SET is_main=0 WHERE item_id=?", (item_id,))
+    
+    c.execute("""INSERT INTO item_photos (item_id, photo_path, date_added, is_main) 
+                 VALUES (?,?,?,?)""",
+              (item_id, photo_path, datetime.now().strftime("%Y-%m-%d %H:%M"), 1 if is_main else 0))
+    
+    # Обновляем счетчик фото в таблице items
+    c.execute("UPDATE items SET photos_count = photos_count + 1 WHERE id=?", (item_id,))
+    
+    conn.commit()
+    conn.close()
+
+def get_item_photos(item_id):
+    """Получить все фотографии товара"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT id, photo_path, is_main FROM item_photos WHERE item_id=? ORDER BY is_main DESC, date_added DESC", (item_id,))
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_main_photo(item_id):
+    """Получить главную фотографию товара"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT photo_path FROM item_photos WHERE item_id=? AND is_main=1 LIMIT 1", (item_id,))
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result else None
+
+def delete_item_photo(photo_id):
+    """Удалить фотографию товара"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    
+    # Получаем item_id и путь к фото
+    c.execute("SELECT item_id, photo_path FROM item_photos WHERE id=?", (photo_id,))
+    result = c.fetchone()
+    if result:
+        item_id, photo_path = result
+        
+        # Удаляем файл
+        if os.path.exists(photo_path):
+            try:
+                os.remove(photo_path)
+            except:
+                pass
+        
+        # Удаляем запись из БД
+        c.execute("DELETE FROM item_photos WHERE id=?", (photo_id,))
+        
+        # Обновляем счетчик
+        c.execute("UPDATE items SET photos_count = photos_count - 1 WHERE id=?", (item_id,))
+        
+        # Если удалили главное фото, делаем первое попавшееся главным
+        c.execute("SELECT id, photo_path FROM item_photos WHERE item_id=? LIMIT 1", (item_id,))
+        first = c.fetchone()
+        if first:
+            c.execute("UPDATE item_photos SET is_main=1 WHERE id=?", (first[0],))
+        
+        conn.commit()
+        conn.close()
+        return True
+    
+    conn.close()
+    return False
+
+def set_main_photo(photo_id):
+    """Установить фотографию как главную"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    
+    # Получаем item_id
+    c.execute("SELECT item_id FROM item_photos WHERE id=?", (photo_id,))
+    result = c.fetchone()
+    if result:
+        item_id = result[0]
+        # Снимаем флаг is_main со всех фото этого товара
+        c.execute("UPDATE item_photos SET is_main=0 WHERE item_id=?", (item_id,))
+        # Устанавливаем новое главное фото
+        c.execute("UPDATE item_photos SET is_main=1 WHERE id=?", (photo_id,))
+        conn.commit()
+        conn.close()
+        return True
+    
+    conn.close()
+    return False
+
+def update_item_photos_count(item_id):
+    """Обновить счетчик фотографий в таблице items"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM item_photos WHERE item_id=?", (item_id,))
+    count = c.fetchone()[0]
+    c.execute("UPDATE items SET photos_count=? WHERE id=?", (count, item_id))
+    conn.commit()
+    conn.close()
+
+# ===== ФУНКЦИИ ДЛЯ СПИСАНИЙ =====
+
+def consume_item(item_id, quantity, object_name):
+    """Списать товар (простое списание)"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT quantity, unit FROM items WHERE id = ?", (item_id,))
+    result = c.fetchone()
+    if not result or quantity > result[0]:
+        conn.close()
+        return False
+    new_q = result[0] - quantity
+    c.execute("UPDATE items SET quantity = ? WHERE id = ?", (new_q, item_id))
+    c.execute("INSERT INTO consumption (item_id, quantity, unit, object_name, user, date) VALUES (?,?,?,?,?,?)",
+              (item_id, quantity, result[1], object_name, user_name, datetime.now().strftime("%Y-%m-%d %H:%M")))
+    conn.commit()
+    conn.close()
+    return True
+
+def take_item(item_id, quantity, equipment_name, equipment_number, photo_path=""):
+    """Взять товар на технику (с привязкой к технике)"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    
+    c.execute("SELECT quantity, unit FROM items WHERE id=?", (item_id,))
+    result = c.fetchone()
+    if not result or quantity > result[0]:
+        conn.close()
+        return False, "Недостаточно товара на складе!"
+    
+    new_q = result[0] - quantity
+    c.execute("UPDATE items SET quantity=? WHERE id=?", (new_q, item_id))
+    
+    c.execute("""INSERT INTO consumption 
+                 (item_id, quantity, unit, object_name, user, date, equipment_name, equipment_number, photo) 
+                 VALUES (?,?,?,?,?,?,?,?,?)""",
+              (item_id, quantity, result[1], f"{equipment_name} (№{equipment_number})", 
+               user_name, datetime.now().strftime("%Y-%m-%d %H:%M"), 
+               equipment_name, equipment_number, photo_path))
+    conn.commit()
+    conn.close()
+    return True, f"✅ {quantity} {result[1]} взято на {equipment_name}"
+
+def get_all_consumption():
+    """Получить все списания"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("""SELECT c.*, i.name FROM consumption c JOIN items i ON c.item_id = i.id 
+                 ORDER BY c.date DESC LIMIT 200""")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+# ===== ФУНКЦИИ ДЛЯ ЗАЯВОК =====
+
+def add_request(name, quantity, unit, description, photo_path, user):
+    """Добавить новую заявку"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO requests (name, quantity, unit, description, photo, user, date) VALUES (?,?,?,?,?,?,?)",
+              (name, quantity, unit, description, photo_path, user, datetime.now().strftime("%Y-%m-%d %H:%M")))
+    conn.commit()
+    conn.close()
+
+def get_requests(status=None, user=None):
+    """Получить заявки с фильтрацией"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if status and user:
+        c.execute("SELECT * FROM requests WHERE status=? AND user=? ORDER BY date DESC", (status, user))
+    elif status:
+        c.execute("SELECT * FROM requests WHERE status=? ORDER BY date DESC", (status,))
+    elif user:
+        c.execute("SELECT * FROM requests WHERE user=? ORDER BY date DESC", (user,))
+    else:
+        c.execute("SELECT * FROM requests ORDER BY date DESC")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def update_request_status(request_id, status, comment="", suggested_item_id=None):
+    """Обновить статус заявки"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if suggested_item_id:
+        c.execute("UPDATE requests SET status=?, admin_comment=?, seen=0, suggested_item_id=? WHERE id=?",
+                  (status, comment, suggested_item_id, request_id))
+    else:
+        c.execute("UPDATE requests SET status=?, admin_comment=?, seen=0 WHERE id=?",
+                  (status, comment, request_id))
+    conn.commit()
+    conn.close()
+
+def return_request(request_id, reason=""):
+    """Вернуть заявку на доработку"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    comment = f"Отклонено: {reason}" if reason else "Отклонено сотрудником"
+    c.execute("UPDATE requests SET status='returned', admin_comment=?, seen=0 WHERE id=?", (comment, request_id))
+    conn.commit()
+    conn.close()
+
+def mark_request_seen(request_id):
+    """Отметить заявку как просмотренную"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE requests SET seen=1 WHERE id=?", (request_id,))
+    conn.commit()
+    conn.close()
+
+def delete_request(request_id):
+    """Удалить заявку"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM requests WHERE id=?", (request_id,))
+    conn.commit()
+    conn.close()
+
+def create_item_from_request(request_id, name, location, room, quantity, unit):
+    """Создать товар из заявки и удалить заявку"""
+    item_id = add_item(name, location, room, quantity, unit)
+    delete_request(request_id)
+    return item_id
+
+def unpack_request(req):
+    """Распаковать заявку в словарь"""
+    return {
+        'id': req[0], 
+        'name': req[1] if len(req) > 1 else "",
+        'quantity': req[2] if len(req) > 2 else 0, 
+        'unit': req[3] if len(req) > 3 else "",
+        'description': req[4] if len(req) > 4 else "", 
+        'photo': req[5] if len(req) > 5 else "",
+        'user': req[6] if len(req) > 6 else "", 
+        'date': req[7] if len(req) > 7 else "",
+        'status': req[8] if len(req) > 8 else "pending", 
+        'seen': req[9] if len(req) > 9 else 0,
+        'admin_comment': req[10] if len(req) > 10 else "", 
+        'suggested_item_id': req[11] if len(req) > 11 else None
+    }
+
+# ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+
+def show_item_card_mini(item):
+    """Показать мини-карточку товара"""
+    name = item[1] if len(item) > 1 else "Без названия"
+    location = item[2] if len(item) > 2 else ""
+    room = item[3] if len(item) > 3 else ""
+    unit = item[5] if len(item) > 5 else "шт"
+    quantity = item[6] if len(item) > 6 else 0
+    
+    st.markdown(f"**{name}** — {quantity} {unit} | {room}")
+    st.caption(f"📍 {location}")
+
+def get_all_notifications():
+    """Получить все уведомления"""
+    notifications = []
+    
+    if role == "admin":
+        # Новые заявки
+        for req in get_requests(status='pending'):
+            r = unpack_request(req)
+            notif_id = f"pending_{r['id']}"
+            if notif_id not in st.session_state.dismissed_notifications:
+                notifications.append({
+                    'id': notif_id, 
+                    'type': 'pending', 
+                    'icon': '📝',
+                    'title': f'Новая заявка: {r["name"]}',
+                    'text': f'От: {r["user"]} | {r["quantity"]} {r["unit"]}',
+                    'date': r['date'], 
+                    'request_id': r['id']
+                })
+        
+        # Возвращенные заявки
+        for req in get_requests(status='returned'):
+            r = unpack_request(req)
+            notif_id = f"returned_{r['id']}"
+            if notif_id not in st.session_state.dismissed_notifications:
+                notifications.append({
+                    'id': notif_id, 
+                    'type': 'returned', 
+                    'icon': '🔄',
+                    'title': f'Возврат: {r["name"]}',
+                    'text': r['admin_comment'][:100] if r['admin_comment'] else 'Без комментария',
+                    'date': r['date'], 
+                    'request_id': r['id']
+                })
+        
+        # Товары с низким запасом
+        for item in get_low_stock_items():
+            item_id = item[0]
+            name = item[1]
+            quantity = item[6] if len(item) > 6 else 0
+            unit = item[5] if len(item) > 5 else "шт"
+            threshold = item[7] if len(item) > 7 else 1
+            date_added = item[4] if len(item) > 4 else ""
+            
+            notif_id = f"low_{item_id}"
+            if notif_id not in st.session_state.dismissed_notifications:
+                notifications.append({
+                    'id': notif_id, 
+                    'type': 'low_stock', 
+                    'icon': '⚠️',
+                    'title': f'Заканчивается: {name}',
+                    'text': f'Осталось {quantity} {unit} (порог: {threshold})',
+                    'date': date_added, 
+                    'item_id': item_id
+                })
+    
+    else:  # Сотрудник
+        for req in get_requests(user=user_name):
+            r = unpack_request(req)
+            notif_id = f"{r['status']}_{r['id']}"
+            if notif_id not in st.session_state.dismissed_notifications:
+                icons = {
+                    'pending': '⏳', 
+                    'in_work': '🔧', 
+                    'approved': '✅', 
+                    'rejected': '❌',
+                    'suggested': '💡', 
+                    'returned': '🔄'
+                }
+                notifications.append({
+                    'id': notif_id, 
+                    'type': r['status'], 
+                    'icon': icons.get(r['status'], '📋'),
+                    'title': r['name'],
+                    'text': f'Статус: {r["status"]}',
+                    'date': r['date'], 
+                    'request_id': r['id']
+                })
+    
+    return sorted(notifications, key=lambda x: x['date'], reverse=True)
+
+def get_shopping_list():
+    """Получить список покупок"""
+    shopping = []
+    
+    # Заявки в работе
+    for req in get_requests(status='in_work'):
+        r = unpack_request(req)
+        shopping.append({
+            'type': 'in_work', 
+            'icon': '🔧', 
+            'name': r['name'], 
+            'qty': float(r['quantity'] or 0), 
+            'unit': r['unit'], 
+            'user': r['user'], 
+            'id': r['id']
+        })
+    
+    # Новые заявки
+    for req in get_requests(status='pending'):
+        r = unpack_request(req)
+        shopping.append({
+            'type': 'pending', 
+            'icon': '📝', 
+            'name': r['name'], 
+            'qty': float(r['quantity'] or 0), 
+            'unit': r['unit'], 
+            'user': r['user'], 
+            'id': r['id']
+        })
+    
+    # Товары с низким запасом
+    for item in get_low_stock_items():
+        item_id = item[0]
+        name = item[1]
+        location = item[2] if len(item) > 2 else ""
+        room = item[3] if len(item) > 3 else ""
+        quantity = item[6] if len(item) > 6 else 0
+        unit = item[5] if len(item) > 5 else "шт"
+        threshold = item[7] if len(item) > 7 else 1
+        
+        shopping.append({
+            'type': 'low_stock', 
+            'icon': '⚠️', 
+            'name': name, 
+            'qty': float(quantity), 
+            'unit': unit, 
+            'threshold': threshold, 
+            'room': room, 
+            'id': item_id
+        })
+    
+    # Одобренные заявки
+    for req in get_requests(status='approved'):
+        r = unpack_request(req)
+        shopping.append({
+            'type': 'approved', 
+            'icon': '✅', 
+            'name': r['name'], 
+            'qty': float(r['quantity'] or 0), 
+            'unit': r['unit'], 
+            'user': r['user'], 
+            'id': r['id']
+        })
+    
+    return shopping
+
+def get_stats():
+    """Получить статистику"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    stats = {}
+    c.execute("SELECT COUNT(*) FROM items")
+    stats['items'] = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM items WHERE quantity <= threshold")
+    stats['low'] = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM requests WHERE status='pending'")
+    stats['pending'] = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM requests WHERE status='in_work'")
+    stats['in_work'] = c.fetchone()[0]
+    conn.close()
+    return stats
+
+# Инициализация базы данных
+init_db()
+print("✅ База данных готова к работе!")
 # ===== ФУНКЦИИ ДЛЯ РАБОТЫ С ПОМЕЩЕНИЯМИ =====
 
 def add_room(name):
