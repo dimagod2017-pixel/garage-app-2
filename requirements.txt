@@ -1,7 +1,4 @@
 streamlit
-sqlite3
 pandas
 pillow
-qrcode
-plotly
 openpyxl
