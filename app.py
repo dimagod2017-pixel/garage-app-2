@@ -486,12 +486,176 @@ with tabs[2]:
 # Товары
 with tabs[3]:
     st.markdown("## 📋 Все товары")
+
+    # CSS для карточек и модального окна
+    st.markdown("""
+    <style>
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 16px;
+        }
+        .product-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            background: #fff;
+            padding: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .product-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .card-status {
+            font-size: 0.85rem;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            color: white;
+        }
+        .status-low { background-color: #d32f2f; }
+        .status-ok { background-color: #2e7d32; }
+        .card-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin: 8px 0 4px;
+            line-height: 1.3;
+        }
+        .card-meta {
+            font-size: 0.9rem;
+            color: #555;
+            line-height: 1.4;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .modal-close {
+            position: absolute;
+            right: 16px;
+            top: 14px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #777;
+        }
+        .detail-row { margin-bottom: 12px; }
+        .detail-label {
+            font-size: 0.8rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .detail-value {
+            font-weight: 600;
+            color: #333;
+            font-size: 1rem;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
     items = get_all_items()
     if items:
+        st.markdown('<div class="product-grid">', unsafe_allow_html=True)
         for item in items:
-            st.write(f"{'🔴' if item[6] <= item[7] else '🟢'} **{item[1]}** — {item[6]} {item[5]} | {item[3]} | {item[2]}")
+            # item[6] — остаток, item[7] — норма, item[1] — название, item[5] — ед. изм., item[3] — тип, item[2] — артикул
+            status_class = "status-low" if item[6] <= item[7] else "status-ok"
+            status_text = "Низкий остаток" if item[6] <= item[7] else "В норме"
+
+            # Экранируем кавычки в строках, чтобы JS не ломался
+            name_safe = item[1].replace("'", "\\'").replace('"', '\\"')
+            art_safe = str(item[2]).replace("'", "\\'").replace('"', '\\"') if item[2] else ""
+            type_safe = str(item[3]).replace("'", "\\'").replace('"', '\\"') if item[3] else ""
+
+            st.markdown(f"""
+            <div class="product-card" onclick="
+                const params = new URLSearchParams(window.location.search);
+                params.set('modal_id', '{item[0]}');
+                window.location.search = params.toString();
+            ">
+                <span class="card-status {status_class}">{status_text}</span>
+                <div class="card-title">{name_safe}</div>
+                <div class="card-meta">
+                    Остаток: {item[6]} {item[5]}<br>
+                    Тип: {type_safe}<br>
+                    Артикул: {art_safe}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.info("Склад пуст")
+
+    # Логика модального окна (по query param modal_id)
+    query_params = st.query_params()
+    if "modal_id" in query_params:
+        modal_id = int(query_params["modal_id"][0])
+        conn = sqlite3.connect("warehouse.db")
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM items WHERE id = ?", (modal_id,))
+        row = cur.fetchone()
+        conn.close()
+
+        if row:
+            status_detail = "Низкий остаток" if row[6] <= row[7] else "В норме"
+            color = "#d32f2f" if row[6] <= row[7] else "#2e7d32"
+
+            st.markdown(f"""
+            <div class="modal-overlay visible">
+                <div class="modal-content">
+                    <button class="modal-close" onclick="
+                        const params = new URLSearchParams(window.location.search);
+                        params.delete('modal_id');
+                        window.location.search = params.toString();
+                    ">×</button>
+                    <h3 style="margin:0 0 16px; font-size:1.3rem;">{row[1]}</h3>
+                    <div class="detail-row">
+                        <div class="detail-label">Артикул</div>
+                        <div class="detail-value">{row[2]}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Тип</div>
+                        <div class="detail-value">{row[3]}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Единица измерения</div>
+                        <div class="detail-value">{row[5]}</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">Остаток / Норма</div>
+                        <div class="detail-value" style="color:{color}">
+                            {row[6]} {row[5]} / {row[7]} {row[5]} — {status_detail}
+                        </div>
+                    </div>
+                    <!-- Добавь сюда другие поля, если нужно, например цену: row[8] -->
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
 # Заявки
 with tabs[4]:
