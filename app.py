@@ -612,7 +612,39 @@ def get_stats():
 # Инициализация базы данных
 init_db()
 print("✅ База данных готова к работе!")    
+# --- ПРОВЕРКА И СОЗДАНИЕ ТАБЛИЦЫ ФОТО ---
+def ensure_photo_table():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    
+    # Создаём таблицу если её нет
+    c.execute('''CREATE TABLE IF NOT EXISTS item_photos
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  item_id TEXT,
+                  photo_path TEXT,
+                  date_added TEXT,
+                  is_main INTEGER DEFAULT 0)''')
+    
+    # Добавляем колонку photos_count в items если её нет
+    try:
+        c.execute("ALTER TABLE items ADD COLUMN photos_count INTEGER DEFAULT 0")
+    except:
+        pass
+    
+    # Обновляем photos_count для всех товаров
+    c.execute("SELECT id FROM items")
+    items = c.fetchall()
+    for item in items:
+        c.execute("SELECT COUNT(*) FROM item_photos WHERE item_id=?", (item[0],))
+        count = c.fetchone()[0]
+        c.execute("UPDATE items SET photos_count=? WHERE id=?", (count, item[0]))
+    
+    conn.commit()
+    conn.close()
+    print("✅ Таблица фото проверена и создана")
 
+# Вызываем проверку
+ensure_photo_table()
 # --- БОКОВАЯ ПАНЕЛЬ ---
 with st.sidebar:
     st.markdown(f"### 👤 {user_name}")
