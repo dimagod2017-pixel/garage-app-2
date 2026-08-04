@@ -10,6 +10,14 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+# --- СОЗДАЕМ ПАПКИ ДЛЯ ФОТО ---
+if not os.path.exists("images"):
+    os.makedirs("images")
+if not os.path.exists("images/items"):
+    os.makedirs("images/items")
+if not os.path.exists("images/take"):
+    os.makedirs("images/take")
+
 # --- НАСТРОЙКА YANDEX ПОЧТЫ ---
 EMAIL_SENDER = "Yvedomlenie-scald.sad@yandex.ru"
 EMAIL_PASSWORD = "ТВОЙ_ПАРОЛЬ_ОТ_ПОЧТЫ"
