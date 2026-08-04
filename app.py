@@ -418,52 +418,104 @@ role = user["role"]
 user_name = user["name"]
 
 # ============================================================
-# 7.1 УВЕДОМЛЕНИЯ
+# 5. УВЕДОМЛЕНИЯ
 # ============================================================
 
-with tabs[0]:
-    st.markdown("## 📬 Уведомления")
-    notifs = get_notifications()
+def get_notifications():
+    notifications = []
     
-    if notifs:
-        if st.button("🗑️ Очистить все"):
-            for n in notifs:
-                st.session_state.dismissed_notifications.append(n['id'])
-            st.rerun()
+    if role == "admin":
+        # Новые заявки
+        for req in get_requests(status='pending'):
+            r = unpack_request(req)
+            nid = f"pending_{r['id']}"
+            if nid not in st.session_state.dismissed_notifications:
+                notifications.append({
+                    'id': nid, 'icon': '📝', 'title': f'Новая заявка: {r["name"]}',
+                    'text': f'От: {r["user"]} | {r["quantity"]} {r["unit"]}',
+                    'date': r['date'], 'request_id': r['id']
+                })
         
-        st.divider()
+        # Возвращенные заявки
+        for req in get_requests(status='returned'):
+            r = unpack_request(req)
+            nid = f"returned_{r['id']}"
+            if nid not in st.session_state.dismissed_notifications:
+                notifications.append({
+                    'id': nid, 'icon': '🔄', 'title': f'Возврат: {r["name"]}',
+                    'text': r['admin_comment'][:100] if r['admin_comment'] else 'Без комментария',
+                    'date': r['date'], 'request_id': r['id']
+                })
         
-        for n in notifs:
-            with st.expander(f"{n['icon']} {n['title']}", expanded=True):
-                st.write(f"📝 {n['text']}")
-                st.caption(f"📅 {n['date'][:16] if n['date'] else 'Н/Д'}")
-                
-                # Кнопки действий для администратора (новая заявка)
-                if role == "admin" and n.get('request_id') and n.get('icon') == '📝':
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        if st.button("🔧 В работу", key=f"w_{n['id']}"):
-                            update_request_status(n['request_id'], "in_work")
-                            st.session_state.dismissed_notifications.append(n['id'])
-                            st.rerun()
-                    with col2:
-                        if st.button("✅ Одобрить", key=f"a_{n['id']}"):
-                            update_request_status(n['request_id'], "approved")
-                            st.session_state.dismissed_notifications.append(n['id'])
-                            st.rerun()
-                    with col3:
-                        if st.button("❌ Отклонить", key=f"r_{n['id']}"):
-                            update_request_status(n['request_id'], "rejected")
-                            st.session_state.dismissed_notifications.append(n['id'])
-                            st.rerun()
-                
-                # Кнопка скрыть для всех
-                if st.button("🗑️ Скрыть", key=f"d_{n['id']}"):
-                    st.session_state.dismissed_notifications.append(n['id'])
-                    st.rerun()
-    else:
-        st.success("✅ Нет новых уведомлений!")
-        st.info("💡 Уведомления появляются при создании заявок или когда товары заканчиваются.")
+        # Товары с низким запасом
+        for item in get_low_stock():
+            nid = f"low_{item[0]}"
+            if nid not in st.session_state.dismissed_notifications:
+                notifications.append({
+                    'id': nid, 'icon': '⚠️', 'title': f'Заканчивается: {item[1]}',
+                    'text': f'Осталось {item[6]} {item[5]} (порог: {item[7]})',
+                    'date': item[4], 'item_id': item[0]
+                })
+    
+    else:  # Сотрудник
+        for req in get_requests(user=user_name):
+            r = unpack_request(req)
+            nid = f"{r['status']}_{r['id']}"
+            if nid not in st.session_state.dismissed_notifications:
+                icons = {
+                    'pending': '⏳', 'in_work': '🔧', 'approved': '✅',
+                    'rejected': '❌', 'suggested': '💡', 'returned': '🔄'
+                }
+                status_text = {
+                    'pending': 'На рассмотрении', 'in_work': 'В работе',
+                    'approved': 'Выполнено', 'rejected': 'Отклонено',
+                    'suggested': 'Предложен товар', 'returned': 'Возвращено'
+                }
+                notifications.append({
+                    'id': nid, 'icon': icons.get(r['status'], '📋'),
+                    'title': r['name'],
+                    'text': f'Статус: {status_text.get(r["status"], r["status"])}',
+                    'date': r['date'], 'request_id': r['id']
+                })
+    
+    return sorted(notifications, key=lambda x: x['date'], reverse=True)
+
+
+def get_shopping_list():
+    shopping = []
+    
+    for req in get_requests(status='in_work'):
+        r = unpack_request(req)
+        shopping.append({
+            'type': 'in_work', 'icon': '🔧', 'name': r['name'],
+            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
+            'user': r['user'], 'id': r['id']
+        })
+    
+    for req in get_requests(status='pending'):
+        r = unpack_request(req)
+        shopping.append({
+            'type': 'pending', 'icon': '📝', 'name': r['name'],
+            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
+            'user': r['user'], 'id': r['id']
+        })
+    
+    for item in get_low_stock():
+        shopping.append({
+            'type': 'low_stock', 'icon': '⚠️', 'name': item[1],
+            'qty': float(item[6] or 0), 'unit': item[5],
+            'room': item[3], 'id': item[0]
+        })
+    
+    for req in get_requests(status='approved'):
+        r = unpack_request(req)
+        shopping.append({
+            'type': 'approved', 'icon': '✅', 'name': r['name'],
+            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
+            'user': r['user'], 'id': r['id']
+        })
+    
+    return shopping
 # ============================================================
 # 6. БОКОВАЯ ПАНЕЛЬ
 # ============================================================
