@@ -722,10 +722,8 @@ with tabs[2]:
     
     if items:
         for item in items:
-            # item: id(0), name(1), location(2), room(3), date(4), unit(5), quantity(6), threshold(7), photo(8)
             qty = item[6] if len(item) > 6 else 0
             threshold = item[7] if len(item) > 7 else 1
-            photo = item[8] if len(item) > 8 else ""
             
             with st.expander(f"{'🔴' if qty <= threshold else '🟢'} {item[1]} — {qty} {item[5]} | {item[3]}"):
                 col1, col2 = st.columns([2, 1])
@@ -740,8 +738,17 @@ with tabs[2]:
                         st.warning(f"⚠️ Осталось мало!")
                 
                 with col2:
-                    if photo and os.path.exists(photo):
-                        st.image(photo, caption=item[1], use_container_width=True)
+                    photos = get_item_photos(item[0])
+                    if photos:
+                        main_photo = None
+                        for p in photos:
+                            if p[2] == 1:
+                                main_photo = p
+                                break
+                        if main_photo and os.path.exists(main_photo[1]):
+                            st.image(main_photo[1], caption=item[1], use_container_width=True)
+                        else:
+                            st.caption("📷 Нет фото")
                     else:
                         st.caption("📷 Нет фото")
     else:
