@@ -481,9 +481,7 @@ with tabs[2]:
             with st.expander(f"{'🔴' if item[6] <= item[7] else '🟢'} {item[1]} — {item[6]} {item[5]} | {item[3]}"):
                 st.write(f"📍 {item[2]}")
     else:
-        st.info("Ничего не найдено")
-
-найдено")
+        st.info("Ничего не найдено")найдено")
 # Товары
 with tabs[3]:
     st.markdown("## 📋 Все товары")
