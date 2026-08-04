@@ -1546,3 +1546,61 @@ with tabs[8]:
                 fname = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
                 shutil.copy2('storage.db', f"backups/{fname}")
                 st.success(f"✅ Бэкап создан: {fname}")
+       # --- ПРИНУДИТЕЛЬНОЕ ДОБАВЛЕНИЕ ТЕСТОВЫХ ФОТО ---
+def force_add_test_photos():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    
+    # Получаем все товары
+    c.execute("SELECT id, name FROM items")
+    items = c.fetchall()
+    
+    if not items:
+        print("⚠️ Нет товаров в базе данных")
+        conn.close()
+        return
+    
+    for item_id, name in items:
+        # Проверяем, есть ли фото у товара
+        c.execute("SELECT COUNT(*) FROM item_photos WHERE item_id=?", (item_id,))
+        count = c.fetchone()[0]
+        
+        if count == 0:
+            # Создаём папку если нет
+            if not os.path.exists("images/items"):
+                os.makedirs("images/items")
+            
+            # Путь к фото
+            photo_path = f"images/items/test_{item_id}.jpg"
+            
+            try:
+                # Создаём тестовое изображение
+                from PIL import Image, ImageDraw
+                img = Image.new('RGB', (300, 300), color='lightblue')
+                d = ImageDraw.Draw(img)
+                d.rectangle([50, 50, 250, 250], outline='darkblue', width=3)
+                d.text((70, 130), name[:20] if name else "Товар", fill='darkblue')
+                d.text((70, 170), "📷 Тестовое фото", fill='darkblue')
+                img.save(photo_path)
+                print(f"✅ Создано тестовое фото для: {name}")
+            except Exception as e:
+                # Если не получилось создать картинку - просто создаём пустой файл
+                with open(photo_path, 'w') as f:
+                    f.write("test")
+                print(f"✅ Создан файл-заглушка для: {name}")
+            
+            # Добавляем в БД
+            c.execute("""INSERT INTO item_photos (item_id, photo_path, date_added, is_main) 
+                         VALUES (?,?,?,?)""",
+                      (item_id, photo_path, datetime.now().strftime("%Y-%m-%d %H:%M"), 1))
+            
+            # Обновляем счётчик
+            c.execute("UPDATE items SET photos_count = photos_count + 1 WHERE id=?", (item_id,))
+    
+    conn.commit()
+    conn.close()
+    print("✅ Тестовые фото добавлены!")
+
+# Запускаем принудительное добавление
+force_add_test_photos()
+print("✅ Готово!")         
