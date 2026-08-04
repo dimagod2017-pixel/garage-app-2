@@ -486,7 +486,6 @@ with tabs[2]:
 # Товары
 with tabs[3]:
     st.markdown("## 📋 Все товары")
-
     # CSS для карточек и модального окна
     st.markdown("""
     <style>
