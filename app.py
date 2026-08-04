@@ -645,6 +645,36 @@ def ensure_photo_table():
 
 # Вызываем проверку
 ensure_photo_table()
+# --- ПРИНУДИТЕЛЬНОЕ СОЗДАНИЕ ТАБЛИЦЫ И ФУНКЦИЙ ---
+def ensure_photo_system():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    
+    # Создаём таблицу
+    c.execute('''CREATE TABLE IF NOT EXISTS item_photos
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  item_id TEXT,
+                  photo_path TEXT,
+                  date_added TEXT,
+                  is_main INTEGER DEFAULT 0)''')
+    
+    # Добавляем колонку
+    try:
+        c.execute("ALTER TABLE items ADD COLUMN photos_count INTEGER DEFAULT 0")
+    except:
+        pass
+    
+    conn.commit()
+    conn.close()
+    
+    # Проверяем, что функции существуют
+    if 'get_item_photos' not in dir():
+        print("❌ Функция get_item_photos не найдена!")
+    else:
+        print("✅ Система фото готова!")
+
+ensure_photo_system()
+print("✅ Проверка системы фото завершена!")
 # --- БОКОВАЯ ПАНЕЛЬ ---
 with st.sidebar:
     st.markdown(f"### 👤 {user_name}")
