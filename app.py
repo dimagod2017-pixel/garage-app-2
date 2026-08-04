@@ -637,13 +637,29 @@ with tabs[5]:
 # Список покупок
 with tabs[6]:
     st.markdown("## 🛒 Список покупок")
-    items = get_shopping_list()
     
-    if items:
-        in_work = len([i for i in items if i['type'] == 'in_work'])
-        pending = len([i for i in items if i['type'] == 'pending'])
-        low = len([i for i in items if i['type'] == 'low_stock'])
-        approved = len([i for i in items if i['type'] == 'approved'])
+    shopping = []
+    for req in get_requests(status='in_work'):
+        r = unpack_request(req)
+        shopping.append({'type': 'in_work', 'icon': '🔧', 'name': r['name'], 'qty': float(r['quantity'] or 0), 
+                        'unit': r['unit'], 'user': r['user'], 'id': r['id']})
+    for req in get_requests(status='pending'):
+        r = unpack_request(req)
+        shopping.append({'type': 'pending', 'icon': '📝', 'name': r['name'], 'qty': float(r['quantity'] or 0), 
+                        'unit': r['unit'], 'user': r['user'], 'id': r['id']})
+    for item in get_low_stock_items():
+        shopping.append({'type': 'low', 'icon': '⚠️', 'name': item[1], 'qty': float(item[6] or 0), 
+                        'unit': item[5], 'threshold': item[7], 'room': item[3], 'id': item[0]})
+    for req in get_requests(status='approved'):
+        r = unpack_request(req)
+        shopping.append({'type': 'approved', 'icon': '✅', 'name': r['name'], 'qty': float(r['quantity'] or 0), 
+                        'unit': r['unit'], 'user': r['user'], 'id': r['id']})
+    
+    if shopping:
+        in_work = len([i for i in shopping if i['type'] == 'in_work'])
+        pending = len([i for i in shopping if i['type'] == 'pending'])
+        low = len([i for i in shopping if i['type'] == 'low'])
+        approved = len([i for i in shopping if i['type'] == 'approved'])
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -657,67 +673,68 @@ with tabs[6]:
         
         st.divider()
         
-        for item in items:
-            # Уникальный ключ с префиксом типа
-            unique_key = f"{item['type']}_{item['id']}"
+        for item in shopping:
+            key_prefix = f"{item['type']}_{item['id']}"
             
             with st.expander(f"{item['icon']} {item['name']} — {item['qty']} {item['unit']}"):
                 if item['type'] == 'in_work':
+                    st.write(f"От: {item['user']}")
                     col1, col2 = st.columns(2)
                     with col1:
-                        if st.button("✅ Выполнено", key=f"done_{unique_key}"):
+                        if st.button("✅ Выполнено", key=f"done_{key_prefix}"):
                             update_request_status(item['id'], "approved")
                             st.rerun()
                     with col2:
-                        if st.button("📦 Создать", key=f"create_{unique_key}"):
+                        if st.button("📦 Создать", key=f"create_{key_prefix}"):
                             rooms = get_room_names()
                             if rooms:
-                                room = st.selectbox("Помещение", rooms, key=f"room_{unique_key}")
-                                loc = st.text_input("Место", key=f"loc_{unique_key}")
-                                if st.button("💾 Сохранить", key=f"save_{unique_key}") and loc:
+                                room = st.selectbox("Помещение", rooms, key=f"room_{key_prefix}")
+                                loc = st.text_input("Место", key=f"loc_{key_prefix}")
+                                if st.button("💾 Сохранить", key=f"save_{key_prefix}") and loc:
                                     create_item_from_request(item['id'], item['name'], loc, room, item['qty'], item['unit'])
                                     st.rerun()
                 
                 elif item['type'] == 'pending':
+                    st.write(f"От: {item['user']}")
                     col1, col2 = st.columns(2)
                     with col1:
-                        if st.button("🔧 В работу", key=f"work_{unique_key}"):
+                        if st.button("🔧 В работу", key=f"work_{key_prefix}"):
                             update_request_status(item['id'], "in_work")
                             st.rerun()
                     with col2:
-                        if st.button("✅ Одобрить", key=f"app_{unique_key}"):
+                        if st.button("✅ Одобрить", key=f"app_{key_prefix}"):
                             update_request_status(item['id'], "approved")
                             st.rerun()
                 
-                elif item['type'] == 'low_stock':
+                elif item['type'] == 'low':
                     st.write(f"📍 {item['room']} (порог: {item['threshold']})")
-                    new_qty = st.number_input("Новое кол-во", value=float(item['qty']), key=f"qty_{unique_key}")
-                    if st.button("💾 Обновить", key=f"upd_{unique_key}"):
+                    new_qty = st.number_input("Новое кол-во", value=float(item['qty']), key=f"qty_{key_prefix}")
+                    if st.button("💾 Обновить", key=f"upd_{key_prefix}"):
                         update_quantity(item['id'], new_qty)
                         st.rerun()
                 
                 elif item['type'] == 'approved':
+                    st.write(f"От: {item['user']}")
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        if st.button("📦 Создать", key=f"create_a_{unique_key}"):
+                        if st.button("📦 Создать", key=f"ca_{key_prefix}"):
                             rooms = get_room_names()
                             if rooms:
-                                room = st.selectbox("Помещение", rooms, key=f"room_a_{unique_key}")
-                                loc = st.text_input("Место", key=f"loc_a_{unique_key}")
-                                if st.button("💾 Сохранить", key=f"save_a_{unique_key}") and loc:
+                                room = st.selectbox("Помещение", rooms, key=f"ra_{key_prefix}")
+                                loc = st.text_input("Место", key=f"la_{key_prefix}")
+                                if st.button("💾 Сохранить", key=f"sa_{key_prefix}") and loc:
                                     create_item_from_request(item['id'], item['name'], loc, room, item['qty'], item['unit'])
                                     st.rerun()
                     with col2:
-                        if st.button("🗑️ Удалить", key=f"del_{unique_key}"):
+                        if st.button("🗑️ Удалить", key=f"del_{key_prefix}"):
                             delete_request(item['id'])
                             st.rerun()
                     with col3:
-                        if st.button("📋 В работу", key=f"back_{unique_key}"):
+                        if st.button("📋 В работу", key=f"back_{key_prefix}"):
                             update_request_status(item['id'], "in_work")
                             st.rerun()
     else:
         st.success("✅ Список покупок пуст!")
-
 # Парк
 with tabs[7]:
     st.markdown("## 🚜 Парк техники")
