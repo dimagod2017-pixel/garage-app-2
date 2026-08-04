@@ -6,37 +6,9 @@ from datetime import datetime
 from PIL import Image
 import pandas as pd
 from io import BytesIO
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import qrcode
-import plotly.express as px
-import plotly.graph_objects as go
 from collections import Counter
 import shutil
-
-# --- НАСТРОЙКА ПОЧТЫ ---
-EMAIL_SENDER = "Yvedomlenie-scald.sad@yandex.ru"
-EMAIL_PASSWORD = "ТВОЙ_ПАРОЛЬ_ОТ_ПОЧТЫ"
-EMAIL_RECIPIENT = "Yvedomlenie-scald.sad@yandex.ru"
-SMTP_SERVER = "smtp.yandex.ru"
-SMTP_PORT = 587
-
-def send_email(subject, body):
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = EMAIL_SENDER
-        msg['To'] = EMAIL_RECIPIENT
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()
-        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        return True
-    except:
-        return False
 
 # --- ПОЛЬЗОВАТЕЛИ ---
 USERS = {
@@ -97,41 +69,12 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS consumption
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, item_id TEXT, quantity REAL, unit TEXT,
                   object_name TEXT, user TEXT, date TEXT, status TEXT DEFAULT 'pending')''')
-    c.execute('''CREATE TABLE IF NOT EXISTS audit_log
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, user TEXT, action TEXT, 
-                  details TEXT, date TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS backups
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, filename TEXT, date TEXT, size INTEGER)''')
-    
-    for table, columns in [
-        ('items', ['category', 'description', 'item_photo', 'tags', 'price', 'supplier']),
-        ('equipment', ['category']),
-        ('rooms', ['description']),
-        ('requests', ['suggested_item_id', 'priority'])
-    ]:
-        try:
-            c.execute(f"PRAGMA table_info({table})")
-            existing = [col[1] for col in c.fetchall()]
-            for col in columns:
-                if col not in existing:
-                    c.execute(f"ALTER TABLE {table} ADD COLUMN {col} TEXT")
-        except:
-            pass
-    
     conn.commit()
     conn.close()
 
 init_db()
 
 # --- ФУНКЦИИ ---
-def log_action(action, details=""):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("INSERT INTO audit_log (user, action, details, date) VALUES (?,?,?,?)",
-              (user_name, action, details, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-    conn.commit()
-    conn.close()
-
 def get_room_names():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -168,7 +111,6 @@ def add_item(name, location, room, quantity, unit):
               (item_id, name, location, room, datetime.now().strftime("%Y-%m-%d %H:%M"), quantity, unit))
     conn.commit()
     conn.close()
-    log_action("add_item", f"Добавлен: {name}")
     return item_id
 
 def add_request(name, quantity, unit, description, user):
@@ -207,14 +149,12 @@ def update_request_status(request_id, status, comment="", suggested_item_id=None
     conn.close()
 
 def create_item_from_request(request_id, name, location, room, quantity, unit):
-    """Создает товар из заявки и удаляет заявку"""
     item_id = add_item(name, location, room, quantity, unit)
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute("DELETE FROM requests WHERE id=?", (request_id,))
     conn.commit()
     conn.close()
-    log_action("create_from_request", f"Создан товар из заявки {request_id}")
     return item_id
 
 def consume_item(item_id, quantity, object_name):
@@ -243,13 +183,6 @@ def get_consumption():
     except:
         return []
 
-def generate_qr(item_id, name):
-    qr = qrcode.QRCode(version=1, box_size=10, border=5)
-    qr.add_data(f"ITEM:{item_id}|{name}")
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    return img
-
 def search_items_for_suggest(query):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -267,7 +200,7 @@ def get_shopping_list():
     shopping = []
     for req in get_requests(status='in_work'):
         shopping.append({'type': 'in_work', 'icon': '🔧', 'name': req[1], 'qty': req[2], 
-                        'unit': req[3], 'user': req[6], 'id': req[0], 'date': req[7]})
+                        'unit': req[3], 'user': req[6], 'id': req[0]})
     for item in [i for i in get_all_items() if i[6] <= i[7]]:
         shopping.append({'type': 'low_stock', 'icon': '⚠️', 'name': item[1], 'qty': item[6], 
                         'unit': item[5], 'threshold': item[7], 'room': item[3], 'id': item[0]})
@@ -288,37 +221,6 @@ def get_stats():
     stats['pending'] = c.fetchone()[0]
     c.execute("SELECT SUM(quantity * COALESCE(price, 0)) FROM items")
     stats['value'] = c.fetchone()[0] or 0
-    conn.close()
-    return stats
-
-def get_dashboard_stats():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    stats = get_stats()
-    try:
-        c.execute("""SELECT strftime('%Y-%m', date) as month, COUNT(*) 
-                     FROM consumption WHERE date >= date('now', '-6 months') 
-                     GROUP BY month ORDER BY month""")
-        stats['monthly'] = c.fetchall()
-    except:
-        stats['monthly'] = []
-    try:
-        c.execute("""SELECT i.name, SUM(c.quantity) as total 
-                     FROM consumption c JOIN items i ON c.item_id = i.id 
-                     GROUP BY i.name ORDER BY total DESC LIMIT 10""")
-        stats['top_items'] = c.fetchall()
-    except:
-        stats['top_items'] = []
-    try:
-        c.execute("SELECT COALESCE(category, 'Без категории'), COUNT(*) FROM items GROUP BY category")
-        stats['categories'] = c.fetchall()
-    except:
-        stats['categories'] = []
-    try:
-        c.execute("SELECT status, COUNT(*) FROM requests GROUP BY status")
-        stats['req_statuses'] = c.fetchall()
-    except:
-        stats['req_statuses'] = []
     conn.close()
     return stats
 
@@ -386,8 +288,7 @@ tabs = st.tabs(["📊 Дашборд", "🔔 Уведомления", "📋 То
 # Дашборд
 with tabs[0]:
     st.markdown("## 📊 Панель управления")
-    stats = get_dashboard_stats()
-    
+    stats = get_stats()
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("📦 Товаров", stats['items'])
@@ -397,24 +298,6 @@ with tabs[0]:
         st.metric("📝 Заявок", stats['pending'])
     with col4:
         st.metric("💰 Стоимость", f"{stats['value']:,.0f} ₽")
-    
-    st.divider()
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("📈 Расход по месяцам")
-        if stats.get('monthly'):
-            df = pd.DataFrame(stats['monthly'], columns=['Месяц', 'Количество'])
-            fig = px.line(df, x='Месяц', y='Количество', markers=True)
-            fig.update_layout(height=300)
-            st.plotly_chart(fig, use_container_width=True)
-    with col2:
-        st.subheader("🏆 Топ товаров")
-        if stats.get('top_items'):
-            df = pd.DataFrame(stats['top_items'], columns=['Товар', 'Количество'])
-            fig = px.bar(df, x='Количество', y='Товар', orientation='h')
-            fig.update_layout(height=300)
-            st.plotly_chart(fig, use_container_width=True)
 
 # Уведомления
 with tabs[1]:
@@ -471,11 +354,6 @@ with tabs[2]:
                 st.write(f"📍 {item[2]}")
                 if len(item) > 8 and item[8]:
                     st.write(f"🏷️ {item[8]}")
-                if st.button("📱 QR", key=f"qr_{item[0]}"):
-                    img = generate_qr(item[0], item[1])
-                    buf = BytesIO()
-                    img.save(buf, format='PNG')
-                    st.image(buf, width=200)
     else:
         st.info("Ничего не найдено")
 
@@ -507,11 +385,6 @@ with tabs[3]:
                           'suggested': '💡 Предложено', 'returned': '🔄 Возвращено'}
             
             with st.expander(f"{status_text.get(r[8], r[8])} | {r[1]} — {r[2]} {r[3]}"):
-                if len(r) > 4 and r[4]:
-                    st.write(f"Описание: {r[4]}")
-                if len(r) > 10 and r[10]:
-                    st.write(f"Комментарий: {r[10]}")
-                
                 if r[8] == 'suggested' and len(r) > 11 and r[11]:
                     st.markdown("### 💡 Предложенный товар:")
                     conn = sqlite3.connect('storage.db')
@@ -543,128 +416,74 @@ with tabs[3]:
         
         for tab, status in zip(subtabs, ["pending", "in_work", "returned", "suggested", "approved", "rejected"]):
             with tab:
-                requests_list = get_requests(status=status)
-                if requests_list:
-                    for req in requests_list:
-                        r = req
-                        req_id = r[0]
-                        with st.expander(f"{r[1]} — {r[2]} {r[3]} | {r[6]} | {r[7][:10]}"):
-                            if len(r) > 4 and r[4]:
-                                st.write(f"**Описание:** {r[4]}")
-                            if len(r) > 10 and r[10]:
-                                st.write(f"**Комментарий:** {r[10]}")
+                for req in get_requests(status=status):
+                    r = req
+                    req_id = r[0]
+                    with st.expander(f"{r[1]} — {r[2]} {r[3]} | {r[6]} | {r[7][:10]}"):
+                        if status in ['pending', 'returned']:
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                if st.button("✅ Одобрить", key=f"app_{req_id}"):
+                                    update_request_status(req_id, "approved", "Заявка одобрена")
+                                    st.rerun()
+                            with col2:
+                                if st.button("💡 Со склада", key=f"sug_{req_id}"):
+                                    st.session_state[f"show_suggest_{req_id}"] = True
+                            with col3:
+                                if st.button("❌ Отклонить", key=f"rej_{req_id}"):
+                                    update_request_status(req_id, "rejected", "Заявка отклонена")
+                                    st.rerun()
                             
-                            if status in ['pending', 'returned']:
-                                col1, col2, col3 = st.columns(3)
-                                with col1:
-                                    if st.button("✅ Одобрить", key=f"app_{req_id}"):
-                                        update_request_status(req_id, "approved", "Заявка одобрена")
-                                        st.rerun()
-                                with col2:
-                                    if st.button("💡 Со склада", key=f"sug_{req_id}"):
-                                        st.session_state[f"show_suggest_{req_id}"] = True
-                                with col3:
-                                    if st.button("❌ Отклонить", key=f"rej_{req_id}"):
-                                        update_request_status(req_id, "rejected", "Заявка отклонена")
-                                        st.rerun()
-                                
-                                if st.session_state.get(f"show_suggest_{req_id}"):
-                                    st.markdown("---")
-                                    st.info(f"🔍 Поиск товара для: **{r[1]}**")
-                                    search_term = st.text_input("Введите название товара", key=f"search_sug_{req_id}")
-                                    
-                                    if search_term:
-                                        found = search_items_for_suggest(search_term)
-                                        if found:
-                                            st.success(f"Найдено: {len(found)}")
-                                            for item in found:
-                                                with st.container():
-                                                    show_item_card_mini(item)
-                                                    if st.button("📤 Предложить этот товар", key=f"sel_{req_id}_{item[0]}"):
-                                                        update_request_status(req_id, "suggested", 
-                                                                            f"Предложен товар со склада: {item[1]}", item[0])
-                                                        st.session_state[f"show_suggest_{req_id}"] = False
-                                                        st.success(f"✅ Товар '{item[1]}' предложен!")
-                                                        st.rerun()
-                                        else:
-                                            st.warning("Ничего не найдено")
-                                    
-                                    if st.button("❌ Закрыть поиск", key=f"close_{req_id}"):
-                                        st.session_state[f"show_suggest_{req_id}"] = False
-                                        st.rerun()
+                            if st.session_state.get(f"show_suggest_{req_id}"):
+                                st.markdown("---")
+                                search_term = st.text_input("Поиск товара", key=f"search_sug_{req_id}")
+                                if search_term:
+                                    found = search_items_for_suggest(search_term)
+                                    if found:
+                                        for item in found:
+                                            show_item_card_mini(item)
+                                            if st.button("📤 Предложить", key=f"sel_{req_id}_{item[0]}"):
+                                                update_request_status(req_id, "suggested", f"Предложен: {item[1]}", item[0])
+                                                st.session_state[f"show_suggest_{req_id}"] = False
+                                                st.rerun()
+                                if st.button("❌ Закрыть", key=f"close_{req_id}"):
+                                    st.session_state[f"show_suggest_{req_id}"] = False
+                                    st.rerun()
+                        
+                        elif status == 'in_work':
+                            if st.button("✅ Выполнено", key=f"done_{req_id}"):
+                                update_request_status(req_id, "approved", "Заявка выполнена")
+                                st.rerun()
+                        
+                        elif status == 'approved':
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("📦 Создать товар", key=f"create_{req_id}"):
+                                    st.session_state[f"show_create_{req_id}"] = True
+                            with col2:
+                                if st.button("🗑️ Удалить", key=f"del_{req_id}"):
+                                    conn = sqlite3.connect('storage.db')
+                                    c = conn.cursor()
+                                    c.execute("DELETE FROM requests WHERE id=?", (req_id,))
+                                    conn.commit()
+                                    conn.close()
+                                    st.rerun()
                             
-                            elif status == 'in_work':
-                                col1, col2, col3 = st.columns(3)
-                                with col1:
-                                    if st.button("✅ Выполнено", key=f"done_{req_id}"):
-                                        update_request_status(req_id, "approved", "Заявка выполнена")
-                                        st.rerun()
-                                with col2:
-                                    if st.button("💡 Со склада", key=f"sug_w_{req_id}"):
-                                        st.session_state[f"show_suggest_{req_id}"] = True
-                                with col3:
-                                    if st.button("❌ Отклонить", key=f"rej_w_{req_id}"):
-                                        update_request_status(req_id, "rejected", "Отклонена")
-                                        st.rerun()
-                                
-                                if st.session_state.get(f"show_suggest_{req_id}"):
-                                    st.markdown("---")
-                                    st.info(f"🔍 Поиск товара для: **{r[1]}**")
-                                    search_term = st.text_input("Введите название", key=f"search_sug_w_{req_id}")
-                                    
-                                    if search_term:
-                                        found = search_items_for_suggest(search_term)
-                                        if found:
-                                            for item in found:
-                                                show_item_card_mini(item)
-                                                if st.button("📤 Предложить", key=f"sel_w_{req_id}_{item[0]}"):
-                                                    update_request_status(req_id, "suggested", 
-                                                                        f"Предложен: {item[1]}", item[0])
-                                                    st.session_state[f"show_suggest_{req_id}"] = False
-                                                    st.rerun()
-                                    
-                                    if st.button("❌ Закрыть", key=f"close_w_{req_id}"):
-                                        st.session_state[f"show_suggest_{req_id}"] = False
-                                        st.rerun()
-                            
-                            elif status == 'approved':
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    if st.button("📦 Создать товар", key=f"create_{req_id}"):
-                                        st.session_state[f"show_create_{req_id}"] = True
-                                with col2:
-                                    if st.button("🗑️ Удалить", key=f"del_{req_id}"):
-                                        conn = sqlite3.connect('storage.db')
-                                        c = conn.cursor()
-                                        c.execute("DELETE FROM requests WHERE id=?", (req_id,))
-                                        conn.commit()
-                                        conn.close()
-                                        st.rerun()
-                                
-                                if st.session_state.get(f"show_create_{req_id}"):
-                                    with st.form(f"create_form_{req_id}"):
-                                        st.markdown("### 📦 Создать товар из заявки")
-                                        st.info(f"**{r[1]}** — {r[2]} {r[3]}")
-                                        rooms = get_room_names()
-                                        if rooms:
-                                            new_room = st.selectbox("Помещение*", rooms)
-                                            new_loc = st.text_input("Место*")
-                                            col1, col2 = st.columns(2)
-                                            with col1:
-                                                if st.form_submit_button("💾 Сохранить и удалить заявку"):
-                                                    if new_loc:
-                                                        create_item_from_request(req_id, r[1], new_loc, new_room, r[2], r[3])
-                                                        st.session_state[f"show_create_{req_id}"] = False
-                                                        st.success(f"✅ Товар '{r[1]}' создан, заявка удалена!")
-                                                        st.rerun()
-                                                    else:
-                                                        st.error("Укажите место!")
-                                            with col2:
-                                                if st.form_submit_button("❌ Отмена"):
-                                                    st.session_state[f"show_create_{req_id}"] = False
-                                                    st.rerun()
-                else:
-                    st.info(f"Нет заявок со статусом '{status}'")
+                            if st.session_state.get(f"show_create_{req_id}"):
+                                with st.form(f"create_form_{req_id}"):
+                                    st.markdown("### 📦 Создать товар из заявки")
+                                    rooms = get_room_names()
+                                    if rooms:
+                                        new_room = st.selectbox("Помещение*", rooms)
+                                        new_loc = st.text_input("Место*")
+                                        if st.form_submit_button("💾 Сохранить и удалить заявку"):
+                                            if new_loc:
+                                                create_item_from_request(req_id, r[1], new_loc, new_room, r[2], r[3])
+                                                st.session_state[f"show_create_{req_id}"] = False
+                                                st.success(f"✅ Товар '{r[1]}' создан, заявка удалена!")
+                                                st.rerun()
+                                            else:
+                                                st.error("Укажите место!")
 
 # Списания
 with tabs[4]:
@@ -707,18 +526,6 @@ with tabs[5]:
         with col3:
             st.metric("✅ К закупке", approved)
         
-        if st.button("📥 Экспорт в Excel"):
-            data = []
-            for item in items:
-                data.append({'Тип': item['icon'], 'Название': item['name'], 
-                           'Количество': item['qty'], 'Ед.': item['unit'],
-                           'От/Где': item.get('user', item.get('room', ''))})
-            df = pd.DataFrame(data)
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as w:
-                df.to_excel(w, index=False)
-            st.download_button("⬇️ Скачать", output.getvalue(), "shopping.xlsx")
-        
         st.divider()
         
         for item in items:
@@ -740,21 +547,14 @@ with tabs[5]:
                             if rooms:
                                 new_room = st.selectbox("Помещение*", rooms, key=f"room_{item['id']}")
                                 new_loc = st.text_input("Место*", key=f"loc_{item['id']}")
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    if st.form_submit_button("💾 Сохранить и удалить заявку"):
-                                        if new_loc:
-                                            create_item_from_request(item['id'], item['name'], 
-                                                                   new_loc, new_room, item['qty'], item['unit'])
-                                            st.session_state[f"show_create_{item['id']}"] = False
-                                            st.success(f"✅ Товар '{item['name']}' создан, заявка удалена!")
-                                            st.rerun()
-                                        else:
-                                            st.error("Укажите место!")
-                                with col2:
-                                    if st.form_submit_button("❌ Отмена"):
+                                if st.form_submit_button("💾 Сохранить и удалить заявку"):
+                                    if new_loc:
+                                        create_item_from_request(item['id'], item['name'], new_loc, new_room, item['qty'], item['unit'])
                                         st.session_state[f"show_create_{item['id']}"] = False
+                                        st.success(f"✅ Товар '{item['name']}' создан, заявка удалена!")
                                         st.rerun()
+                                    else:
+                                        st.error("Укажите место!")
                 
                 elif item['type'] == 'low_stock':
                     st.write(f"📍 {item['room']} (порог: {item['threshold']})")
@@ -794,21 +594,14 @@ with tabs[5]:
                             if rooms:
                                 new_room = st.selectbox("Помещение*", rooms, key=f"room_a_{item['id']}")
                                 new_loc = st.text_input("Место*", key=f"loc_a_{item['id']}")
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    if st.form_submit_button("💾 Сохранить и удалить заявку"):
-                                        if new_loc:
-                                            create_item_from_request(item['id'], item['name'], 
-                                                                   new_loc, new_room, item['qty'], item['unit'])
-                                            st.session_state[f"show_create_{item['id']}"] = False
-                                            st.success(f"✅ Товар '{item['name']}' создан, заявка удалена!")
-                                            st.rerun()
-                                        else:
-                                            st.error("Укажите место!")
-                                with col2:
-                                    if st.form_submit_button("❌ Отмена"):
+                                if st.form_submit_button("💾 Сохранить и удалить заявку"):
+                                    if new_loc:
+                                        create_item_from_request(item['id'], item['name'], new_loc, new_room, item['qty'], item['unit'])
                                         st.session_state[f"show_create_{item['id']}"] = False
+                                        st.success(f"✅ Товар '{item['name']}' создан, заявка удалена!")
                                         st.rerun()
+                                    else:
+                                        st.error("Укажите место!")
     else:
         st.success("✅ Список покупок пуст!")
 
@@ -848,11 +641,4 @@ with tabs[7]:
                     os.makedirs("backups")
                 fname = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
                 shutil.copy2('storage.db', f"backups/{fname}")
-                size = os.path.getsize(f"backups/{fname}")
-                conn = sqlite3.connect('storage.db')
-                c = conn.cursor()
-                c.execute("INSERT INTO backups (filename, date, size) VALUES (?,?,?)",
-                          (fname, datetime.now().strftime("%Y-%m-%d %H:%M"), size))
-                conn.commit()
-                conn.close()
-                st.success(f"✅ Бэкап создан: {fname} ({size:,} байт)")
+                st.success(f"✅ Бэкап создан: {fname}")
