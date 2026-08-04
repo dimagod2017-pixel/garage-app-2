@@ -76,68 +76,63 @@ if "active_tab" not in st.session_state:
     st.session_state.active_tab = 0
 if "dismissed_notifications" not in st.session_state:
     st.session_state.dismissed_notifications = []
-# --- БАЗА ДАННЫХ ---
 
-def init_db():
-    """Инициализация базы данных"""
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    
-    # Таблица товаров
-    c.execute('''CREATE TABLE IF NOT EXISTS items
+# --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
+conn_init = sqlite3.connect('storage.db')
+c_init = conn_init.cursor()
+
+c_init.execute('''CREATE TABLE IF NOT EXISTS items
                  (id TEXT PRIMARY KEY, name TEXT, location TEXT, room TEXT,
-                  date_added TEXT, quantity REAL, unit TEXT, threshold INTEGER DEFAULT 1,
-                  photos_count INTEGER DEFAULT 0)''')
-    
-    # Таблица техники
-    c.execute('''CREATE TABLE IF NOT EXISTS equipment
+                  date_added TEXT, quantity REAL, unit TEXT, threshold INTEGER DEFAULT 1)''')
+
+c_init.execute('''CREATE TABLE IF NOT EXISTS equipment
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, number TEXT, date_added TEXT)''')
-    
-    # Таблица помещений
-    c.execute('''CREATE TABLE IF NOT EXISTS rooms
+
+c_init.execute('''CREATE TABLE IF NOT EXISTS rooms
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, date_added TEXT)''')
-    
-    # Таблица заявок
-    c.execute('''CREATE TABLE IF NOT EXISTS requests
+
+c_init.execute('''CREATE TABLE IF NOT EXISTS requests
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, quantity REAL, unit TEXT,
                   description TEXT, photo TEXT, user TEXT, date TEXT, status TEXT DEFAULT 'pending',
                   seen INTEGER DEFAULT 0, admin_comment TEXT, suggested_item_id TEXT)''')
-    
-    # Таблица списаний
-    c.execute('''CREATE TABLE IF NOT EXISTS consumption
+
+c_init.execute('''CREATE TABLE IF NOT EXISTS consumption
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, item_id TEXT, quantity REAL, unit TEXT,
                   object_name TEXT, user TEXT, date TEXT)''')
-    
-    # Таблица для фотографий товаров
-    c.execute('''CREATE TABLE IF NOT EXISTS item_photos
+
+# ДОБАВЛЯЕМ ТАБЛИЦУ ФОТО
+c_init.execute('''CREATE TABLE IF NOT EXISTS item_photos
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   item_id TEXT,
                   photo_path TEXT,
                   date_added TEXT,
-                  is_main INTEGER DEFAULT 0,
-                  FOREIGN KEY (item_id) REFERENCES items(id))''')
-    
-    # Добавляем недостающие колонки
-    try:
-        c.execute("ALTER TABLE items ADD COLUMN photos_count INTEGER DEFAULT 0")
-    except: pass
-    
-    try:
-        c.execute("ALTER TABLE consumption ADD COLUMN equipment_name TEXT")
-    except: pass
-    
-    try:
-        c.execute("ALTER TABLE consumption ADD COLUMN equipment_number TEXT")
-    except: pass
-    
-    try:
-        c.execute("ALTER TABLE consumption ADD COLUMN photo TEXT")
-    except: pass
-    
-    conn.commit()
-    conn.close()
+                  is_main INTEGER DEFAULT 0)''')
 
-# ===== ФУНКЦИИ ДЛЯ ПОМЕЩЕНИЙ =====
+# ДОБАВЛЯЕМ НЕДОСТАЮЩИЕ КОЛОНКИ
+try:
+    c_init.execute("ALTER TABLE items ADD COLUMN photos_count INTEGER DEFAULT 0")
+except:
+    pass
+
+try:
+    c_init.execute("ALTER TABLE consumption ADD COLUMN equipment_name TEXT")
+except:
+    pass
+
+try:
+    c_init.execute("ALTER TABLE consumption ADD COLUMN equipment_number TEXT")
+except:
+    pass
+
+try:
+    c_init.execute("ALTER TABLE consumption ADD COLUMN photo TEXT")
+except:
+    pass
+
+conn_init.commit()
+conn_init.close()
+
+# ===== ФУНКЦИИ =====
 
 def add_room(name):
     conn = sqlite3.connect('storage.db')
@@ -159,8 +154,6 @@ def get_room_names():
     names = [row[0] for row in c.fetchall()]
     conn.close()
     return names
-
-# ===== ФУНКЦИИ ДЛЯ ТЕХНИКИ =====
 
 def add_equipment(name, number=""):
     conn = sqlite3.connect('storage.db')
@@ -195,8 +188,6 @@ def get_equipment_for_search(query=""):
     conn.close()
     return results
 
-# ===== ФУНКЦИИ ДЛЯ ТОВАРОВ =====
-
 def get_all_items():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -213,14 +204,6 @@ def search_items(query):
     results = c.fetchall()
     conn.close()
     return results
-
-def get_item_by_id(item_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT id, name, location, room, date_added, unit, quantity, threshold, photos_count FROM items WHERE id=?", (item_id,))
-    result = c.fetchone()
-    conn.close()
-    return result
 
 def add_item(name, location, room, quantity, unit):
     conn = sqlite3.connect('storage.db')
@@ -258,18 +241,14 @@ def move_item(item_id, new_location, new_room):
 def delete_item(item_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    
     c.execute("SELECT photo_path FROM item_photos WHERE item_id=?", (item_id,))
     photos = c.fetchall()
-    
     for photo in photos:
         if os.path.exists(photo[0]):
             try: os.remove(photo[0])
             except: pass
-    
     c.execute("DELETE FROM item_photos WHERE item_id=?", (item_id,))
     c.execute("DELETE FROM items WHERE id = ?", (item_id,))
-    
     conn.commit()
     conn.close()
 
@@ -281,7 +260,7 @@ def get_low_stock_items():
     conn.close()
     return results
 
-# ===== ФУНКЦИИ ДЛЯ РАБОТЫ С ФОТОГРАФИЯМИ =====
+# ===== ФУНКЦИИ ДЛЯ ФОТО =====
 
 def add_item_photo(item_id, photo_path, is_main=False):
     conn = sqlite3.connect('storage.db')
@@ -302,14 +281,6 @@ def get_item_photos(item_id):
     results = c.fetchall()
     conn.close()
     return results
-
-def get_main_photo(item_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT photo_path FROM item_photos WHERE item_id=? AND is_main=1 LIMIT 1", (item_id,))
-    result = c.fetchone()
-    conn.close()
-    return result[0] if result else None
 
 def delete_item_photo(photo_id):
     conn = sqlite3.connect('storage.db')
@@ -350,7 +321,6 @@ def set_main_photo(photo_id):
 
 def rotate_photo(photo_path, degrees):
     try:
-        from PIL import Image
         if not os.path.exists(photo_path):
             return False, "Файл не найден"
         img = Image.open(photo_path)
@@ -390,16 +360,13 @@ def consume_item(item_id, quantity, object_name):
 def take_item(item_id, quantity, equipment_name, equipment_number, photo_path=""):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    
     c.execute("SELECT quantity, unit FROM items WHERE id=?", (item_id,))
     result = c.fetchone()
     if not result or quantity > result[0]:
         conn.close()
         return False, "Недостаточно товара на складе!"
-    
     new_q = result[0] - quantity
     c.execute("UPDATE items SET quantity=? WHERE id=?", (new_q, item_id))
-    
     c.execute("""INSERT INTO consumption 
                  (item_id, quantity, unit, object_name, user, date, equipment_name, equipment_number, photo) 
                  VALUES (?,?,?,?,?,?,?,?,?)""",
@@ -492,8 +459,6 @@ def unpack_request(req):
         'status': req[8] if len(req) > 8 else "pending", 'seen': req[9] if len(req) > 9 else 0,
         'admin_comment': req[10] if len(req) > 10 else "", 'suggested_item_id': req[11] if len(req) > 11 else None
     }
-
-# ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
 
 def show_item_card_mini(item):
     name = item[1] if len(item) > 1 else "Без названия"
@@ -617,72 +582,6 @@ def get_stats():
     conn.close()
     return stats
 
-# Инициализация базы данных
-init_db()
-print("✅ База данных готова к работе!")    
-# --- ПРОВЕРКА И СОЗДАНИЕ ТАБЛИЦЫ ФОТО ---
-def ensure_photo_table():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    
-    # Создаём таблицу если её нет
-    c.execute('''CREATE TABLE IF NOT EXISTS item_photos
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  item_id TEXT,
-                  photo_path TEXT,
-                  date_added TEXT,
-                  is_main INTEGER DEFAULT 0)''')
-    
-    # Добавляем колонку photos_count в items если её нет
-    try:
-        c.execute("ALTER TABLE items ADD COLUMN photos_count INTEGER DEFAULT 0")
-    except:
-        pass
-    
-    # Обновляем photos_count для всех товаров
-    c.execute("SELECT id FROM items")
-    items = c.fetchall()
-    for item in items:
-        c.execute("SELECT COUNT(*) FROM item_photos WHERE item_id=?", (item[0],))
-        count = c.fetchone()[0]
-        c.execute("UPDATE items SET photos_count=? WHERE id=?", (count, item[0]))
-    
-    conn.commit()
-    conn.close()
-    print("✅ Таблица фото проверена и создана")
-
-# Вызываем проверку
-ensure_photo_table()
-# --- ПРИНУДИТЕЛЬНОЕ СОЗДАНИЕ ТАБЛИЦЫ И ФУНКЦИЙ ---
-def ensure_photo_system():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    
-    # Создаём таблицу
-    c.execute('''CREATE TABLE IF NOT EXISTS item_photos
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  item_id TEXT,
-                  photo_path TEXT,
-                  date_added TEXT,
-                  is_main INTEGER DEFAULT 0)''')
-    
-    # Добавляем колонку
-    try:
-        c.execute("ALTER TABLE items ADD COLUMN photos_count INTEGER DEFAULT 0")
-    except:
-        pass
-    
-    conn.commit()
-    conn.close()
-    
-    # Проверяем, что функции существуют
-    if 'get_item_photos' not in dir():
-        print("❌ Функция get_item_photos не найдена!")
-    else:
-        print("✅ Система фото готова!")
-
-ensure_photo_system()
-print("✅ Проверка системы фото завершена!")
 # --- БОКОВАЯ ПАНЕЛЬ ---
 with st.sidebar:
     st.markdown(f"### 👤 {user_name}")
@@ -823,11 +722,11 @@ with tabs[2]:
                         st.caption("📷 Нет фото")
     else:
         st.info("Ничего не найдено")
+
 # Товары
 with tabs[3]:
     st.markdown("## 📋 Все товары")
     
-    # --- СТАТИСТИКА ---
     all_items = get_all_items()
     total = len(all_items)
     low = len([i for i in all_items if i[6] <= i[7] and i[6] > 0])
@@ -846,7 +745,6 @@ with tabs[3]:
     
     st.divider()
     
-    # --- ПОИСК И ФИЛЬТРЫ ---
     col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
         search = st.text_input("🔍 Поиск по названию, месту или помещению", placeholder="Введите запрос...")
@@ -855,7 +753,6 @@ with tabs[3]:
     with col3:
         sort_by = st.selectbox("Сортировка", ["По дате (новые)", "По дате (старые)", "По названию", "По количеству"])
     
-    # --- ПОЛУЧЕНИЕ И ФИЛЬТРАЦИЯ ---
     if search:
         items = search_items(search)
     else:
@@ -880,7 +777,6 @@ with tabs[3]:
     if items:
         st.success(f"Найдено товаров: {len(items)}")
         
-        # Пагинация
         items_per_page = 10
         total_pages = (len(items) - 1) // items_per_page + 1
         page = 1
@@ -893,7 +789,6 @@ with tabs[3]:
         end_idx = min(start_idx + items_per_page, len(items))
         page_items = items[start_idx:end_idx]
         
-        # --- ОТОБРАЖЕНИЕ КАРТОЧЕК ---
         for item in page_items:
             item_id = item[0]
             name = item[1]
@@ -916,7 +811,6 @@ with tabs[3]:
                 status_text = f"В наличии: {quantity} {unit}"
             
             with st.container():
-                # --- ЗАГОЛОВОК ---
                 col1, col2 = st.columns([4, 1])
                 with col1:
                     st.markdown(f"### {status_icon} {name}")
@@ -925,7 +819,6 @@ with tabs[3]:
                     st.markdown(f"### {quantity}")
                     st.caption(unit)
                 
-                # --- ОСНОВНОЙ БЛОК ---
                 col1, col2 = st.columns([2, 1.5])
                 
                 with col1:
@@ -941,141 +834,16 @@ with tabs[3]:
                         st.warning(status_text)
                     else:
                         st.success(status_text)
-                    
-                    # --- ДЕЙСТВИЯ ДЛЯ СОТРУДНИКА ---
-                    if role == "employee":
-                        with st.expander("📤 Взять товар", expanded=False):
-                            if quantity > 0:
-                                take_qty = st.number_input("Количество", min_value=0.1, max_value=float(quantity), value=1.0, key=f"take_qty_{item_id}")
-                                equipment_search = st.text_input("Поиск техники", key=f"eq_search_{item_id}")
-                                
-                                if equipment_search:
-                                    equipment_list = get_equipment_for_search(equipment_search)
-                                else:
-                                    equipment_list = get_equipment_for_search()
-                                
-                                if equipment_list:
-                                    eq_options = {}
-                                    for eq in equipment_list:
-                                        label = f"{eq[1]}" + (f" (№{eq[2]})" if eq[2] else "")
-                                        eq_options[label] = eq
-                                    selected_label = st.selectbox("Выберите технику", list(eq_options.keys()), key=f"eq_select_{item_id}")
-                                    selected_eq = eq_options[selected_label]
-                                    take_photo = st.file_uploader("📸 Фото", type=["jpg","jpeg","png"], key=f"take_photo_{item_id}")
-                                    
-                                    if st.button("✅ Подтвердить взятие", key=f"take_confirm_{item_id}", use_container_width=True):
-                                        photo_path = ""
-                                        if take_photo:
-                                            if not os.path.exists("images/take"):
-                                                os.makedirs("images/take")
-                                            ext = take_photo.name.split('.')[-1]
-                                            photo_path = f"images/take/take_{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
-                                            with open(photo_path, "wb") as f:
-                                                f.write(take_photo.getbuffer())
-                                        success, message = take_item(item_id, take_qty, selected_eq[1], selected_eq[2] if len(selected_eq) > 2 else "", photo_path)
-                                        if success:
-                                            st.success(message)
-                                            st.rerun()
-                                        else:
-                                            st.error(message)
-                                else:
-                                    st.warning("⚠️ Нет техники. Добавьте в разделе 'Парк'")
-                            else:
-                                st.warning("🚫 Товара нет в наличии")
-                    
-                    # --- ДЕЙСТВИЯ ДЛЯ АДМИНИСТРАТОРА ---
-                    elif role == "admin":
-                        with st.expander("✏️ Редактировать товар", expanded=False):
-                            with st.form(key=f"edit_form_{item_id}"):
-                                edit_name = st.text_input("Название*", value=name, key=f"edit_name_{item_id}")
-                                edit_location = st.text_input("Место*", value=location, key=f"edit_loc_{item_id}")
-                                rooms = get_room_names()
-                                edit_room = st.selectbox("Помещение", rooms if rooms else ["Нет помещений"], index=rooms.index(room) if room in rooms else 0, key=f"edit_room_{item_id}")
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    edit_qty = st.number_input("Количество", min_value=0.0, value=float(quantity), key=f"edit_qty_{item_id}")
-                                with col2:
-                                    edit_unit = st.selectbox("Ед. измерения", ["шт","л","кг","м","комплект"], index=["шт","л","кг","м","комплект"].index(unit) if unit in ["шт","л","кг","м","комплект"] else 0, key=f"edit_unit_{item_id}")
-                                edit_threshold = st.number_input("Порог", min_value=0, value=int(threshold), key=f"edit_threshold_{item_id}")
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    if st.form_submit_button("💾 Сохранить"):
-                                        if edit_name and edit_location and edit_room != "Нет помещений":
-                                            update_item(item_id, edit_name, edit_location, edit_room, edit_qty, edit_unit, edit_threshold)
-                                            st.success("✅ Товар обновлен!")
-                                            st.rerun()
-                                        else:
-                                            st.error("Заполните все поля!")
-                                with col2:
-                                    if st.form_submit_button("❌ Отмена"):
-                                        st.rerun()
-                        
-                        with st.expander("📦 Переместить товар", expanded=False):
-                            with st.form(key=f"move_form_{item_id}"):
-                                new_location = st.text_input("Новое место*", value=location, key=f"move_loc_{item_id}")
-                                rooms = get_room_names()
-                                new_room = st.selectbox("Новое помещение", rooms if rooms else ["Нет помещений"], index=rooms.index(room) if room in rooms else 0, key=f"move_room_{item_id}")
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    if st.form_submit_button("📦 Переместить"):
-                                        if new_location and new_room != "Нет помещений":
-                                            move_item(item_id, new_location, new_room)
-                                            st.success(f"✅ Товар перемещен в {new_location} ({new_room})")
-                                            st.rerun()
-                                        else:
-                                            st.error("Заполните все поля!")
-                                with col2:
-                                    if st.form_submit_button("❌ Отмена"):
-                                        st.rerun()
-                        
-                        with st.expander("🔢 Изменить количество", expanded=False):
-                            with st.form(key=f"qty_form_{item_id}"):
-                                action = st.radio("Действие", ["Установить", "Прибавить", "Убавить"], key=f"qty_action_{item_id}")
-                                qty_value = st.number_input("Значение", min_value=0.0, value=1.0, key=f"qty_value_{item_id}")
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    if st.form_submit_button("✅ Применить"):
-                                        current_qty = float(quantity)
-                                        if action == "Установить":
-                                            new_qty = qty_value
-                                        elif action == "Прибавить":
-                                            new_qty = current_qty + qty_value
-                                        else:
-                                            new_qty = max(0, current_qty - qty_value)
-                                        if new_qty >= 0:
-                                            update_quantity(item_id, new_qty)
-                                            st.success(f"✅ Количество обновлено: {new_qty} {unit}")
-                                            st.rerun()
-                                        else:
-                                            st.error("Количество не может быть отрицательным!")
-                                with col2:
-                                    if st.form_submit_button("❌ Отмена"):
-                                        st.rerun()
-                        
-                        with st.expander("🗑️ Удалить товар", expanded=False):
-                            st.warning(f"⚠️ Вы уверены, что хотите удалить товар '{name}'?")
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("✅ Да, удалить", key=f"del_yes_{item_id}", use_container_width=True):
-                                    delete_item(item_id)
-                                    st.success(f"🗑️ Товар '{name}' удален!")
-                                    st.rerun()
-                            with col2:
-                                if st.button("❌ Отмена", key=f"del_no_{item_id}", use_container_width=True):
-                                    st.rerun()
                 
                 with col2:
-                    # --- ФОТОГРАФИИ ---
                     st.markdown("#### 📸 Фото")
                     
                     try:
                         photos = get_item_photos(item_id)
-                    except Exception as e:
+                    except:
                         photos = []
-                        st.warning(f"⚠️ Ошибка загрузки фото: {e}")
                     
                     if photos:
-                        # Инициализируем индекс
                         photo_key = f"photo_idx_{item_id}"
                         if photo_key not in st.session_state:
                             st.session_state[photo_key] = 0
@@ -1087,9 +855,7 @@ with tabs[3]:
                         
                         current_photo = photos[current_idx]
                         
-                        # Проверяем существование файла
                         if os.path.exists(current_photo[1]):
-                            # Навигация
                             if len(photos) > 1:
                                 col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
                                 with col_nav1:
@@ -1103,18 +869,12 @@ with tabs[3]:
                                         st.session_state[photo_key] = (current_idx + 1) % len(photos)
                                         st.rerun()
                             
-                            # Отображаем фото
                             st.image(current_photo[1], use_container_width=True)
                             if current_photo[2] == 1:
                                 st.caption("⭐ Главное фото")
-                            else:
-                                st.caption("📸 Обычное фото")
-                        else:
-                            st.info("📷 Файл фото не найден")
                     else:
                         st.info("📷 Нет фото")
                     
-                    # --- НАСТРОЙКИ ФОТО (ТОЛЬКО ДЛЯ АДМИНА) ---
                     if role == "admin":
                         with st.expander("⚙️ Настройки фото", expanded=False):
                             st.markdown("**Управление фотографиями**")
@@ -1123,7 +883,6 @@ with tabs[3]:
                                 if current_idx < len(photos):
                                     current_photo = photos[current_idx]
                                     if os.path.exists(current_photo[1]):
-                                        # Поворот
                                         st.caption("🔄 Поворот:")
                                         col_r1, col_r2, col_r3, col_r4 = st.columns(4)
                                         with col_r1:
@@ -1161,7 +920,6 @@ with tabs[3]:
                                         
                                         st.divider()
                                         
-                                        # Сделать главным
                                         if current_photo[2] != 1:
                                             if st.button("⭐ Сделать главным", key=f"set_main_{item_id}", use_container_width=True):
                                                 try:
@@ -1170,7 +928,6 @@ with tabs[3]:
                                                 except:
                                                     pass
                                         
-                                        # Удалить фото
                                         if st.button("🗑️ Удалить это фото", key=f"del_photo_{item_id}", use_container_width=True):
                                             try:
                                                 delete_item_photo(current_photo[0])
@@ -1181,7 +938,6 @@ with tabs[3]:
                             else:
                                 st.info("Нет фото для управления")
                             
-                            # Добавление фото
                             st.divider()
                             st.caption("📤 Добавить фото:")
                             uploaded_photos = st.file_uploader(
@@ -1199,14 +955,12 @@ with tabs[3]:
                                     if st.button("📤 Загрузить", key=f"save_{item_id}", use_container_width=True):
                                         if not os.path.exists("images/items"):
                                             os.makedirs("images/items")
-                                        
                                         for idx, uploaded_photo in enumerate(uploaded_photos):
                                             ext = uploaded_photo.name.split('.')[-1]
                                             photo_path = f"images/items/{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{idx}.{ext}"
                                             with open(photo_path, "wb") as f:
                                                 f.write(uploaded_photo.getbuffer())
                                             add_item_photo(item_id, photo_path, is_main=(idx == 0 and is_main))
-                                        
                                         st.success(f"✅ Загружено {len(uploaded_photos)} фото!")
                                         st.rerun()
                 
@@ -1214,6 +968,7 @@ with tabs[3]:
     
     else:
         st.info("📭 Склад пуст. Добавьте товары через боковую панель.")
+
 # Заявки
 with tabs[4]:
     st.markdown("## 📝 Заявки")
@@ -1247,19 +1002,14 @@ with tabs[4]:
                           'approved': '✅ Выполнено', 'rejected': '❌ Отклонено',
                           'suggested': '💡 Предложено', 'returned': '🔄 Возвращено'}
             with st.expander(f"{status_text.get(r['status'], r['status'])} | {r['name']} — {r['quantity']} {r['unit']}"):
-                # Показываем описание заявки
                 if r['description']:
                     st.write(f"📝 Описание: {r['description']}")
-                # Показываем комментарий
                 if r['admin_comment']:
                     st.write(f"💬 Комментарий: {r['admin_comment']}")
-                # Показываем фото заявки
                 if r['photo'] and os.path.exists(r['photo']):
                     st.image(r['photo'], caption="Фото заявки", width=200)
-                # Показываем дату
                 st.caption(f"📅 {r['date']}")
                 
-                # Показываем предложенный товар
                 if r['status'] == 'suggested' and r['suggested_item_id']:
                     st.markdown("---")
                     st.markdown("**💡 Предложенный товар со склада:**")
@@ -1291,7 +1041,6 @@ with tabs[4]:
     
     elif role == "admin":
         subtabs = st.tabs(["⏳ Новые", "🔧 В работе", "🔄 Возвраты", "💡 Предложенные", "✅ Готовые", "❌ Отклоненные"])
-        
         for tab, status in zip(subtabs, ["pending", "in_work", "returned", "suggested", "approved", "rejected"]):
             with tab:
                 requests_list = get_requests(status=status)
@@ -1299,7 +1048,6 @@ with tabs[4]:
                     for req in requests_list:
                         r = unpack_request(req)
                         with st.expander(f"{r['name']} — {r['quantity']} {r['unit']} | от {r['user']} | {r['date'][:10]}"):
-                            # ПОКАЗЫВАЕМ ВСЮ ИНФОРМАЦИЮ О ЗАЯВКЕ
                             if r['description']:
                                 st.write(f"📝 Описание: {r['description']}")
                             if r['admin_comment']:
@@ -1317,7 +1065,6 @@ with tabs[4]:
                             
                             st.markdown("---")
                             
-                            # КНОПКИ ДЕЙСТВИЙ
                             if status in ['pending', 'returned']:
                                 col1, col2, col3 = st.columns(3)
                                 with col1:
@@ -1394,6 +1141,7 @@ with tabs[4]:
                                         st.rerun()
                 else:
                     st.info(f"Нет заявок со статусом '{status}'")
+
 # Списания
 with tabs[5]:
     st.markdown("## 📤 Списания")
@@ -1416,6 +1164,7 @@ with tabs[5]:
     if cons:
         for c in cons:
             st.write(f"📤 {c[9]} — {c[2]} {c[3]} → {c[4]} | {c[5]}")
+
 # Список покупок
 with tabs[6]:
     st.markdown("## 🛒 Список покупок")
@@ -1517,6 +1266,7 @@ with tabs[6]:
                             st.rerun()
     else:
         st.success("✅ Список покупок пуст!")
+
 # Парк
 with tabs[7]:
     st.markdown("## 🚜 Парк техники")
@@ -1559,61 +1309,3 @@ with tabs[8]:
                 fname = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
                 shutil.copy2('storage.db', f"backups/{fname}")
                 st.success(f"✅ Бэкап создан: {fname}")
-       # --- ПРИНУДИТЕЛЬНОЕ ДОБАВЛЕНИЕ ТЕСТОВЫХ ФОТО ---
-def force_add_test_photos():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    
-    # Получаем все товары
-    c.execute("SELECT id, name FROM items")
-    items = c.fetchall()
-    
-    if not items:
-        print("⚠️ Нет товаров в базе данных")
-        conn.close()
-        return
-    
-    for item_id, name in items:
-        # Проверяем, есть ли фото у товара
-        c.execute("SELECT COUNT(*) FROM item_photos WHERE item_id=?", (item_id,))
-        count = c.fetchone()[0]
-        
-        if count == 0:
-            # Создаём папку если нет
-            if not os.path.exists("images/items"):
-                os.makedirs("images/items")
-            
-            # Путь к фото
-            photo_path = f"images/items/test_{item_id}.jpg"
-            
-            try:
-                # Создаём тестовое изображение
-                from PIL import Image, ImageDraw
-                img = Image.new('RGB', (300, 300), color='lightblue')
-                d = ImageDraw.Draw(img)
-                d.rectangle([50, 50, 250, 250], outline='darkblue', width=3)
-                d.text((70, 130), name[:20] if name else "Товар", fill='darkblue')
-                d.text((70, 170), "📷 Тестовое фото", fill='darkblue')
-                img.save(photo_path)
-                print(f"✅ Создано тестовое фото для: {name}")
-            except Exception as e:
-                # Если не получилось создать картинку - просто создаём пустой файл
-                with open(photo_path, 'w') as f:
-                    f.write("test")
-                print(f"✅ Создан файл-заглушка для: {name}")
-            
-            # Добавляем в БД
-            c.execute("""INSERT INTO item_photos (item_id, photo_path, date_added, is_main) 
-                         VALUES (?,?,?,?)""",
-                      (item_id, photo_path, datetime.now().strftime("%Y-%m-%d %H:%M"), 1))
-            
-            # Обновляем счётчик
-            c.execute("UPDATE items SET photos_count = photos_count + 1 WHERE id=?", (item_id,))
-    
-    conn.commit()
-    conn.close()
-    print("✅ Тестовые фото добавлены!")
-
-# Запускаем принудительное добавление
-force_add_test_photos()
-print("✅ Готово!")         
