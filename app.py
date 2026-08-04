@@ -538,6 +538,59 @@ with tabs[3]:
             align-items: center;
             z-index:
 
+# Товары
+with tabs[3]:
+    st.markdown("## 📋 Все товары")
+
+    # CSS для карточек и модального окна
+    st.markdown("""
+    <style>
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 16px;
+        }
+        .product-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            background: #fff;
+            padding: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .product-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .card-status {
+            font-size: 0.85rem;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            color: white;
+        }
+        .status-low { background-color: #d32f2f; }
+        .status-ok { background-color: #2e7d32; }
+        .card-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin: 8px 0 4px;
+            line-height: 1.3;
+        }
+        .card-meta {
+            font-size: 0.9rem;
+            color: #555;
+            line-height: 1.4;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index:
 
 # Заявки
 with tabs[4]:
