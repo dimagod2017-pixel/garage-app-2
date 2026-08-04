@@ -92,6 +92,7 @@ def init_db():
 
 init_db()
 # --- ФУНКЦИИ БД ---
+
 def add_room(name):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -134,37 +135,83 @@ def get_equipment():
     conn.close()
     return results
 
+# ===== ФУНКЦИИ ДЛЯ ТОВАРОВ =====
+
+def get_all_items():
+    """Получить все товары с фото"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT id, name, location, room, date_added, unit, quantity, threshold, photo FROM items ORDER BY date_added DESC")
+    results = c.fetchall()
+    conn.close()
+    return results
+
 def search_items(query):
+    """Поиск товаров с фото"""
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     ql = f"%{query}%"
-    c.execute("SELECT * FROM items WHERE name LIKE ? OR location LIKE ? OR room LIKE ?", (ql, ql, ql))
+    c.execute("SELECT id, name, location, room, date_added, unit, quantity, threshold, photo FROM items WHERE name LIKE ? OR location LIKE ? OR room LIKE ?", (ql, ql, ql))
     results = c.fetchall()
     conn.close()
     return results
 
-def get_all_items():
+def get_item_by_id(item_id):
+    """Получить товар по ID"""
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    c.execute("SELECT * FROM items ORDER BY date_added DESC")
+    c.execute("SELECT id, name, location, room, date_added, unit, quantity, threshold, photo FROM items WHERE id=?", (item_id,))
+    result = c.fetchone()
+    conn.close()
+    return result
+
+def update_item(item_id, name, location, room, quantity, unit, threshold):
+    """Полное обновление товара"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("""UPDATE items 
+                 SET name=?, location=?, room=?, quantity=?, unit=?, threshold=? 
+                 WHERE id=?""", (name, location, room, quantity, unit, threshold, item_id))
+    conn.commit()
+    conn.close()
+
+def move_item(item_id, new_location, new_room):
+    """Перемещение товара"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE items SET location=?, room=? WHERE id=?", (new_location, new_room, item_id))
+    conn.commit()
+    conn.close()
+
+def update_item_photo(item_id, photo_path):
+    """Обновление фото товара"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE items SET photo=? WHERE id=?", (photo_path, item_id))
+    conn.commit()
+    conn.close()
+
+def get_equipment_for_search(query=""):
+    """Поиск техники по названию или номеру"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if query:
+        ql = f"%{query}%"
+        c.execute("SELECT * FROM equipment WHERE name LIKE ? OR number LIKE ? ORDER BY name", (ql, ql))
+    else:
+        c.execute("SELECT * FROM equipment ORDER BY name")
     results = c.fetchall()
     conn.close()
     return results
 
-def get_low_stock_items():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM items WHERE quantity <= threshold ORDER BY quantity ASC")
-    results = c.fetchall()
-    conn.close()
-    return results
+# ===== ОСТАЛЬНЫЕ ФУНКЦИИ (НЕ ИЗМЕНЯЮТСЯ) =====
 
 def add_item(name, location, room, quantity, unit):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     item_id = str(uuid.uuid4())[:8]
-    c.execute("INSERT INTO items (id, name, location, room, date_added, quantity, unit) VALUES (?,?,?,?,?,?,?)",
-              (item_id, name, location, room, datetime.now().strftime("%Y-%m-%d %H:%M"), quantity, unit))
+    c.execute("INSERT INTO items (id, name, location, room, date_added, quantity, unit, threshold) VALUES (?,?,?,?,?,?,?,?)",
+              (item_id, name, location, room, datetime.now().strftime("%Y-%m-%d %H:%M"), quantity, unit, 1))
     conn.commit()
     conn.close()
     return item_id
@@ -199,11 +246,46 @@ def consume_item(item_id, quantity, object_name):
     conn.close()
     return True
 
+def take_item(item_id, quantity, equipment_name, equipment_number, photo_path=""):
+    """Функция для взятия товара на технику (НОВАЯ)"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    
+    # Проверяем наличие
+    c.execute("SELECT quantity, unit FROM items WHERE id=?", (item_id,))
+    result = c.fetchone()
+    if not result or quantity > result[0]:
+        conn.close()
+        return False, "Недостаточно товара на складе!"
+    
+    # Списываем
+    new_q = result[0] - quantity
+    c.execute("UPDATE items SET quantity=? WHERE id=?", (new_q, item_id))
+    
+    # Записываем в историю списаний с привязкой к технике
+    c.execute("""INSERT INTO consumption 
+                 (item_id, quantity, unit, object_name, user, date, equipment_name, equipment_number, photo) 
+                 VALUES (?,?,?,?,?,?,?,?,?)""",
+              (item_id, quantity, result[1], f"{equipment_name} (№{equipment_number})", 
+               user_name, datetime.now().strftime("%Y-%m-%d %H:%M"), 
+               equipment_name, equipment_number, photo_path))
+    conn.commit()
+    conn.close()
+    return True, f"✅ {quantity} {result[1]} взято на {equipment_name}"
+
 def get_all_consumption():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute("""SELECT c.*, i.name FROM consumption c JOIN items i ON c.item_id = i.id 
                  ORDER BY c.date DESC LIMIT 200""")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_low_stock_items():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM items WHERE quantity <= threshold ORDER BY quantity ASC")
     results = c.fetchall()
     conn.close()
     return results
@@ -283,92 +365,6 @@ def unpack_request(req):
 def show_item_card_mini(item):
     st.markdown(f"**{item[1]}** — {item[6]} {item[5]} | {item[3]}")
     st.caption(f"📍 {item[2]}")
-
-def get_all_notifications():
-    notifications = []
-    
-    if role == "admin":
-        for req in get_requests(status='pending'):
-            r = unpack_request(req)
-            notif_id = f"pending_{r['id']}"
-            if notif_id not in st.session_state.dismissed_notifications:
-                notifications.append({
-                    'id': notif_id, 'type': 'pending', 'icon': '📝',
-                    'title': f'Новая заявка: {r["name"]}',
-                    'text': f'От: {r["user"]} | {r["quantity"]} {r["unit"]}',
-                    'date': r['date'], 'request_id': r['id']
-                })
-        
-        for req in get_requests(status='returned'):
-            r = unpack_request(req)
-            notif_id = f"returned_{r['id']}"
-            if notif_id not in st.session_state.dismissed_notifications:
-                notifications.append({
-                    'id': notif_id, 'type': 'returned', 'icon': '🔄',
-                    'title': f'Возврат: {r["name"]}',
-                    'text': r['admin_comment'][:100] if r['admin_comment'] else 'Без комментария',
-                    'date': r['date'], 'request_id': r['id']
-                })
-        
-        for item in get_low_stock_items():
-            notif_id = f"low_{item[0]}"
-            if notif_id not in st.session_state.dismissed_notifications:
-                notifications.append({
-                    'id': notif_id, 'type': 'low_stock', 'icon': '⚠️',
-                    'title': f'Заканчивается: {item[1]}',
-                    'text': f'Осталось {item[6]} {item[5]} (порог: {item[7]})',
-                    'date': item[4], 'item_id': item[0]
-                })
-    
-    else:
-        for req in get_requests(user=user_name):
-            r = unpack_request(req)
-            notif_id = f"{r['status']}_{r['id']}"
-            if notif_id not in st.session_state.dismissed_notifications:
-                icons = {'pending':'⏳','in_work':'🔧','approved':'✅','rejected':'❌','suggested':'💡','returned':'🔄'}
-                notifications.append({
-                    'id': notif_id, 'type': r['status'], 'icon': icons.get(r['status'],'📋'),
-                    'title': r['name'],
-                    'text': f'Статус: {r["status"]}',
-                    'date': r['date'], 'request_id': r['id']
-                })
-    
-    return sorted(notifications, key=lambda x: x['date'], reverse=True)
-
-def get_shopping_list():
-    shopping = []
-    for req in get_requests(status='in_work'):
-        r = unpack_request(req)
-        shopping.append({'type': 'in_work', 'icon': '🔧', 'name': r['name'], 'qty': float(r['quantity'] or 0), 
-                        'unit': r['unit'], 'user': r['user'], 'id': r['id']})
-    for req in get_requests(status='pending'):
-        r = unpack_request(req)
-        shopping.append({'type': 'pending', 'icon': '📝', 'name': r['name'], 'qty': float(r['quantity'] or 0), 
-                        'unit': r['unit'], 'user': r['user'], 'id': r['id']})
-    for item in [i for i in get_all_items() if i[6] <= i[7]]:
-        shopping.append({'type': 'low_stock', 'icon': '⚠️', 'name': item[1], 'qty': float(item[6] or 0), 
-                        'unit': item[5], 'threshold': item[7], 'room': item[3], 'id': item[0]})
-    for req in get_requests(status='approved'):
-        r = unpack_request(req)
-        shopping.append({'type': 'approved', 'icon': '✅', 'name': r['name'], 'qty': float(r['quantity'] or 0), 
-                        'unit': r['unit'], 'user': r['user'], 'id': r['id']})
-    return shopping
-
-def get_stats():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    stats = {}
-    c.execute("SELECT COUNT(*) FROM items")
-    stats['items'] = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM items WHERE quantity <= threshold")
-    stats['low'] = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM requests WHERE status='pending'")
-    stats['pending'] = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM requests WHERE status='in_work'")
-    stats['in_work'] = c.fetchone()[0]
-    conn.close()
-    return stats
-
 
 # --- БОКОВАЯ ПАНЕЛЬ ---
 with st.sidebar:
