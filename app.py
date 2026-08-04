@@ -483,112 +483,119 @@ with tabs[2]:
     else:
         st.info("Ничего не найдено")
 
+найдено")
 # Товары
 with tabs[3]:
     st.markdown("## 📋 Все товары")
-    # CSS для карточек и модального окна
-    st.markdown("""
-    <style>
-        .product-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 16px;
-        }
-        .product-card {
-            border: 1px solid #e0e0e0;
-            border-radius: 10px;
-            background: #fff;
-            padding: 12px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-            cursor: pointer;
-            transition: transform 0.15s, box-shadow 0.15s;
-        }
-        .product-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        }
-        .card-status {
-            font-size: 0.85rem;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-weight: 600;
-            color: white;
-        }
-        .status-low { background-color: #d32f2f; }
-        .status-ok { background-color: #2e7d32; }
-        .card-title {
-            font-size: 1.05rem;
-            font-weight: 700;
-            margin: 8px 0 4px;
-            line-height: 1.3;
-        }
-        .card-meta {
-            font-size: 0.9rem;
-            color: #555;
-            line-height: 1.4;
-        }
-        .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index:
-
-# Товары
-with tabs[3]:
-    st.markdown("## 📋 Все товары")
-
-    # CSS для карточек и модального окна
-    st.markdown("""
-    <style>
-        .product-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 16px;
-        }
-        .product-card {
-            border: 1px solid #e0e0e0;
-            border-radius: 10px;
-            background: #fff;
-            padding: 12px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-            cursor: pointer;
-            transition: transform 0.15s, box-shadow 0.15s;
-        }
-        .product-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        }
-        .card-status {
-            font-size: 0.85rem;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-weight: 600;
-            color: white;
-        }
-        .status-low { background-color: #d32f2f; }
-        .status-ok { background-color: #2e7d32; }
-        .card-title {
-            font-size: 1.05rem;
-            font-weight: 700;
-            margin: 8px 0 4px;
-            line-height: 1.3;
-        }
-        .card-meta {
-            font-size: 0.9rem;
-            color: #555;
-            line-height: 1.4;
-        }
-        .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index:
+    
+    # Поиск и фильтры
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        search = st.text_input("🔍 Поиск по названию или месту")
+    with col2:
+        show_filter = st.selectbox("Показать", ["Все", "Заканчиваются", "В наличии"])
+    
+    if search:
+        items = search_items(search)
+    else:
+        items = get_all_items()
+    
+    # Фильтрация
+    if show_filter == "Заканчиваются":
+        items = [i for i in items if i[6] <= i[7]]
+    elif show_filter == "В наличии":
+        items = [i for i in items if i[6] > i[7]]
+    
+    if items:
+        st.success(f"Найдено товаров: {len(items)}")
+        
+        for item in items:
+            # item: id(0), name(1), location(2), room(3), date(4), unit(5), quantity(6), threshold(7), photo(8)
+            qty = item[6] if len(item) > 6 else 0
+            threshold = item[7] if len(item) > 7 else 1
+            photo = item[8] if len(item) > 8 else ""
+            
+            # Красивый заголовок с индикатором
+            status = "🔴" if qty <= threshold else "🟢"
+            title = f"{status} {item[1]} — {qty} {item[5]} | {item[3]}"
+            
+            with st.expander(title, expanded=False):
+                # Две колонки: информация и фото
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    st.markdown(f"**📦 Название:** {item[1]}")
+                    st.markdown(f"**📍 Место:** {item[2]}")
+                    st.markdown(f"**🏠 Помещение:** {item[3]}")
+                    st.markdown(f"**📊 Количество:** {qty} {item[5]}")
+                    st.markdown(f"**⚠️ Порог:** {threshold}")
+                    st.markdown(f"**📅 Добавлен:** {item[4][:10] if item[4] else 'Н/Д'}")
+                    
+                    # Индикатор состояния
+                    if qty == 0:
+                        st.error("❌ Нет в наличии!")
+                    elif qty <= threshold:
+                        st.warning(f"⚠️ Осталось мало! (порог: {threshold})")
+                    else:
+                        st.success(f"✅ В наличии: {qty} {item[5]}")
+                    
+                    # Кнопки действий для админа
+                    if role == "admin":
+                        st.markdown("---")
+                        col_a, col_b, col_c = st.columns(3)
+                        with col_a:
+                            new_qty = st.number_input("Новое кол-во", value=float(qty), key=f"qty_{item[0]}")
+                            if st.button("💾 Обновить", key=f"upd_{item[0]}"):
+                                update_quantity(item[0], new_qty)
+                                st.success("✅ Обновлено!")
+                                st.rerun()
+                        with col_b:
+                            if st.button("🗑️ Удалить", key=f"del_{item[0]}"):
+                                delete_item(item[0])
+                                st.success("🗑️ Товар удален!")
+                                st.rerun()
+                        with col_c:
+                            # Кнопка списания
+                            if st.button("📤 Списать", key=f"consume_{item[0]}"):
+                                st.session_state[f"consume_{item[0]}"] = True
+                        
+                        # Форма списания
+                        if st.session_state.get(f"consume_{item[0]}"):
+                            with st.form(f"consume_form_{item[0]}"):
+                                consume_qty = st.number_input("Кол-во для списания", min_value=0.1, max_value=float(qty), key=f"cq_{item[0]}")
+                                obj = st.text_input("На что списываем*", key=f"obj_{item[0]}")
+                                if st.form_submit_button("✅ Подтвердить списание") and obj:
+                                    if consume_item(item[0], consume_qty, obj):
+                                        st.session_state[f"consume_{item[0]}"] = False
+                                        st.success("✅ Списано!")
+                                        st.rerun()
+                                    else:
+                                        st.error("Недостаточно!")
+                
+                with col2:
+                    # Показываем фото товара если есть
+                    if photo and os.path.exists(photo):
+                        st.image(photo, caption=item[1], use_container_width=True)
+                    else:
+                        st.info("📷 Нет фото")
+                    
+                    # Кнопка добавления фото для админа
+                    if role == "admin" and not photo:
+                        uploaded_photo = st.file_uploader("Добавить фото", type=["jpg","jpeg","png"], key=f"up_photo_{item[0]}")
+                        if uploaded_photo:
+                            ext = uploaded_photo.name.split('.')[-1]
+                            photo_path = f"images/item_{item[0]}.{ext}"
+                            with open(photo_path, "wb") as f:
+                                f.write(uploaded_photo.getbuffer())
+                            conn = sqlite3.connect('storage.db')
+                            c = conn.cursor()
+                            c.execute("UPDATE items SET item_photo=? WHERE id=?", (photo_path, item[0]))
+                            conn.commit()
+                            conn.close()
+                            st.success("✅ Фото добавлено!")
+                            st.rerun()
+    else:
+        st.info("Склад пуст. Добавьте товары через боковую панель.")
 
 # Заявки
 with tabs[4]:
