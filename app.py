@@ -91,7 +91,6 @@ def init_db():
     conn.close()
 
 init_db()
-
 # --- ФУНКЦИИ БД ---
 def add_room(name):
     conn = sqlite3.connect('storage.db')
@@ -369,6 +368,7 @@ def get_stats():
     stats['in_work'] = c.fetchone()[0]
     conn.close()
     return stats
+
 
 # --- БОКОВАЯ ПАНЕЛЬ ---
 with st.sidebar:
