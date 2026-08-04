@@ -1070,6 +1070,198 @@ with tabs[3]:
                 st.divider()
     else:
         st.info("📭 Склад пуст. Добавьте товары через боковую панель.")
+        # ============================================================
+# 7.5 ЗАЯВКИ
+# ============================================================
+
+with tabs[4]:
+    st.markdown("## 📝 Заявки")
+    
+    if role == "employee":
+        # --- ФОРМА НОВОЙ ЗАЯВКИ ---
+        with st.form("new_request", clear_on_submit=True):
+            st.subheader("➕ Новая заявка")
+            name = st.text_input("Название*")
+            c1, c2 = st.columns(2)
+            with c1:
+                qty = st.number_input("Кол-во", min_value=0.1, value=1.0)
+            with c2:
+                unit = st.selectbox("Ед.", ["шт", "л", "кг", "м", "комплект"])
+            desc = st.text_area("Описание")
+            photo = st.file_uploader("Фото", type=["jpg","jpeg","png"])
+            if st.form_submit_button("📤 Отправить") and name:
+                photo_path = ""
+                if photo:
+                    ext = photo.name.split('.')[-1]
+                    photo_path = f"images/req_{uuid.uuid4()}.{ext}"
+                    with open(photo_path, "wb") as f:
+                        f.write(photo.getbuffer())
+                add_request(name, qty, unit, desc, photo_path, user_name)
+                st.success("✅ Заявка отправлена!")
+                st.rerun()
+        
+        st.divider()
+        
+        # --- МОИ ЗАЯВКИ ---
+        st.subheader("📋 Мои заявки")
+        my_requests = get_requests(user=user_name)
+        
+        if my_requests:
+            for req in my_requests:
+                r = unpack_request(req)
+                status_text = {
+                    'pending': '⏳ На рассмотрении',
+                    'in_work': '🔧 В работе',
+                    'approved': '✅ Выполнено',
+                    'rejected': '❌ Отклонено',
+                    'suggested': '💡 Предложен товар',
+                    'returned': '🔄 Возвращено'
+                }
+                with st.expander(f"{status_text.get(r['status'], r['status'])} | {r['name']} — {r['quantity']} {r['unit']}"):
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        if r['description']:
+                            st.write(f"📝 Описание: {r['description']}")
+                        if r['admin_comment']:
+                            st.write(f"💬 Комментарий: {r['admin_comment']}")
+                        st.caption(f"📅 {r['date']}")
+                    with col2:
+                        if r['photo'] and os.path.exists(r['photo']):
+                            st.image(r['photo'], width=200)
+                        else:
+                            st.caption("📷 Нет фото")
+                    
+                    # --- ПРЕДЛОЖЕННЫЙ ТОВАР ---
+                    if r['status'] == 'suggested' and r['suggested_item_id']:
+                        st.divider()
+                        st.markdown("**💡 Предложенный товар со склада:**")
+                        conn = sqlite3.connect('storage.db')
+                        c = conn.cursor()
+                        c.execute("SELECT * FROM items WHERE id=?", (r['suggested_item_id'],))
+                        item = c.fetchone()
+                        conn.close()
+                        if item:
+                            col1, col2 = st.columns([2, 1])
+                            with col1:
+                                st.write(f"📦 {item[1]} — {item[6]} {item[5]} | {item[3]}")
+                            with col2:
+                                photos = get_item_photos(item[0])
+                                if photos:
+                                    main_photo = next((p for p in photos if p[2] == 1), photos[0])
+                                    if os.path.exists(main_photo[1]):
+                                        st.image(main_photo[1], width=100)
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("✅ Подходит", key=f"ok_{r['id']}"):
+                                mark_request_seen(r['id'])
+                                st.rerun()
+                        with col2:
+                            if st.button("❌ Не подходит", key=f"no_{r['id']}"):
+                                st.session_state[f"ret_{r['id']}"] = True
+                        
+                        if st.session_state.get(f"ret_{r['id']}"):
+                            reason = st.text_area("Причина возврата", key=f"reason_{r['id']}")
+                            if st.button("📤 Отправить на пересмотр", key=f"send_{r['id']}"):
+                                return_request(r['id'], reason)
+                                st.session_state[f"ret_{r['id']}"] = False
+                                st.rerun()
+        else:
+            st.info("У вас нет заявок")
+    
+    elif role == "admin":
+        # --- АДМИН: УПРАВЛЕНИЕ ЗАЯВКАМИ ---
+        statuses = {
+            "⏳ Новые": "pending",
+            "🔧 В работе": "in_work",
+            "🔄 Возвраты": "returned",
+            "💡 Предложенные": "suggested",
+            "✅ Готовые": "approved",
+            "❌ Отклоненные": "rejected"
+        }
+        subtabs = st.tabs(list(statuses.keys()))
+        
+        for tab, (label, status) in zip(subtabs, statuses.items()):
+            with tab:
+                reqs = get_requests(status=status)
+                if reqs:
+                    for req in reqs:
+                        r = unpack_request(req)
+                        with st.expander(f"{r['name']} — {r['quantity']} {r['unit']} | от {r['user']} | {r['date'][:10]}"):
+                            col1, col2 = st.columns([2, 1])
+                            with col1:
+                                if r['description']:
+                                    st.write(f"📝 Описание: {r['description']}")
+                                if r['admin_comment']:
+                                    st.write(f"💬 Комментарий: {r['admin_comment']}")
+                                if r['suggested_item_id']:
+                                    st.write(f"💡 Предложен товар ID: {r['suggested_item_id']}")
+                            with col2:
+                                if r['photo'] and os.path.exists(r['photo']):
+                                    st.image(r['photo'], width=200)
+                                else:
+                                    st.caption("📷 Нет фото")
+                            
+                            st.divider()
+                            
+                            # --- КНОПКИ В ЗАВИСИМОСТИ ОТ СТАТУСА ---
+                            if status in ['pending', 'returned']:
+                                c1, c2, c3 = st.columns(3)
+                                with c1:
+                                    if st.button("✅ Одобрить", key=f"app_{r['id']}"):
+                                        update_request_status(r['id'], "approved")
+                                        st.rerun()
+                                with c2:
+                                    if st.button("💡 Со склада", key=f"sug_{r['id']}"):
+                                        st.session_state[f"sug_{r['id']}"] = True
+                                with c3:
+                                    if st.button("❌ Отклонить", key=f"rej_{r['id']}"):
+                                        update_request_status(r['id'], "rejected")
+                                        st.rerun()
+                                
+                                # --- ПОИСК ТОВАРА ДЛЯ ПРЕДЛОЖЕНИЯ ---
+                                if st.session_state.get(f"sug_{r['id']}"):
+                                    sq = st.text_input("Поиск товара на складе", key=f"sq_{r['id']}")
+                                    if sq:
+                                        found = search_items(sq)
+                                        if found:
+                                            for item in found:
+                                                col1, col2 = st.columns([2, 1])
+                                                with col1:
+                                                    st.write(f"📦 {item[1]} — {item[6]} {item[5]} | {item[3]}")
+                                                with col2:
+                                                    if st.button("📤 Предложить", key=f"sel_{r['id']}_{item[0]}"):
+                                                        update_request_status(r['id'], "suggested", f"Предложен: {item[1]}", item[0])
+                                                        st.session_state[f"sug_{r['id']}"] = False
+                                                        st.rerun()
+                                    if st.button("❌ Закрыть", key=f"close_{r['id']}"):
+                                        st.session_state[f"sug_{r['id']}"] = False
+                                        st.rerun()
+                            
+                            elif status == 'in_work':
+                                c1, c2 = st.columns(2)
+                                with c1:
+                                    if st.button("✅ Выполнено", key=f"done_{r['id']}"):
+                                        update_request_status(r['id'], "approved")
+                                        st.rerun()
+                                with c2:
+                                    if st.button("🗑️ Удалить", key=f"del_req_{r['id']}"):
+                                        delete_request(r['id'])
+                                        st.rerun()
+                            
+                            elif status == 'approved':
+                                if st.button("📦 Создать товар", key=f"create_{r['id']}"):
+                                    rooms = get_room_names()
+                                    if rooms:
+                                        room = st.selectbox("Помещение", rooms, key=f"cr_{r['id']}")
+                                        loc = st.text_input("Место", key=f"cl_{r['id']}")
+                                        if st.button("💾 Сохранить", key=f"cs_{r['id']}") and loc:
+                                            item_id = add_item(r['name'], loc, room, r['quantity'], r['unit'])
+                                            delete_request(r['id'])
+                                            st.success(f"✅ Товар '{r['name']}' создан!")
+                                            st.rerun()
+                else:
+                    st.info(f"Нет заявок со статусом '{label}'")
 # ============================================================
 # 7.6 СПИСАНИЯ
 # ============================================================
