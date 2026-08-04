@@ -617,6 +617,8 @@ with tabs[2]:
                         main = next((p for p in photos if p[2] == 1), photos[0])
                         if os.path.exists(main[1]):
                             st.image(main[1], use_container_width=True)
+                    else:
+                        st.caption("📷 Нет фото")
     else:
         st.info("Ничего не найдено")
 
