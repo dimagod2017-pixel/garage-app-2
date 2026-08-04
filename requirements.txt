@@ -1,7 +1,7 @@
 streamlit
-pillow
+sqlite3
 pandas
-openpyxl
+pillow
 qrcode
-requests
-cryptography
+plotly
+openpyxl
