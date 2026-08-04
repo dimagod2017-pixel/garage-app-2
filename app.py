@@ -483,7 +483,6 @@ with tabs[2]:
     else:
         st.info("Ничего не найдено")
 
-найдено")
 # Товары
 with tabs[3]:
     st.markdown("## 📋 Все товары")
