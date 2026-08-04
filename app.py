@@ -340,18 +340,18 @@ def get_shopping_list():
     shopping = []
     for req in get_requests(status='in_work'):
         r = unpack_request(req)
-        shopping.append({'type': 'in_work', 'icon': '🔧', 'name': r['name'], 'qty': r['quantity'], 
+        shopping.append({'type': 'in_work', 'icon': '🔧', 'name': r['name'], 'qty': float(r['quantity'] or 0), 
                         'unit': r['unit'], 'user': r['user'], 'id': r['id']})
     for req in get_requests(status='pending'):
         r = unpack_request(req)
-        shopping.append({'type': 'pending', 'icon': '📝', 'name': r['name'], 'qty': r['quantity'], 
+        shopping.append({'type': 'pending', 'icon': '📝', 'name': r['name'], 'qty': float(r['quantity'] or 0), 
                         'unit': r['unit'], 'user': r['user'], 'id': r['id']})
     for item in [i for i in get_all_items() if i[6] <= i[7]]:
-        shopping.append({'type': 'low_stock', 'icon': '⚠️', 'name': item[1], 'qty': item[6], 
+        shopping.append({'type': 'low_stock', 'icon': '⚠️', 'name': item[1], 'qty': float(item[6] or 0), 
                         'unit': item[5], 'threshold': item[7], 'room': item[3], 'id': item[0]})
     for req in get_requests(status='approved'):
         r = unpack_request(req)
-        shopping.append({'type': 'approved', 'icon': '✅', 'name': r['name'], 'qty': r['quantity'], 
+        shopping.append({'type': 'approved', 'icon': '✅', 'name': r['name'], 'qty': float(r['quantity'] or 0), 
                         'unit': r['unit'], 'user': r['user'], 'id': r['id']})
     return shopping
 
