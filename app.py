@@ -731,32 +731,51 @@ with st.sidebar:
     if role == "admin":
         with st.form("quick_add", clear_on_submit=True):
             st.markdown("### ➕ Новый товар")
-            name = st.text_input("Название*")
-            location = st.text_input("Место*")
+            
+            # --- ПОЛЯ ДЛЯ ТОВАРА ---
+            name = st.text_input("Название*", key="quick_name")
+            location = st.text_input("Место*", key="quick_location")
             rooms = get_room_names()
-            room = st.selectbox("Помещение*", rooms if rooms else ["Нет помещений"])
+            room = st.selectbox("Помещение*", rooms if rooms else ["Нет помещений"], key="quick_room")
+            
             col1, col2 = st.columns(2)
             with col1:
-                qty = st.number_input("Кол-во", min_value=0.0, value=1.0)
+                qty = st.number_input("Кол-во", min_value=0.0, value=1.0, key="quick_qty")
             with col2:
-                unit = st.selectbox("Ед.", ["шт", "л", "кг", "м", "комплект"])
+                unit = st.selectbox("Ед.", ["шт", "л", "кг", "м", "комплект"], key="quick_unit")
             
             st.markdown("---")
             st.markdown("📸 **Фото товара**")
-            uploaded_photo = st.file_uploader("Выберите фото", type=["jpg","jpeg","png"], key="quick_photo")
-            is_main = st.checkbox("⭐ Сделать главным", value=True)
+            uploaded_photo = st.file_uploader(
+                "Выберите фото", 
+                type=["jpg", "jpeg", "png"], 
+                key="quick_photo"
+            )
+            is_main = st.checkbox("⭐ Сделать главным", value=True, key="quick_main")
             
-            if st.form_submit_button("💾 Сохранить") and name and location and room != "Нет помещений":
-                item_id = add_item(name, location, room, qty, unit)
-                if uploaded_photo:
-                    ext = uploaded_photo.name.split('.')[-1]
-                    photo_path = f"images/items/{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
-                    with open(photo_path, "wb") as f:
-                        f.write(uploaded_photo.getbuffer())
-                    add_item_photo(item_id, photo_path, is_main)
-                st.success(f"✅ {name} добавлен!")
-                st.rerun()
-
+            # --- КНОПКА ОТПРАВКИ ---
+            if st.form_submit_button("💾 Сохранить", use_container_width=True):
+                # Проверка обязательных полей
+                if not name:
+                    st.error("❌ Введите название товара!")
+                elif not location:
+                    st.error("❌ Введите место хранения!")
+                elif room == "Нет помещений":
+                    st.error("❌ Выберите помещение!")
+                else:
+                    # Добавляем товар
+                    item_id = add_item(name, location, room, qty, unit)
+                    
+                    # Добавляем фото если есть
+                    if uploaded_photo:
+                        ext = uploaded_photo.name.split('.')[-1]
+                        photo_path = f"images/items/{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+                        with open(photo_path, "wb") as f:
+                            f.write(uploaded_photo.getbuffer())
+                        add_item_photo(item_id, photo_path, is_main)
+                    
+                    st.success(f"✅ Товар '{name}' добавлен!")
+                    st.rerun()
 # ============================================================
 # 8. ОСНОВНОЙ ИНТЕРФЕЙС
 # ============================================================
