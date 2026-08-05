@@ -1108,7 +1108,7 @@ with tabs[1]:
                 col_left, col_right = st.columns([2, 2])
                 
                 # ============================================================
-                # ЛЕВАЯ КОЛОНКА: ИНФОРМАЦИЯ О ТОВАРЕ (ОДИНАКОВАЯ ДЛЯ ВСЕХ)
+                # ЛЕВАЯ КОЛОНКА: ИНФОРМАЦИЯ О ТОВАРЕ
                 # ============================================================
                 with col_left:
                     st.markdown(f"**📦 Название:** {name}")
@@ -1125,7 +1125,7 @@ with tabs[1]:
                         st.success(status_text)
                 
                 # ============================================================
-                # ПРАВАЯ КОЛОНКА: ФОТО ТОВАРА (ОДИНАКОВАЯ ДЛЯ ВСЕХ)
+                # ПРАВАЯ КОЛОНКА: ФОТО ТОВАРА
                 # ============================================================
                 with col_right:
                     photos = get_item_photos(item_id)
@@ -1162,8 +1162,102 @@ with tabs[1]:
                                 st.caption("⭐ Главное фото")
                             else:
                                 st.caption("📸 Обычное фото")
+                            
+                            # --- НАСТРОЙКИ ФОТО (ТОЛЬКО ДЛЯ АДМИНА) ---
+                            if role == "admin":
+                                st.divider()
+                                st.markdown("**⚙️ Управление фото**")
+                                
+                                # Кнопки управления текущим фото
+                                col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+                                
+                                with col_btn1:
+                                    if st.button("↺ Влево", key=f"rot_l_{uid}", use_container_width=True):
+                                        if rotate_photo(current_photo[1], 90):
+                                            st.rerun()
+                                
+                                with col_btn2:
+                                    if st.button("↻ Вправо", key=f"rot_r_{uid}", use_container_width=True):
+                                        if rotate_photo(current_photo[1], -90):
+                                            st.rerun()
+                                
+                                with col_btn3:
+                                    if current_photo[2] != 1:
+                                        if st.button("⭐ Главное", key=f"main_{uid}", use_container_width=True):
+                                            set_main_photo(current_photo[0])
+                                            st.rerun()
+                                    else:
+                                        st.button("⭐ Главное", disabled=True, use_container_width=True)
+                                
+                                with col_btn4:
+                                    if st.button("🗑️ Удалить", key=f"del_photo_{uid}", use_container_width=True):
+                                        delete_item_photo(current_photo[0])
+                                        st.session_state[photo_key] = 0
+                                        st.rerun()
+                                
+                                # Список всех фото с миниатюрами
+                                if len(photos) > 1:
+                                    st.markdown("**📸 Все фото товара:**")
+                                    cols = st.columns(min(4, len(photos)))
+                                    for i, p in enumerate(photos):
+                                        with cols[i % 4]:
+                                            if os.path.exists(p[1]):
+                                                st.image(p[1], use_container_width=True)
+                                                label = "⭐" if p[2] == 1 else f"{i+1}"
+                                                if st.button(label, key=f"goto_{uid}_{p[0]}", use_container_width=True):
+                                                    st.session_state[photo_key] = i
+                                                    st.rerun()
+                                
+                                # Добавление новых фото
+                                st.markdown("**📤 Добавить фото:**")
+                                uploaded = st.file_uploader(
+                                    "Выберите фотографии (можно несколько)",
+                                    type=["jpg", "jpeg", "png"],
+                                    accept_multiple_files=True,
+                                    key=f"upload_{uid}"
+                                )
+                                
+                                if uploaded:
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        is_main_new = st.checkbox("⭐ Сделать первое фото главным", key=f"is_main_{uid}")
+                                    with col2:
+                                        if st.button("📤 Загрузить", key=f"save_{uid}", use_container_width=True):
+                                            for i, uf in enumerate(uploaded):
+                                                ext = uf.name.split('.')[-1]
+                                                path = f"images/items/{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.{ext}"
+                                                with open(path, "wb") as f:
+                                                    f.write(uf.getbuffer())
+                                                add_item_photo(item_id, path, is_main=(i == 0 and is_main_new))
+                                            st.success(f"✅ Загружено {len(uploaded)} фото!")
+                                            st.rerun()
                     else:
                         st.info("📷 Нет фото")
+                        
+                        # Добавление фото если нет фото (только для админа)
+                        if role == "admin":
+                            st.markdown("**📤 Добавить фото:**")
+                            uploaded = st.file_uploader(
+                                "Выберите фотографии (можно несколько)",
+                                type=["jpg", "jpeg", "png"],
+                                accept_multiple_files=True,
+                                key=f"upload_empty_{uid}"
+                            )
+                            
+                            if uploaded:
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    is_main_new = st.checkbox("⭐ Сделать первое фото главным", key=f"is_main_empty_{uid}")
+                                with col2:
+                                    if st.button("📤 Загрузить", key=f"save_empty_{uid}", use_container_width=True):
+                                        for i, uf in enumerate(uploaded):
+                                            ext = uf.name.split('.')[-1]
+                                            path = f"images/items/{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.{ext}"
+                                            with open(path, "wb") as f:
+                                                f.write(uf.getbuffer())
+                                            add_item_photo(item_id, path, is_main=(i == 0 and is_main_new))
+                                        st.success(f"✅ Загружено {len(uploaded)} фото!")
+                                        st.rerun()
                 
                 st.divider()
                 
@@ -1270,32 +1364,11 @@ with tabs[1]:
                                                             key=f"eu_{uid}")
                                 edit_threshold = st.number_input("Порог", value=int(threshold), key=f"et_{uid}")
                                 
-                                # Управление фото
-                                st.markdown("**📸 Управление фото**")
-                                col_photo1, col_photo2 = st.columns(2)
-                                with col_photo1:
-                                    uploaded_photos = st.file_uploader(
-                                        "Добавить фото",
-                                        type=["jpg","jpeg","png"],
-                                        accept_multiple_files=True,
-                                        key=f"upload_edit_{uid}"
-                                    )
-                                with col_photo2:
-                                    if uploaded_photos:
-                                        is_main_edit = st.checkbox("⭐ Сделать главным", key=f"is_main_edit_{uid}")
-                                
                                 c1, c2 = st.columns(2)
                                 with c1:
                                     if st.form_submit_button("💾 Сохранить изменения"):
                                         if edit_name and edit_loc and edit_room != "Нет":
                                             update_item(item_id, edit_name, edit_loc, edit_room, edit_qty, edit_unit, edit_threshold)
-                                            if uploaded_photos:
-                                                for i, uf in enumerate(uploaded_photos):
-                                                    ext = uf.name.split('.')[-1]
-                                                    path = f"images/items/{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.{ext}"
-                                                    with open(path, "wb") as f:
-                                                        f.write(uf.getbuffer())
-                                                    add_item_photo(item_id, path, is_main=(i == 0 and is_main_edit))
                                             st.success("✅ Товар обновлён!")
                                             st.session_state[f"edit_mode_{uid}"] = False
                                             st.rerun()
