@@ -396,10 +396,6 @@ def get_stats():
 # УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
 # ============================================================
 
-# ============================================================
-# УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
-# ============================================================
-
 def get_notifications():
     notifications = []
     
@@ -784,9 +780,10 @@ with tabs[0]:
     notifs = get_notifications()
     
     if notifs:
-        pending_count = len([n for n in notifs if n.get('icon') == '📝'])
-        low_stock_count = len([n for n in notifs if n.get('icon') == '⚠️'])
-        returned_count = len([n for n in notifs if n.get('icon') == '🔄'])
+        # --- СТАТИСТИКА ---
+        pending_count = len([n for n in notifs if n.get('type') == 'request' and n.get('status') == 'Новая заявка'])
+        low_stock_count = len([n for n in notifs if n.get('type') == 'low_stock'])
+        returned_count = len([n for n in notifs if n.get('type') == 'returned'])
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -800,70 +797,100 @@ with tabs[0]:
         
         st.divider()
         
-        if st.button("🗑️ Очистить все уведомления", use_container_width=True):
-            for n in notifs:
-                st.session_state.dismissed_notifications.append(n['id'])
-            st.rerun()
+        # --- КНОПКА ОЧИСТКИ ---
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.caption(f"📅 Обновлено: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+        with col2:
+            if st.button("🗑️ Очистить все", use_container_width=True):
+                for n in notifs:
+                    st.session_state.dismissed_notifications.append(n['id'])
+                st.rerun()
         
         st.divider()
         
+        # --- КАРТОЧКИ УВЕДОМЛЕНИЙ ---
         for n in notifs:
-            icon_color = {
-                '📝': '🔵', '⚠️': '🟠', '🔄': '🟣',
-                '⏳': '🟡', '🔧': '🔵', '✅': '🟢',
-                '❌': '🔴', '💡': '💡'
-            }.get(n.get('icon'), '⚪')
-            
             with st.container():
-                col1, col2, col3 = st.columns([5, 2, 1])
+                # Стилизованная карточка
+                st.markdown(f"""
+                <div style="
+                    border: 1px solid #ddd;
+                    border-radius: 10px;
+                    padding: 15px;
+                    margin-bottom: 10px;
+                    background-color: {'#fff5f5' if n.get('status_color') == '🔴' else '#fff8e1' if n.get('status_color') == '🟠' else '#f5f5f5'};
+                ">
+                </div>
+                """, unsafe_allow_html=True)
                 
+                # Основное содержимое карточки
+                col1, col2, col3 = st.columns([1, 5, 3])
+                
+                # --- КОЛОНКА 1: СТАТУС + ИКОНКА ---
                 with col1:
-                    st.markdown(f"**{icon_color} {n['icon']} {n['title']}**")
-                    st.caption(n['text'])
+                    st.markdown(f"### {n.get('status_color', '⚪')}")
+                    st.markdown(f"# {n['icon']}")
+                    st.caption(n.get('status', 'Статус'))
                 
+                # --- КОЛОНКА 2: НАЗВАНИЕ + ТЕКСТ ---
                 with col2:
-                    if n.get('date'):
-                        try:
-                            date_obj = datetime.strptime(n['date'][:16], "%Y-%m-%d %H:%M")
-                            date_str = date_obj.strftime("%d.%m.%Y %H:%M")
-                        except:
-                            date_str = n['date'][:16]
-                    else:
-                        date_str = "Н/Д"
-                    st.caption(f"📅 {date_str}")
+                    st.markdown(f"**{n['title']}**")
+                    st.caption(n['text'])
+                    st.caption(f"📅 {n.get('date', 'Н/Д')[:16] if n.get('date') else 'Н/Д'}")
                 
+                # --- КОЛОНКА 3: ФОТО + КНОПКИ ---
                 with col3:
-                    if role == "admin" and n.get('request_id'):
-                        if n.get('icon') == '📝':
-                            if st.button("🔧", key=f"w_{n['id']}", help="Взять в работу"):
-                                update_request_status(n['request_id'], "in_work")
+                    # Фото
+                    if n.get('photo'):
+                        try:
+                            st.image(n['photo'], width=80)
+                        except:
+                            pass
+                    else:
+                        st.caption("📷 Нет фото")
+                    
+                    # Кнопки действий
+                    actions = n.get('actions', [])
+                    
+                    if 'approve' in actions and role == "admin":
+                        col_btn1, col_btn2 = st.columns(2)
+                        with col_btn1:
+                            if st.button("✅ Одобрить", key=f"app_{n['id']}", use_container_width=True):
+                                update_request_status(n['request_id'], "approved")
                                 st.session_state.dismissed_notifications.append(n['id'])
                                 st.rerun()
-                        elif n.get('icon') == '🔄':
-                            if st.button("📝", key=f"review_{n['id']}", help="Пересмотреть"):
-                                st.session_state.active_tab = 4
-                                st.rerun()
-                        elif n.get('icon') == '⚠️':
-                            if st.button("📦", key=f"restock_{n['id']}", help="Пополнить"):
+                        with col_btn2:
+                            if st.button("❌ Отклонить", key=f"rej_{n['id']}", use_container_width=True):
+                                update_request_status(n['request_id'], "rejected")
                                 st.session_state.dismissed_notifications.append(n['id'])
                                 st.rerun()
                     
-                    if st.button("✖️", key=f"d_{n['id']}", help="Скрыть уведомление"):
+                    if 'work' in actions and role == "admin":
+                        if st.button("🔧 В работу", key=f"work_{n['id']}", use_container_width=True):
+                            update_request_status(n['request_id'], "in_work")
+                            st.session_state.dismissed_notifications.append(n['id'])
+                            st.rerun()
+                    
+                    if 'review' in actions and role == "admin":
+                        if st.button("📝 Пересмотреть", key=f"rev_{n['id']}", use_container_width=True):
+                            st.session_state.active_tab = 4
+                            st.rerun()
+                    
+                    if 'restock' in actions and role == "admin":
+                        if st.button("📦 Пополнить", key=f"rest_{n['id']}", use_container_width=True):
+                            st.session_state.dismissed_notifications.append(n['id'])
+                            st.rerun()
+                    
+                    if 'view' in actions and role == "employee":
+                        if st.button("📋 Подробнее", key=f"view_{n['id']}", use_container_width=True):
+                            st.session_state.active_tab = 4
+                            st.rerun()
+                    
+                    # Кнопка скрыть
+                    if st.button("✖️ Скрыть", key=f"hide_{n['id']}", use_container_width=True):
                         st.session_state.dismissed_notifications.append(n['id'])
                         st.rerun()
-                
-                if role == "admin" and n.get('request_id') and n.get('icon') == '📝':
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("✅ Одобрить", key=f"a_{n['id']}", use_container_width=True):
-                            update_request_status(n['request_id'], "approved")
-                            st.session_state.dismissed_notifications.append(n['id'])
-                            st.rerun()
-                    with col2:
-                        if st.button("❌ Отклонить", key=f"r_{n['id']}", use_container_width=True):
-                            update_request_status(n['request_id'], "rejected")
-                            st.session_state.dismissed_notifications.append(n['id'])
-                            st.rerun()
                 
                 st.divider()
     else:
