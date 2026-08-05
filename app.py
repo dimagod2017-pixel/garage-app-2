@@ -1093,6 +1093,7 @@ with tabs[1]:
             uid = f"{item_id}_{idx}"
             
             with st.container():
+                # --- ЗАГОЛОВОК КАРТОЧКИ ---
                 col1, col2 = st.columns([3, 1])
                 with col1:
                     st.markdown(f"### {status_icon} {name}")
@@ -1103,9 +1104,13 @@ with tabs[1]:
                 
                 st.divider()
                 
-                col1, col2 = st.columns([2, 2])
+                # --- ОСНОВНОЙ БЛОК: ИНФОРМАЦИЯ (СЛЕВА) + ФОТО (СПРАВА) ---
+                col_left, col_right = st.columns([2, 2])
                 
-                with col1:
+                # ============================================================
+                # ЛЕВАЯ КОЛОНКА: ИНФОРМАЦИЯ О ТОВАРЕ (ОДИНАКОВАЯ ДЛЯ ВСЕХ)
+                # ============================================================
+                with col_left:
                     st.markdown(f"**📦 Название:** {name}")
                     st.markdown(f"**📍 Место:** {location}")
                     st.markdown(f"**🏠 Помещение:** {room}")
@@ -1118,104 +1123,11 @@ with tabs[1]:
                         st.warning(status_text)
                     else:
                         st.success(status_text)
-                    
-                    st.divider()
-                    
-                    if role == "admin":
-                        with st.expander("✏️ Редактировать", expanded=False):
-                            with st.form(key=f"edit_{uid}"):
-                                edit_name = st.text_input("Название*", value=name, key=f"en_{uid}")
-                                edit_loc = st.text_input("Место*", value=location, key=f"el_{uid}")
-                                rooms = get_room_names()
-                                edit_room = st.selectbox("Помещение", rooms if rooms else ["Нет"], 
-                                                        index=rooms.index(room) if room in rooms else 0,
-                                                        key=f"er_{uid}")
-                                c1, c2 = st.columns(2)
-                                with c1:
-                                    edit_qty = st.number_input("Количество", value=float(quantity), key=f"eq_{uid}")
-                                with c2:
-                                    edit_unit = st.selectbox("Ед.", ["шт","л","кг","м","комплект"], 
-                                                            index=["шт","л","кг","м","комплект"].index(unit) if unit in ["шт","л","кг","м","комплект"] else 0,
-                                                            key=f"eu_{uid}")
-                                edit_threshold = st.number_input("Порог", value=int(threshold), key=f"et_{uid}")
-                                if st.form_submit_button("💾 Сохранить"):
-                                    if edit_name and edit_loc and edit_room != "Нет":
-                                        update_item(item_id, edit_name, edit_loc, edit_room, edit_qty, edit_unit, edit_threshold)
-                                        st.success("✅ Обновлено!")
-                                        st.rerun()
-                        
-                        with st.expander("📦 Переместить", expanded=False):
-                            with st.form(key=f"move_{uid}"):
-                                new_loc = st.text_input("Новое место*", value=location, key=f"ml_{uid}")
-                                rooms = get_room_names()
-                                new_room = st.selectbox("Новое помещение", rooms if rooms else ["Нет"],
-                                                       index=rooms.index(room) if room in rooms else 0,
-                                                       key=f"mr_{uid}")
-                                if st.form_submit_button("📦 Переместить"):
-                                    if new_loc and new_room != "Нет":
-                                        move_item(item_id, new_loc, new_room)
-                                        st.success(f"✅ Перемещено в {new_loc} ({new_room})")
-                                        st.rerun()
-                        
-                        with st.expander("🔢 Количество", expanded=False):
-                            with st.form(key=f"qty_{uid}"):
-                                action = st.radio("Действие", ["Установить", "Прибавить", "Убавить"], key=f"qa_{uid}")
-                                value = st.number_input("Значение", value=1.0, key=f"qv_{uid}")
-                                if st.form_submit_button("✅ Применить"):
-                                    current = float(quantity)
-                                    if action == "Установить":
-                                        new_qty = value
-                                    elif action == "Прибавить":
-                                        new_qty = current + value
-                                    else:
-                                        new_qty = max(0, current - value)
-                                    update_quantity(item_id, new_qty)
-                                    st.success(f"✅ Обновлено: {new_qty} {unit}")
-                                    st.rerun()
-                        
-                        with st.expander("🗑️ Удалить", expanded=False):
-                            st.warning(f"⚠️ Удалить '{name}'?")
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("✅ Да", key=f"del_yes_{uid}"):
-                                    delete_item(item_id)
-                                    st.success(f"🗑️ '{name}' удалён")
-                                    st.rerun()
-                            with col2:
-                                if st.button("❌ Нет", key=f"del_no_{uid}"):
-                                    st.rerun()
-                    
-                    elif role == "employee":
-                        with st.expander("📤 Взять", expanded=False):
-                            if quantity > 0:
-                                take_qty = st.number_input("Количество", min_value=0.1, max_value=float(quantity), value=1.0, key=f"tq_{uid}")
-                                eq_search = st.text_input("Поиск техники", key=f"eqs_{uid}")
-                                eq_list = search_equipment(eq_search) if eq_search else get_equipment()
-                                if eq_list:
-                                    eq_options = {f"{e[1]}" + (f" (№{e[2]})" if e[2] else ""): e for e in eq_list}
-                                    selected = st.selectbox("Выберите технику", list(eq_options.keys()), key=f"eq_sel_{uid}")
-                                    eq = eq_options[selected]
-                                    take_photo = st.file_uploader("📸 Фото", type=["jpg","jpeg","png"], key=f"tp_{uid}")
-                                    if st.button("✅ Подтвердить", key=f"confirm_{uid}"):
-                                        photo_path = ""
-                                        if take_photo:
-                                            ext = take_photo.name.split('.')[-1]
-                                            photo_path = f"images/take/take_{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
-                                            with open(photo_path, "wb") as f:
-                                                f.write(take_photo.getbuffer())
-                                        success, msg = take_item(item_id, take_qty, eq[1], eq[2] if len(eq) > 2 else "", photo_path)
-                                        if success:
-                                            st.success(msg)
-                                            st.rerun()
-                                        else:
-                                            st.error(msg)
-                                else:
-                                    st.warning("⚠️ Нет техники. Добавьте в 'Парк'")
-                            else:
-                                st.warning("🚫 Товара нет")
                 
-                with col2:
-                    st.markdown("#### 📸 Фото")
+                # ============================================================
+                # ПРАВАЯ КОЛОНКА: ФОТО ТОВАРА (ОДИНАКОВАЯ ДЛЯ ВСЕХ)
+                # ============================================================
+                with col_right:
                     photos = get_item_photos(item_id)
                     
                     if photos:
@@ -1231,6 +1143,7 @@ with tabs[1]:
                         current_photo = photos[current_idx]
                         
                         if os.path.exists(current_photo[1]):
+                            # Навигация по фото
                             if len(photos) > 1:
                                 c1, c2, c3 = st.columns([1, 2, 1])
                                 with c1:
@@ -1251,65 +1164,254 @@ with tabs[1]:
                                 st.caption("📸 Обычное фото")
                     else:
                         st.info("📷 Нет фото")
-                    
-                    if role == "admin":
-                        with st.expander("⚙️ Настройки фото", expanded=False):
-                            if photos:
-                                if current_idx < len(photos):
-                                    current_photo = photos[current_idx]
-                                    if os.path.exists(current_photo[1]):
-                                        st.caption("🔄 Поворот:")
-                                        c1, c2, c3 = st.columns(3)
-                                        with c1:
-                                            if st.button("↺ 90°", key=f"rot_l_{uid}"):
-                                                if rotate_photo(current_photo[1], 90):
-                                                    st.rerun()
-                                        with c2:
-                                            if st.button("↻ 90°", key=f"rot_r_{uid}"):
-                                                if rotate_photo(current_photo[1], -90):
-                                                    st.rerun()
-                                        with c3:
-                                            if st.button("180°", key=f"rot_180_{uid}"):
-                                                if rotate_photo(current_photo[1], 180):
-                                                    st.rerun()
-                                        
-                                        st.divider()
-                                        
-                                        if current_photo[2] != 1:
-                                            if st.button("⭐ Сделать главным", key=f"main_{uid}"):
-                                                set_main_photo(current_photo[0])
-                                                st.rerun()
-                                        
-                                        if st.button("🗑️ Удалить это фото", key=f"del_p_{uid}"):
-                                            delete_item_photo(current_photo[0])
-                                            st.session_state[photo_key] = 0
-                                            st.rerun()
+                
+                st.divider()
+                
+                # ============================================================
+                # БЛОК УПРАВЛЕНИЯ (РАЗНЫЙ ДЛЯ АДМИНА И СОТРУДНИКА)
+                # ============================================================
+                
+                # --- ДЛЯ СОТРУДНИКА: ТОЛЬКО КНОПКА "ВЗЯТЬ" ---
+                if role == "employee":
+                    with st.expander("📤 Взять товар", expanded=False):
+                        if quantity > 0:
+                            take_qty = st.number_input(
+                                "Количество", 
+                                min_value=0.1, 
+                                max_value=float(quantity), 
+                                value=1.0, 
+                                key=f"tq_{uid}"
+                            )
+                            eq_search = st.text_input(
+                                "Поиск техники", 
+                                key=f"eqs_{uid}"
+                            )
+                            eq_list = search_equipment(eq_search) if eq_search else get_equipment()
+                            if eq_list:
+                                eq_options = {f"{e[1]}" + (f" (№{e[2]})" if e[2] else ""): e for e in eq_list}
+                                selected = st.selectbox(
+                                    "Выберите технику", 
+                                    list(eq_options.keys()), 
+                                    key=f"eq_sel_{uid}"
+                                )
+                                eq = eq_options[selected]
+                                take_photo = st.file_uploader(
+                                    "📸 Фото", 
+                                    type=["jpg","jpeg","png"], 
+                                    key=f"tp_{uid}"
+                                )
+                                if st.button("✅ Подтвердить", key=f"confirm_{uid}"):
+                                    photo_path = ""
+                                    if take_photo:
+                                        ext = take_photo.name.split('.')[-1]
+                                        photo_path = f"images/take/take_{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+                                        with open(photo_path, "wb") as f:
+                                            f.write(take_photo.getbuffer())
+                                    success, msg = take_item(
+                                        item_id, 
+                                        take_qty, 
+                                        eq[1], 
+                                        eq[2] if len(eq) > 2 else "", 
+                                        photo_path
+                                    )
+                                    if success:
+                                        st.success(msg)
+                                        st.rerun()
+                                    else:
+                                        st.error(msg)
                             else:
-                                st.info("Нет фото для управления")
-                            
-                            st.divider()
-                            st.caption("📤 Добавить фото:")
-                            uploaded = st.file_uploader("Выберите фотографии", type=["jpg","jpeg","png"], 
-                                                       accept_multiple_files=True, key=f"upload_{uid}")
-                            if uploaded:
+                                st.warning("⚠️ Нет техники. Добавьте в 'Парк'")
+                        else:
+                            st.warning("🚫 Товара нет в наличии")
+                
+                # --- ДЛЯ АДМИНИСТРАТОРА: ВСЕ НАСТРОЙКИ ---
+                elif role == "admin":
+                    # Строка кнопок управления в ряд
+                    col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+                    
+                    # 1. РЕДАКТИРОВАТЬ
+                    with col_btn1:
+                        if st.button("✏️ Редактировать", key=f"edit_btn_{uid}", use_container_width=True):
+                            st.session_state[f"edit_mode_{uid}"] = not st.session_state.get(f"edit_mode_{uid}", False)
+                    
+                    # 2. СПИСАТЬ (ВЗЯТЬ)
+                    with col_btn2:
+                        if st.button("📤 Списать", key=f"take_btn_{uid}", use_container_width=True):
+                            st.session_state[f"take_mode_{uid}"] = not st.session_state.get(f"take_mode_{uid}", False)
+                    
+                    # 3. ПЕРЕМЕСТИТЬ
+                    with col_btn3:
+                        if st.button("📦 Переместить", key=f"move_btn_{uid}", use_container_width=True):
+                            st.session_state[f"move_mode_{uid}"] = not st.session_state.get(f"move_mode_{uid}", False)
+                    
+                    # 4. УДАЛИТЬ
+                    with col_btn4:
+                        if st.button("🗑️ Удалить", key=f"del_btn_{uid}", use_container_width=True):
+                            st.session_state[f"del_mode_{uid}"] = not st.session_state.get(f"del_mode_{uid}", False)
+                    
+                    # --- РЕДАКТИРОВАНИЕ ---
+                    if st.session_state.get(f"edit_mode_{uid}", False):
+                        with st.container():
+                            st.markdown("---")
+                            st.markdown("#### ✏️ Редактирование товара")
+                            with st.form(key=f"edit_form_{uid}"):
+                                edit_name = st.text_input("Название*", value=name, key=f"en_{uid}")
+                                edit_loc = st.text_input("Место*", value=location, key=f"el_{uid}")
+                                rooms = get_room_names()
+                                edit_room = st.selectbox("Помещение", rooms if rooms else ["Нет"], 
+                                                        index=rooms.index(room) if room in rooms else 0,
+                                                        key=f"er_{uid}")
                                 c1, c2 = st.columns(2)
                                 with c1:
-                                    is_main = st.checkbox("⭐ Главное", key=f"is_main_{uid}")
+                                    edit_qty = st.number_input("Количество", value=float(quantity), key=f"eq_{uid}")
                                 with c2:
-                                    if st.button("📤 Загрузить", key=f"save_{uid}"):
-                                        for i, uf in enumerate(uploaded):
-                                            ext = uf.name.split('.')[-1]
-                                            path = f"images/items/{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.{ext}"
-                                            with open(path, "wb") as f:
-                                                f.write(uf.getbuffer())
-                                            add_item_photo(item_id, path, is_main=(i == 0 and is_main))
-                                        st.success(f"✅ Загружено {len(uploaded)} фото!")
+                                    edit_unit = st.selectbox("Ед.", ["шт","л","кг","м","комплект"], 
+                                                            index=["шт","л","кг","м","комплект"].index(unit) if unit in ["шт","л","кг","м","комплект"] else 0,
+                                                            key=f"eu_{uid}")
+                                edit_threshold = st.number_input("Порог", value=int(threshold), key=f"et_{uid}")
+                                
+                                # Управление фото
+                                st.markdown("**📸 Управление фото**")
+                                col_photo1, col_photo2 = st.columns(2)
+                                with col_photo1:
+                                    uploaded_photos = st.file_uploader(
+                                        "Добавить фото",
+                                        type=["jpg","jpeg","png"],
+                                        accept_multiple_files=True,
+                                        key=f"upload_edit_{uid}"
+                                    )
+                                with col_photo2:
+                                    if uploaded_photos:
+                                        is_main_edit = st.checkbox("⭐ Сделать главным", key=f"is_main_edit_{uid}")
+                                
+                                c1, c2 = st.columns(2)
+                                with c1:
+                                    if st.form_submit_button("💾 Сохранить изменения"):
+                                        if edit_name and edit_loc and edit_room != "Нет":
+                                            update_item(item_id, edit_name, edit_loc, edit_room, edit_qty, edit_unit, edit_threshold)
+                                            if uploaded_photos:
+                                                for i, uf in enumerate(uploaded_photos):
+                                                    ext = uf.name.split('.')[-1]
+                                                    path = f"images/items/{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.{ext}"
+                                                    with open(path, "wb") as f:
+                                                        f.write(uf.getbuffer())
+                                                    add_item_photo(item_id, path, is_main=(i == 0 and is_main_edit))
+                                            st.success("✅ Товар обновлён!")
+                                            st.session_state[f"edit_mode_{uid}"] = False
+                                            st.rerun()
+                                with c2:
+                                    if st.form_submit_button("❌ Отмена"):
+                                        st.session_state[f"edit_mode_{uid}"] = False
                                         st.rerun()
+                    
+                    # --- СПИСАТЬ (ВЗЯТЬ) ---
+                    if st.session_state.get(f"take_mode_{uid}", False):
+                        with st.container():
+                            st.markdown("---")
+                            st.markdown("#### 📤 Списание товара")
+                            with st.form(key=f"take_form_{uid}"):
+                                if quantity > 0:
+                                    take_qty = st.number_input(
+                                        "Количество", 
+                                        min_value=0.1, 
+                                        max_value=float(quantity), 
+                                        value=1.0, 
+                                        key=f"tq_admin_{uid}"
+                                    )
+                                    eq_search = st.text_input(
+                                        "Поиск техники", 
+                                        key=f"eqs_admin_{uid}"
+                                    )
+                                    eq_list = search_equipment(eq_search) if eq_search else get_equipment()
+                                    if eq_list:
+                                        eq_options = {f"{e[1]}" + (f" (№{e[2]})" if e[2] else ""): e for e in eq_list}
+                                        selected = st.selectbox(
+                                            "Выберите технику", 
+                                            list(eq_options.keys()), 
+                                            key=f"eq_sel_admin_{uid}"
+                                        )
+                                        eq = eq_options[selected]
+                                        take_photo = st.file_uploader(
+                                            "📸 Фото", 
+                                            type=["jpg","jpeg","png"], 
+                                            key=f"tp_admin_{uid}"
+                                        )
+                                        c1, c2 = st.columns(2)
+                                        with c1:
+                                            if st.form_submit_button("✅ Подтвердить списание"):
+                                                photo_path = ""
+                                                if take_photo:
+                                                    ext = take_photo.name.split('.')[-1]
+                                                    photo_path = f"images/take/take_{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+                                                    with open(photo_path, "wb") as f:
+                                                        f.write(take_photo.getbuffer())
+                                                success, msg = take_item(
+                                                    item_id, 
+                                                    take_qty, 
+                                                    eq[1], 
+                                                    eq[2] if len(eq) > 2 else "", 
+                                                    photo_path
+                                                )
+                                                if success:
+                                                    st.success(msg)
+                                                    st.session_state[f"take_mode_{uid}"] = False
+                                                    st.rerun()
+                                                else:
+                                                    st.error(msg)
+                                        with c2:
+                                            if st.form_submit_button("❌ Отмена"):
+                                                st.session_state[f"take_mode_{uid}"] = False
+                                                st.rerun()
+                                    else:
+                                        st.warning("⚠️ Нет техники. Добавьте в 'Парк'")
+                                else:
+                                    st.warning("🚫 Товара нет в наличии")
+                    
+                    # --- ПЕРЕМЕЩЕНИЕ ---
+                    if st.session_state.get(f"move_mode_{uid}", False):
+                        with st.container():
+                            st.markdown("---")
+                            st.markdown("#### 📦 Перемещение товара")
+                            with st.form(key=f"move_form_{uid}"):
+                                new_loc = st.text_input("Новое место*", value=location, key=f"ml_{uid}")
+                                rooms = get_room_names()
+                                new_room = st.selectbox("Новое помещение", rooms if rooms else ["Нет"],
+                                                       index=rooms.index(room) if room in rooms else 0,
+                                                       key=f"mr_{uid}")
+                                c1, c2 = st.columns(2)
+                                with c1:
+                                    if st.form_submit_button("📦 Переместить"):
+                                        if new_loc and new_room != "Нет":
+                                            move_item(item_id, new_loc, new_room)
+                                            st.success(f"✅ Перемещено в {new_loc} ({new_room})")
+                                            st.session_state[f"move_mode_{uid}"] = False
+                                            st.rerun()
+                                with c2:
+                                    if st.form_submit_button("❌ Отмена"):
+                                        st.session_state[f"move_mode_{uid}"] = False
+                                        st.rerun()
+                    
+                    # --- УДАЛЕНИЕ ---
+                    if st.session_state.get(f"del_mode_{uid}", False):
+                        with st.container():
+                            st.markdown("---")
+                            st.markdown("#### 🗑️ Удаление товара")
+                            st.warning(f"⚠️ Вы уверены, что хотите удалить товар '{name}'?")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("✅ Да, удалить", key=f"del_confirm_{uid}", use_container_width=True):
+                                    delete_item(item_id)
+                                    st.success(f"🗑️ Товар '{name}' удалён")
+                                    st.session_state[f"del_mode_{uid}"] = False
+                                    st.rerun()
+                            with col2:
+                                if st.button("❌ Отмена", key=f"del_cancel_{uid}", use_container_width=True):
+                                    st.session_state[f"del_mode_{uid}"] = False
+                                    st.rerun()
                 
                 st.divider()
     else:
         st.info("📭 Склад пуст. Добавьте товары через боковую панель.")
-
 # ============================================================
 # 8.3 СПИСАНИЯ (ИНДЕКС 2)
 # ============================================================
