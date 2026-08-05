@@ -418,104 +418,117 @@ role = user["role"]
 user_name = user["name"]
 
 # ============================================================
-# 5. УВЕДОМЛЕНИЯ
+# 7.1 УВЕДОМЛЕНИЯ
 # ============================================================
 
-def get_notifications():
-    notifications = []
+with tabs[0]:
+    st.markdown("## 📬 Уведомления")
     
-    if role == "admin":
-        # Новые заявки
-        for req in get_requests(status='pending'):
-            r = unpack_request(req)
-            nid = f"pending_{r['id']}"
-            if nid not in st.session_state.dismissed_notifications:
-                notifications.append({
-                    'id': nid, 'icon': '📝', 'title': f'Новая заявка: {r["name"]}',
-                    'text': f'От: {r["user"]} | {r["quantity"]} {r["unit"]}',
-                    'date': r['date'], 'request_id': r['id']
-                })
+    # Получаем уведомления
+    notifs = get_notifications()
+    
+    # Счетчики по типам
+    if notifs:
+        pending_count = len([n for n in notifs if n.get('icon') == '📝'])
+        low_stock_count = len([n for n in notifs if n.get('icon') == '⚠️'])
+        returned_count = len([n for n in notifs if n.get('icon') == '🔄'])
         
-        # Возвращенные заявки
-        for req in get_requests(status='returned'):
-            r = unpack_request(req)
-            nid = f"returned_{r['id']}"
-            if nid not in st.session_state.dismissed_notifications:
-                notifications.append({
-                    'id': nid, 'icon': '🔄', 'title': f'Возврат: {r["name"]}',
-                    'text': r['admin_comment'][:100] if r['admin_comment'] else 'Без комментария',
-                    'date': r['date'], 'request_id': r['id']
-                })
+        # Статистика уведомлений
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("📝 Новые заявки", pending_count)
+        with col2:
+            st.metric("⚠️ Низкий запас", low_stock_count)
+        with col3:
+            st.metric("🔄 Возвраты", returned_count)
+        with col4:
+            st.metric("📬 Всего", len(notifs))
         
-        # Товары с низким запасом
-        for item in get_low_stock():
-            nid = f"low_{item[0]}"
-            if nid not in st.session_state.dismissed_notifications:
-                notifications.append({
-                    'id': nid, 'icon': '⚠️', 'title': f'Заканчивается: {item[1]}',
-                    'text': f'Осталось {item[6]} {item[5]} (порог: {item[7]})',
-                    'date': item[4], 'item_id': item[0]
-                })
-    
-    else:  # Сотрудник
-        for req in get_requests(user=user_name):
-            r = unpack_request(req)
-            nid = f"{r['status']}_{r['id']}"
-            if nid not in st.session_state.dismissed_notifications:
-                icons = {
-                    'pending': '⏳', 'in_work': '🔧', 'approved': '✅',
-                    'rejected': '❌', 'suggested': '💡', 'returned': '🔄'
-                }
-                status_text = {
-                    'pending': 'На рассмотрении', 'in_work': 'В работе',
-                    'approved': 'Выполнено', 'rejected': 'Отклонено',
-                    'suggested': 'Предложен товар', 'returned': 'Возвращено'
-                }
-                notifications.append({
-                    'id': nid, 'icon': icons.get(r['status'], '📋'),
-                    'title': r['name'],
-                    'text': f'Статус: {status_text.get(r["status"], r["status"])}',
-                    'date': r['date'], 'request_id': r['id']
-                })
-    
-    return sorted(notifications, key=lambda x: x['date'], reverse=True)
-
-
-def get_shopping_list():
-    shopping = []
-    
-    for req in get_requests(status='in_work'):
-        r = unpack_request(req)
-        shopping.append({
-            'type': 'in_work', 'icon': '🔧', 'name': r['name'],
-            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
-            'user': r['user'], 'id': r['id']
-        })
-    
-    for req in get_requests(status='pending'):
-        r = unpack_request(req)
-        shopping.append({
-            'type': 'pending', 'icon': '📝', 'name': r['name'],
-            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
-            'user': r['user'], 'id': r['id']
-        })
-    
-    for item in get_low_stock():
-        shopping.append({
-            'type': 'low_stock', 'icon': '⚠️', 'name': item[1],
-            'qty': float(item[6] or 0), 'unit': item[5],
-            'room': item[3], 'id': item[0]
-        })
-    
-    for req in get_requests(status='approved'):
-        r = unpack_request(req)
-        shopping.append({
-            'type': 'approved', 'icon': '✅', 'name': r['name'],
-            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
-            'user': r['user'], 'id': r['id']
-        })
-    
-    return shopping
+        st.divider()
+        
+        # Кнопка очистки
+        if st.button("🗑️ Очистить все уведомления", use_container_width=True):
+            for n in notifs:
+                st.session_state.dismissed_notifications.append(n['id'])
+            st.rerun()
+        
+        st.divider()
+        
+        # Группировка уведомлений по типам
+        for n in notifs:
+            # Определяем цвет для иконки
+            icon_color = {
+                '📝': '🔵',  # Новые заявки - синий
+                '⚠️': '🟠',  # Низкий запас - оранжевый
+                '🔄': '🟣',  # Возвраты - фиолетовый
+                '⏳': '🟡',  # В ожидании - желтый
+                '🔧': '🔵',  # В работе - синий
+                '✅': '🟢',  # Выполнено - зеленый
+                '❌': '🔴',  # Отклонено - красный
+                '💡': '💡',  # Предложено - лампочка
+            }.get(n.get('icon'), '⚪')
+            
+            with st.container():
+                col1, col2, col3 = st.columns([5, 2, 1])
+                
+                # --- ЛЕВАЯ КОЛОНКА: ИКОНКА + ЗАГОЛОВОК + ТЕКСТ ---
+                with col1:
+                    st.markdown(f"**{icon_color} {n['icon']} {n['title']}**")
+                    st.caption(n['text'])
+                
+                # --- СРЕДНЯЯ КОЛОНКА: ДАТА ---
+                with col2:
+                    if n.get('date'):
+                        try:
+                            date_obj = datetime.strptime(n['date'][:16], "%Y-%m-%d %H:%M")
+                            date_str = date_obj.strftime("%d.%m.%Y %H:%M")
+                        except:
+                            date_str = n['date'][:16]
+                    else:
+                        date_str = "Н/Д"
+                    st.caption(f"📅 {date_str}")
+                
+                # --- ПРАВАЯ КОЛОНКА: КНОПКИ ДЕЙСТВИЙ ---
+                with col3:
+                    # Для администратора - кнопки действий с заявками
+                    if role == "admin" and n.get('request_id'):
+                        if n.get('icon') == '📝':  # Новая заявка
+                            if st.button("🔧", key=f"w_{n['id']}", help="Взять в работу"):
+                                update_request_status(n['request_id'], "in_work")
+                                st.session_state.dismissed_notifications.append(n['id'])
+                                st.rerun()
+                        elif n.get('icon') == '🔄':  # Возврат
+                            if st.button("📝", key=f"review_{n['id']}", help="Пересмотреть"):
+                                st.session_state.active_tab = 4
+                                st.rerun()
+                        elif n.get('icon') == '⚠️':  # Низкий запас
+                            if st.button("📦", key=f"restock_{n['id']}", help="Пополнить"):
+                                st.session_state.dismissed_notifications.append(n['id'])
+                                st.rerun()
+                    
+                    # Кнопка скрыть
+                    if st.button("✖️", key=f"d_{n['id']}", help="Скрыть уведомление"):
+                        st.session_state.dismissed_notifications.append(n['id'])
+                        st.rerun()
+                
+                # --- ДОПОЛНИТЕЛЬНЫЕ КНОПКИ ДЛЯ АДМИНА (НОВЫЕ ЗАЯВКИ) ---
+                if role == "admin" and n.get('request_id') and n.get('icon') == '📝':
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("✅ Одобрить", key=f"a_{n['id']}", use_container_width=True):
+                            update_request_status(n['request_id'], "approved")
+                            st.session_state.dismissed_notifications.append(n['id'])
+                            st.rerun()
+                    with col2:
+                        if st.button("❌ Отклонить", key=f"r_{n['id']}", use_container_width=True):
+                            update_request_status(n['request_id'], "rejected")
+                            st.session_state.dismissed_notifications.append(n['id'])
+                            st.rerun()
+                
+                st.divider()
+    else:
+        st.success("✅ Нет новых уведомлений!")
+        st.info("💡 Уведомления появляются при:\n- Создании новых заявок\n- Возврате заявок на доработку\n- Когда товары заканчиваются на складе")
 # ============================================================
 # 6. БОКОВАЯ ПАНЕЛЬ
 # ============================================================
