@@ -37,7 +37,6 @@ def init_db():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     
-    # Товары
     c.execute('''CREATE TABLE IF NOT EXISTS items (
         id TEXT PRIMARY KEY,
         name TEXT,
@@ -50,7 +49,6 @@ def init_db():
         photos_count INTEGER DEFAULT 0
     )''')
     
-    # Техника
     c.execute('''CREATE TABLE IF NOT EXISTS equipment (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
@@ -58,14 +56,12 @@ def init_db():
         date_added TEXT
     )''')
     
-    # Помещения
     c.execute('''CREATE TABLE IF NOT EXISTS rooms (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
         date_added TEXT
     )''')
     
-    # Заявки
     c.execute('''CREATE TABLE IF NOT EXISTS requests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT,
@@ -81,7 +77,6 @@ def init_db():
         suggested_item_id TEXT
     )''')
     
-    # Списания
     c.execute('''CREATE TABLE IF NOT EXISTS consumption (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         item_id TEXT,
@@ -95,7 +90,6 @@ def init_db():
         photo TEXT
     )''')
     
-    # Фото товаров
     c.execute('''CREATE TABLE IF NOT EXISTS item_photos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         item_id TEXT,
@@ -216,7 +210,6 @@ def move_item(item_id, new_location, new_room):
 def delete_item(item_id):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    # Удаляем фото
     c.execute("SELECT photo_path FROM item_photos WHERE item_id=?", (item_id,))
     for photo in c.fetchall():
         if os.path.exists(photo[0]):
@@ -266,7 +259,6 @@ def delete_item_photo(photo_id):
             except: pass
         c.execute("DELETE FROM item_photos WHERE id=?", (photo_id,))
         c.execute("UPDATE items SET photos_count = photos_count - 1 WHERE id=?", (item_id,))
-        # Если удалили главное - делаем первое главным
         c.execute("SELECT id FROM item_photos WHERE item_id=? LIMIT 1", (item_id,))
         first = c.fetchone()
         if first:
@@ -370,6 +362,21 @@ def delete_request(req_id):
     conn.commit()
     conn.close()
 
+def mark_request_seen(req_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE requests SET seen=1 WHERE id=?", (req_id,))
+    conn.commit()
+    conn.close()
+
+def return_request(req_id, reason=""):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    comment = f"Отклонено: {reason}" if reason else "Отклонено сотрудником"
+    c.execute("UPDATE requests SET status='returned', admin_comment=?, seen=0 WHERE id=?", (comment, req_id))
+    conn.commit()
+    conn.close()
+
 def unpack_request(req):
     return {
         'id': req[0], 'name': req[1] or "", 'quantity': req[2] or 0,
@@ -392,9 +399,11 @@ def get_stats():
     stats['in_work'] = c.fetchone()[0]
     conn.close()
     return stats
+
 # ============================================================
-# УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
+# 4. УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
 # ============================================================
+
 def get_notifications():
     notifications = []
     
@@ -404,7 +413,6 @@ def get_notifications():
             r = unpack_request(req)
             nid = f"pending_{r['id']}"
             if nid not in st.session_state.dismissed_notifications:
-                # Получаем фото товара из заявки
                 photo_path = r.get('photo', '')
                 notifications.append({
                     'id': nid,
@@ -450,7 +458,6 @@ def get_notifications():
         for item in get_low_stock():
             nid = f"low_{item[0]}"
             if nid not in st.session_state.dismissed_notifications:
-                # Определяем критичность
                 if item[6] == 0:
                     status = "🚨 КРИТИЧНО! Нет в наличии"
                     status_color = "🔴"
@@ -461,7 +468,6 @@ def get_notifications():
                     status = "⚠️ Заканчивается"
                     status_color = "🟡"
                 
-                # Получаем фото товара
                 photos = get_item_photos(item[0])
                 photo_path = None
                 if photos:
@@ -522,128 +528,6 @@ def get_notifications():
                 })
     
     return sorted(notifications, key=lambda x: x['date'], reverse=True)
-def get_notifications():
-    notifications = []
-    
-    if role == "admin":
-        # --- НОВЫЕ ЗАЯВКИ (PENDING) ---
-        for req in get_requests(status='pending'):
-            r = unpack_request(req)
-            nid = f"pending_{r['id']}"
-            if nid not in st.session_state.dismissed_notifications:
-                # Получаем фото товара из заявки
-                photo_path = r.get('photo', '')
-                notifications.append({
-                    'id': nid,
-                    'type': 'request',
-                    'status': 'Новая заявка',
-                    'status_color': '🔵',
-                    'icon': '📝',
-                    'title': r['name'],
-                    'text': f'От: {r["user"]} | {r["quantity"]} {r["unit"]}',
-                    'date': r['date'],
-                    'request_id': r['id'],
-                    'user': r['user'],
-                    'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
-                    'actions': ['approve', 'reject', 'work']
-                })
-        
-        # --- ВОЗВРАЩЕННЫЕ ЗАЯВКИ ---
-        for req in get_requests(status='returned'):
-            r = unpack_request(req)
-            nid = f"returned_{r['id']}"
-            if nid not in st.session_state.dismissed_notifications:
-                photo_path = r.get('photo', '')
-                notifications.append({
-                    'id': nid,
-                    'type': 'returned',
-                    'status': 'Возврат',
-                    'status_color': '🟣',
-                    'icon': '🔄',
-                    'title': r['name'],
-                    'text': f'От: {r["user"]} | Причина: {r["admin_comment"][:50] if r["admin_comment"] else "Не указана"}',
-                    'date': r['date'],
-                    'request_id': r['id'],
-                    'user': r['user'],
-                    'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
-                    'actions': ['review']
-                })
-        
-        # --- ТОВАРЫ С НИЗКИМ ЗАПАСОМ ---
-        for item in get_low_stock():
-            nid = f"low_{item[0]}"
-            if nid not in st.session_state.dismissed_notifications:
-                # Определяем критичность
-                if item[6] == 0:
-                    status = "🚨 КРИТИЧНО!"
-                    status_color = "🔴"
-                elif item[6] <= item[7] / 2:
-                    status = "⚠️ Очень мало!"
-                    status_color = "🟠"
-                else:
-                    status = "⚠️ Заканчивается"
-                    status_color = "🟡"
-                
-                # Получаем фото товара
-                photos = get_item_photos(item[0])
-                photo_path = None
-                if photos:
-                    main_photo = next((p for p in photos if p[2] == 1), photos[0])
-                    if os.path.exists(main_photo[1]):
-                        photo_path = main_photo[1]
-                
-                notifications.append({
-                    'id': nid,
-                    'type': 'low_stock',
-                    'status': status,
-                    'status_color': status_color,
-                    'icon': '⚠️',
-                    'title': item[1],
-                    'text': f'Осталось {item[6]} {item[5]} (порог: {item[7]}) | 📍 {item[2]}',
-                    'date': item[4],
-                    'item_id': item[0],
-                    'quantity': item[6],
-                    'threshold': item[7],
-                    'photo': photo_path,
-                    'actions': ['restock']
-                })
-    
-    else:  # СОТРУДНИК
-        for req in get_requests(user=user_name):
-            r = unpack_request(req)
-            nid = f"{r['status']}_{r['id']}"
-            if nid not in st.session_state.dismissed_notifications:
-                status_map = {
-                    'pending': ('⏳', 'На рассмотрении', '🟡'),
-                    'in_work': ('🔧', 'В работе', '🔵'),
-                    'approved': ('✅', 'Выполнено', '🟢'),
-                    'rejected': ('❌', 'Отклонено', '🔴'),
-                    'suggested': ('💡', 'Предложен товар', '🟣'),
-                    'returned': ('🔄', 'Возвращено', '🟠')
-                }
-                icon, status_text, color = status_map.get(r['status'], ('📋', r['status'], '⚪'))
-                
-                photo_path = r.get('photo', '')
-                extra_text = ""
-                if r['status'] == 'suggested' and r['suggested_item_id']:
-                    extra_text = " | 💡 Есть предложение со склада!"
-                
-                notifications.append({
-                    'id': nid,
-                    'type': 'request',
-                    'status': status_text,
-                    'status_color': color,
-                    'icon': icon,
-                    'title': r['name'],
-                    'text': f'Статус: {status_text}{extra_text}',
-                    'date': r['date'],
-                    'request_id': r['id'],
-                    'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
-                    'actions': ['view']
-                })
-    
-    return sorted(notifications, key=lambda x: x['date'], reverse=True)
-
 
 def get_shopping_list():
     shopping = []
@@ -680,138 +564,9 @@ def get_shopping_list():
         })
     
     return shopping
-def get_notifications():
-    notifications = []
-    
-    if role == "admin":
-        # --- НОВЫЕ ЗАЯВКИ (PENDING) ---
-        for req in get_requests(status='pending'):
-            r = unpack_request(req)
-            nid = f"pending_{r['id']}"
-            if nid not in st.session_state.dismissed_notifications:
-                notifications.append({
-                    'id': nid,
-                    'icon': '📝',
-                    'title': f'Новая заявка: {r["name"]}',
-                    'text': f'От: {r["user"]} | {r["quantity"]} {r["unit"]}',
-                    'date': r['date'],
-                    'request_id': r['id'],
-                    'user': r['user']
-                })
-        
-        # --- ВОЗВРАЩЕННЫЕ ЗАЯВКИ ---
-        for req in get_requests(status='returned'):
-            r = unpack_request(req)
-            nid = f"returned_{r['id']}"
-            if nid not in st.session_state.dismissed_notifications:
-                notifications.append({
-                    'id': nid,
-                    'icon': '🔄',
-                    'title': f'Возврат заявки: {r["name"]}',
-                    'text': f'От: {r["user"]} | Причина: {r["admin_comment"][:50] if r["admin_comment"] else "Не указана"}',
-                    'date': r['date'],
-                    'request_id': r['id'],
-                    'user': r['user']
-                })
-        
-        # --- ТОВАРЫ С НИЗКИМ ЗАПАСОМ ---
-        for item in get_low_stock():
-            nid = f"low_{item[0]}"
-            if nid not in st.session_state.dismissed_notifications:
-                if item[6] == 0:
-                    urgency = "🚨 КРИТИЧНО! Нет в наличии"
-                elif item[6] <= item[7] / 2:
-                    urgency = "⚠️ Очень мало!"
-                else:
-                    urgency = "⚠️ Заканчивается"
-                
-                notifications.append({
-                    'id': nid,
-                    'icon': '⚠️',
-                    'title': f'{urgency}: {item[1]}',
-                    'text': f'Осталось {item[6]} {item[5]} (порог: {item[7]}) | 📍 {item[2]}',
-                    'date': item[4],
-                    'item_id': item[0],
-                    'quantity': item[6],
-                    'threshold': item[7]
-                })
-    
-    else:  # СОТРУДНИК
-        for req in get_requests(user=user_name):
-            r = unpack_request(req)
-            nid = f"{r['status']}_{r['id']}"
-            if nid not in st.session_state.dismissed_notifications:
-                icons = {
-                    'pending': '⏳',
-                    'in_work': '🔧',
-                    'approved': '✅',
-                    'rejected': '❌',
-                    'suggested': '💡',
-                    'returned': '🔄'
-                }
-                status_text = {
-                    'pending': 'На рассмотрении',
-                    'in_work': 'В работе',
-                    'approved': 'Выполнено',
-                    'rejected': 'Отклонено',
-                    'suggested': 'Предложен товар',
-                    'returned': 'Возвращено на доработку'
-                }
-                
-                extra_text = ""
-                if r['status'] == 'suggested' and r['suggested_item_id']:
-                    extra_text = " | 💡 Есть предложение со склада!"
-                
-                notifications.append({
-                    'id': nid,
-                    'icon': icons.get(r['status'], '📋'),
-                    'title': f'{r["name"]}',
-                    'text': f'Статус: {status_text.get(r["status"], r["status"])}{extra_text}',
-                    'date': r['date'],
-                    'request_id': r['id'],
-                    'status': r['status']
-                })
-    
-    return sorted(notifications, key=lambda x: x['date'], reverse=True)
 
-
-def get_shopping_list():
-    shopping = []
-    
-    for req in get_requests(status='in_work'):
-        r = unpack_request(req)
-        shopping.append({
-            'type': 'in_work', 'icon': '🔧', 'name': r['name'],
-            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
-            'user': r['user'], 'id': r['id']
-        })
-    
-    for req in get_requests(status='pending'):
-        r = unpack_request(req)
-        shopping.append({
-            'type': 'pending', 'icon': '📝', 'name': r['name'],
-            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
-            'user': r['user'], 'id': r['id']
-        })
-    
-    for item in get_low_stock():
-        shopping.append({
-            'type': 'low_stock', 'icon': '⚠️', 'name': item[1],
-            'qty': float(item[6] or 0), 'unit': item[5],
-            'room': item[3], 'id': item[0]
-        })
-    
-    for req in get_requests(status='approved'):
-        r = unpack_request(req)
-        shopping.append({
-            'type': 'approved', 'icon': '✅', 'name': r['name'],
-            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
-            'user': r['user'], 'id': r['id']
-        })
-    
-    return shopping
 # ============================================================
-# 4. ВХОД В СИСТЕМУ
+# 5. ВХОД В СИСТЕМУ
 # ============================================================
 
 def login_page():
@@ -850,7 +605,7 @@ with st.sidebar:
     if role == "admin":
         shopping = get_shopping_list()
         if shopping and st.button(f"🛒 К покупке: {len(shopping)}", use_container_width=True):
-            st.session_state.active_tab = 6
+            st.session_state.active_tab = 3
             st.rerun()
     
     if st.button("🚪 Выйти", use_container_width=True):
@@ -887,13 +642,14 @@ with st.sidebar:
                     add_item_photo(item_id, photo_path, is_main)
                 st.success(f"✅ {name} добавлен!")
                 st.rerun()
+
 # ============================================================
 # 7. ОСНОВНОЙ ИНТЕРФЕЙС
 # ============================================================
 
 st.title("📦 SmartStock Pro")
 
-# --- НОВАЯ СТРУКТУРА ВКЛАДОК (6 ВКЛАДОК: ИНДЕКСЫ 0-5) ---
+# --- ВКЛАДКИ (6 ШТУК: ИНДЕКСЫ 0-5) ---
 tabs = st.tabs([
     "📝 Заявки",      # 0
     "📋 Товары",      # 1
@@ -1444,85 +1200,6 @@ with tabs[4]:
 # ============================================================
 
 with tabs[5]:
-    st.markdown("## ⚙️ Управление")
-    if role == "admin":
-        tab_a, tab_b = st.tabs(["🏠 Помещения", "💾 Бэкапы"])
-        with tab_a:
-            with st.form("add_room"):
-                name = st.text_input("Название*")
-                if st.form_submit_button("Добавить") and name:
-                    add_room(name)
-                    st.rerun()
-            st.markdown("**Существующие помещения:**")
-            for room in get_room_names():
-                st.write(f"• {room}")
-        with tab_b:
-            if st.button("💾 Создать бэкап"):
-                fname = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
-                shutil.copy2('storage.db', f"backups/{fname}")
-                st.success(f"✅ Бэкап создан: {fname}")                
-# ============================================================
-# 7.6 СПИСАНИЯ
-# ============================================================
-
-with tabs[5]:
-    st.markdown("## 📤 Списания")
-    cons = get_consumption()
-    if cons:
-        for c in cons:
-            st.write(f"📤 {c[9]} — {c[2]} {c[3]} → {c[4]} | {c[5]} | {c[6]}")
-    else:
-        st.info("Нет списаний")
-
-# ============================================================
-# 7.7 ПОКУПКИ
-# ============================================================
-
-with tabs[6]:
-    st.markdown("## 🛒 Список покупок")
-    shopping = get_shopping_list()
-    if shopping:
-        for item in shopping:
-            with st.expander(f"{item['icon']} {item['name']} — {item['qty']} {item['unit']}"):
-                if item['type'] in ['in_work', 'pending']:
-                    st.write(f"От: {item['user']}" if 'user' in item else "")
-                    if st.button("✅ Выполнено", key=f"done_{item['id']}"):
-                        update_request_status(item['id'], "approved")
-                        st.rerun()
-                elif item['type'] == 'low_stock':
-                    new_qty = st.number_input("Новое кол-во", value=float(item['qty']), key=f"nq_{item['id']}")
-                    if st.button("💾 Обновить", key=f"upd_{item['id']}"):
-                        update_quantity(item['id'], new_qty)
-                        st.rerun()
-    else:
-        st.success("✅ Список покупок пуст!")
-
-# ============================================================
-# 7.8 ПАРК ТЕХНИКИ
-# ============================================================
-
-with tabs[7]:
-    st.markdown("## 🚜 Парк техники")
-    if role == "admin":
-        with st.form("add_eq"):
-            c1, c2 = st.columns(2)
-            with c1:
-                name = st.text_input("Название*")
-            with c2:
-                num = st.text_input("Номер")
-            if st.form_submit_button("Добавить") and name:
-                add_equipment(name, num)
-                st.rerun()
-    
-    for eq in get_equipment():
-        with st.expander(f"🚜 {eq[1]}" + (f" (№{eq[2]})" if eq[2] else "")):
-            st.caption(f"📅 Добавлен: {eq[3][:10] if eq[3] else 'Н/Д'}")
-
-# ============================================================
-# 7.9 УПРАВЛЕНИЕ
-# ============================================================
-
-with tabs[8]:
     st.markdown("## ⚙️ Управление")
     if role == "admin":
         tab_a, tab_b = st.tabs(["🏠 Помещения", "💾 Бэкапы"])
