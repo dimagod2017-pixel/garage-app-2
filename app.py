@@ -105,10 +105,14 @@ def init_db():
     )''')
     
     # Добавляем админа по умолчанию (пароль 1209)
-    c.execute("SELECT COUNT(*) FROM users WHERE role='admin'")
+    c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
     if c.fetchone()[0] == 0:
-        c.execute("INSERT INTO users (username, password, full_name, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        c.execute("""INSERT INTO users (username, password, full_name, role, status, created_at) 
+                     VALUES (?, ?, ?, ?, ?, ?)""",
                   ("admin", "1209", "Администратор", "admin", "active", datetime.now().strftime("%Y-%m-%d %H:%M")))
+    else:
+        # Обновляем роль админа если нужно
+        c.execute("UPDATE users SET role='admin', status='active' WHERE username='admin'")
     
     conn.commit()
     conn.close()
@@ -318,7 +322,7 @@ def take_item(item_id, quantity, eq_name, eq_number, photo_path=""):
     c.execute("""INSERT INTO consumption (item_id, quantity, unit, object_name, user, date, equipment_name, equipment_number, photo)
                  VALUES (?,?,?,?,?,?,?,?,?)""",
               (item_id, quantity, row[1], f"{eq_name} (№{eq_number})", 
-               st.session_state.user["full_name"], datetime.now().strftime("%Y-%m-%d %H:%M"),
+               st.session_state.user.get("full_name", "Пользователь"), datetime.now().strftime("%Y-%m-%d %H:%M"),
                eq_name, eq_number, photo_path))
     conn.commit()
     conn.close()
@@ -435,6 +439,11 @@ def get_user(username, password):
     c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
     result = c.fetchone()
     conn.close()
+    
+    # Диагностика
+    if result:
+        print(f"🔍 get_user вернул: id={result[0]}, username={result[1]}, role={result[3]}, status={result[4]}")
+    
     return result
 
 def get_all_users():
@@ -474,7 +483,10 @@ def get_pending_users():
 def get_notifications():
     notifications = []
     
-    if role == "admin":
+    # Получаем роль из глобальной переменной
+    current_role = st.session_state.user.get("role", "employee") if st.session_state.user else "employee"
+    
+    if current_role == "admin":
         for req in get_requests(status='pending'):
             r = unpack_request(req)
             nid = f"pending_{r['id']}"
@@ -552,7 +564,7 @@ def get_notifications():
                     'actions': ['restock']
                 })
     
-    else:
+    else:  # СОТРУДНИК
         for req in get_requests(user=user_name):
             r = unpack_request(req)
             nid = f"{r['status']}_{r['id']}"
@@ -651,11 +663,18 @@ def login_page():
                         user_role = user[3]
                         user_status = user[4]
                         
+                        print(f"🔍 Найден пользователь: {user_username}, роль: {user_role}, статус: {user_status}")
+                        
                         if user_status == "blocked":
                             st.error("❌ Ваш аккаунт заблокирован. Обратитесь к администратору.")
                         elif user_status == "pending":
                             st.warning("⏳ Ваш аккаунт ожидает одобрения администратора.")
                         else:
+                            # Принудительно устанавливаем роль для admin
+                            if user_username == "admin":
+                                user_role = "admin"
+                                print("🔧 Принудительно установлена роль admin")
+                            
                             st.session_state.user = {
                                 "id": user_id,
                                 "username": user_username,
@@ -663,6 +682,7 @@ def login_page():
                                 "role": user_role,
                                 "status": user_status
                             }
+                            print(f"✅ Сессия создана: {st.session_state.user}")
                             st.rerun()
                     else:
                         st.error("❌ Неверный логин или пароль!")
@@ -701,9 +721,22 @@ if st.session_state.user is None:
 
 # --- ПОЛУЧАЕМ ДАННЫЕ ПОЛЬЗОВАТЕЛЯ ИЗ СЕССИИ ---
 user = st.session_state.user
-role = user["role"]
-user_name = user["full_name"]
-username = user["username"]
+
+# Диагностика
+print(f"🔍 Данные из сессии: {user}")
+
+role = user.get("role", "employee")  # Если роль не найдена - ставим employee
+user_name = user.get("full_name", "Пользователь")
+username = user.get("username", "")
+
+# Если роль не admin, но это admin - принудительно исправляем
+if username == "admin" and role != "admin":
+    print("⚠️ Исправляем роль для admin!")
+    role = "admin"
+    user["role"] = "admin"
+    st.session_state.user = user
+
+print(f"✅ Вошёл пользователь: {username}, роль: {role}")
 
 # ============================================================
 # 7. БОКОВАЯ ПАНЕЛЬ
