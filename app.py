@@ -418,6 +418,69 @@ role = user["role"]
 user_name = user["name"]
 
 # ============================================================
+# 6. БОКОВАЯ ПАНЕЛЬ
+# ============================================================
+
+with st.sidebar:
+    st.markdown(f"### 👤 {user_name}")
+    st.caption(f"Роль: {'🔑 Администратор' if role == 'admin' else '🔧 Сотрудник'}")
+    
+    notifs = get_notifications()
+    if notifs and st.button(f"🔔 Уведомлений: {len(notifs)}", use_container_width=True):
+        st.session_state.active_tab = 0
+        st.rerun()
+    
+    if role == "admin":
+        shopping = get_shopping_list()
+        if shopping and st.button(f"🛒 К покупке: {len(shopping)}", use_container_width=True):
+            st.session_state.active_tab = 6
+            st.rerun()
+    
+    if st.button("🚪 Выйти", use_container_width=True):
+        st.session_state.user = None
+        st.rerun()
+    
+    st.divider()
+    
+    if role == "admin":
+        with st.form("quick_add", clear_on_submit=True):
+            st.markdown("### ➕ Новый товар")
+            name = st.text_input("Название*")
+            location = st.text_input("Место*")
+            rooms = get_room_names()
+            room = st.selectbox("Помещение*", rooms if rooms else ["Нет помещений"])
+            col1, col2 = st.columns(2)
+            with col1:
+                qty = st.number_input("Кол-во", min_value=0.0, value=1.0)
+            with col2:
+                unit = st.selectbox("Ед.", ["шт", "л", "кг", "м", "комплект"])
+            
+            st.markdown("---")
+            st.markdown("📸 **Фото товара**")
+            uploaded_photo = st.file_uploader("Выберите фото", type=["jpg","jpeg","png"], key="quick_photo")
+            is_main = st.checkbox("⭐ Сделать главным", value=True)
+            
+            if st.form_submit_button("💾 Сохранить") and name and location and room != "Нет помещений":
+                item_id = add_item(name, location, room, qty, unit)
+                if uploaded_photo:
+                    ext = uploaded_photo.name.split('.')[-1]
+                    photo_path = f"images/items/{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+                    with open(photo_path, "wb") as f:
+                        f.write(uploaded_photo.getbuffer())
+                    add_item_photo(item_id, photo_path, is_main)
+                st.success(f"✅ {name} добавлен!")
+                st.rerun()
+
+# ============================================================
+# 7. ОСНОВНОЙ ИНТЕРФЕЙС
+# ============================================================
+
+st.title("📦 SmartStock Pro")
+
+# СОЗДАНИЕ ВКЛАДОК (ЭТО ГЛАВНОЕ!)
+tabs = st.tabs(["🔔 Уведомления", "📊 Дашборд", "🔍 Поиск", "📋 Товары", "📝 Заявки", "📤 Списания", "🛒 Покупки", "🚜 Парк", "⚙️ Управление"])
+
+# ============================================================
 # 7.1 УВЕДОМЛЕНИЯ
 # ============================================================
 
@@ -458,14 +521,14 @@ with tabs[0]:
         for n in notifs:
             # Определяем цвет для иконки
             icon_color = {
-                '📝': '🔵',  # Новые заявки - синий
-                '⚠️': '🟠',  # Низкий запас - оранжевый
-                '🔄': '🟣',  # Возвраты - фиолетовый
-                '⏳': '🟡',  # В ожидании - желтый
-                '🔧': '🔵',  # В работе - синий
-                '✅': '🟢',  # Выполнено - зеленый
-                '❌': '🔴',  # Отклонено - красный
-                '💡': '💡',  # Предложено - лампочка
+                '📝': '🔵',
+                '⚠️': '🟠',
+                '🔄': '🟣',
+                '⏳': '🟡',
+                '🔧': '🔵',
+                '✅': '🟢',
+                '❌': '🔴',
+                '💡': '💡'
             }.get(n.get('icon'), '⚪')
             
             with st.container():
@@ -529,106 +592,6 @@ with tabs[0]:
     else:
         st.success("✅ Нет новых уведомлений!")
         st.info("💡 Уведомления появляются при:\n- Создании новых заявок\n- Возврате заявок на доработку\n- Когда товары заканчиваются на складе")
-# ============================================================
-# 6. БОКОВАЯ ПАНЕЛЬ
-# ============================================================
-
-with st.sidebar:
-    st.markdown(f"### 👤 {user_name}")
-    st.caption(f"Роль: {'🔑 Администратор' if role == 'admin' else '🔧 Сотрудник'}")
-    
-    notifs = get_notifications()
-    if notifs and st.button(f"🔔 Уведомлений: {len(notifs)}", use_container_width=True):
-        st.session_state.active_tab = 0
-        st.rerun()
-    
-    if role == "admin":
-        shopping = get_shopping_list()
-        if shopping and st.button(f"🛒 К покупке: {len(shopping)}", use_container_width=True):
-            st.session_state.active_tab = 6
-            st.rerun()
-    
-    if st.button("🚪 Выйти", use_container_width=True):
-        st.session_state.user = None
-        st.rerun()
-    
-    st.divider()
-    
-    if role == "admin":
-        with st.form("quick_add", clear_on_submit=True):
-            st.markdown("### ➕ Новый товар")
-            name = st.text_input("Название*")
-            location = st.text_input("Место*")
-            rooms = get_room_names()
-            room = st.selectbox("Помещение*", rooms if rooms else ["Нет помещений"])
-            col1, col2 = st.columns(2)
-            with col1:
-                qty = st.number_input("Кол-во", min_value=0.0, value=1.0)
-            with col2:
-                unit = st.selectbox("Ед.", ["шт", "л", "кг", "м", "комплект"])
-            
-            st.markdown("---")
-            st.markdown("📸 **Фото товара**")
-            uploaded_photo = st.file_uploader("Выберите фото", type=["jpg","jpeg","png"], key="quick_photo")
-            is_main = st.checkbox("⭐ Сделать главным", value=True)
-            
-            if st.form_submit_button("💾 Сохранить") and name and location and room != "Нет помещений":
-                item_id = add_item(name, location, room, qty, unit)
-                if uploaded_photo:
-                    ext = uploaded_photo.name.split('.')[-1]
-                    photo_path = f"images/items/{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
-                    with open(photo_path, "wb") as f:
-                        f.write(uploaded_photo.getbuffer())
-                    add_item_photo(item_id, photo_path, is_main)
-                st.success(f"✅ {name} добавлен!")
-                st.rerun()
-
-# ============================================================
-# 7. ОСНОВНОЙ ИНТЕРФЕЙС
-# ============================================================
-
-st.title("📦 SmartStock Pro")
-
-tabs = st.tabs(["🔔 Уведомления", "📊 Дашборд", "🔍 Поиск", "📋 Товары", "📝 Заявки", "📤 Списания", "🛒 Покупки", "🚜 Парк", "⚙️ Управление"])
-
-# ============================================================
-# 7.1 УВЕДОМЛЕНИЯ
-# ============================================================
-
-with tabs[0]:
-    st.markdown("## 📬 Уведомления")
-    notifs = get_notifications()
-    if notifs:
-        if st.button("🗑️ Очистить все"):
-            for n in notifs:
-                st.session_state.dismissed_notifications.append(n['id'])
-            st.rerun()
-        for n in notifs:
-            with st.expander(f"{n['icon']} {n['title']}", expanded=True):
-                st.write(n['text'])
-                if n.get('request_id') and role == 'admin':
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        if st.button("🔧 В работу", key=f"w_{n['id']}"):
-                            update_request_status(n['request_id'], "in_work")
-                            st.session_state.dismissed_notifications.append(n['id'])
-                            st.rerun()
-                    with col2:
-                        if st.button("✅ Одобрить", key=f"a_{n['id']}"):
-                            update_request_status(n['request_id'], "approved")
-                            st.session_state.dismissed_notifications.append(n['id'])
-                            st.rerun()
-                    with col3:
-                        if st.button("❌ Отклонить", key=f"r_{n['id']}"):
-                            update_request_status(n['request_id'], "rejected")
-                            st.session_state.dismissed_notifications.append(n['id'])
-                            st.rerun()
-                if st.button("🗑️ Скрыть", key=f"d_{n['id']}"):
-                    st.session_state.dismissed_notifications.append(n['id'])
-                    st.rerun()
-    else:
-        st.success("✅ Нет уведомлений!")
-
 # ============================================================
 # 7.2 ДАШБОРД
 # ============================================================
