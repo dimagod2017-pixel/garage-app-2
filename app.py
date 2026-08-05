@@ -392,7 +392,140 @@ def get_stats():
     stats['in_work'] = c.fetchone()[0]
     conn.close()
     return stats
+# ============================================================
+# УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
+# ============================================================
 
+def get_notifications():
+    notifications = []
+    
+    if role == "admin":
+        # --- НОВЫЕ ЗАЯВКИ (PENDING) ---
+        for req in get_requests(status='pending'):
+            r = unpack_request(req)
+            nid = f"pending_{r['id']}"
+            if nid not in st.session_state.dismissed_notifications:
+                notifications.append({
+                    'id': nid,
+                    'icon': '📝',
+                    'title': f'Новая заявка: {r["name"]}',
+                    'text': f'От: {r["user"]} | {r["quantity"]} {r["unit"]}',
+                    'date': r['date'],
+                    'request_id': r['id'],
+                    'user': r['user']
+                })
+        
+        # --- ВОЗВРАЩЕННЫЕ ЗАЯВКИ ---
+        for req in get_requests(status='returned'):
+            r = unpack_request(req)
+            nid = f"returned_{r['id']}"
+            if nid not in st.session_state.dismissed_notifications:
+                notifications.append({
+                    'id': nid,
+                    'icon': '🔄',
+                    'title': f'Возврат заявки: {r["name"]}',
+                    'text': f'От: {r["user"]} | Причина: {r["admin_comment"][:50] if r["admin_comment"] else "Не указана"}',
+                    'date': r['date'],
+                    'request_id': r['id'],
+                    'user': r['user']
+                })
+        
+        # --- ТОВАРЫ С НИЗКИМ ЗАПАСОМ ---
+        for item in get_low_stock():
+            nid = f"low_{item[0]}"
+            if nid not in st.session_state.dismissed_notifications:
+                if item[6] == 0:
+                    urgency = "🚨 КРИТИЧНО! Нет в наличии"
+                elif item[6] <= item[7] / 2:
+                    urgency = "⚠️ Очень мало!"
+                else:
+                    urgency = "⚠️ Заканчивается"
+                
+                notifications.append({
+                    'id': nid,
+                    'icon': '⚠️',
+                    'title': f'{urgency}: {item[1]}',
+                    'text': f'Осталось {item[6]} {item[5]} (порог: {item[7]}) | 📍 {item[2]}',
+                    'date': item[4],
+                    'item_id': item[0],
+                    'quantity': item[6],
+                    'threshold': item[7]
+                })
+    
+    else:  # СОТРУДНИК
+        for req in get_requests(user=user_name):
+            r = unpack_request(req)
+            nid = f"{r['status']}_{r['id']}"
+            if nid not in st.session_state.dismissed_notifications:
+                icons = {
+                    'pending': '⏳',
+                    'in_work': '🔧',
+                    'approved': '✅',
+                    'rejected': '❌',
+                    'suggested': '💡',
+                    'returned': '🔄'
+                }
+                status_text = {
+                    'pending': 'На рассмотрении',
+                    'in_work': 'В работе',
+                    'approved': 'Выполнено',
+                    'rejected': 'Отклонено',
+                    'suggested': 'Предложен товар',
+                    'returned': 'Возвращено на доработку'
+                }
+                
+                extra_text = ""
+                if r['status'] == 'suggested' and r['suggested_item_id']:
+                    extra_text = " | 💡 Есть предложение со склада!"
+                
+                notifications.append({
+                    'id': nid,
+                    'icon': icons.get(r['status'], '📋'),
+                    'title': f'{r["name"]}',
+                    'text': f'Статус: {status_text.get(r["status"], r["status"])}{extra_text}',
+                    'date': r['date'],
+                    'request_id': r['id'],
+                    'status': r['status']
+                })
+    
+    return sorted(notifications, key=lambda x: x['date'], reverse=True)
+
+
+def get_shopping_list():
+    shopping = []
+    
+    for req in get_requests(status='in_work'):
+        r = unpack_request(req)
+        shopping.append({
+            'type': 'in_work', 'icon': '🔧', 'name': r['name'],
+            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
+            'user': r['user'], 'id': r['id']
+        })
+    
+    for req in get_requests(status='pending'):
+        r = unpack_request(req)
+        shopping.append({
+            'type': 'pending', 'icon': '📝', 'name': r['name'],
+            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
+            'user': r['user'], 'id': r['id']
+        })
+    
+    for item in get_low_stock():
+        shopping.append({
+            'type': 'low_stock', 'icon': '⚠️', 'name': item[1],
+            'qty': float(item[6] or 0), 'unit': item[5],
+            'room': item[3], 'id': item[0]
+        })
+    
+    for req in get_requests(status='approved'):
+        r = unpack_request(req)
+        shopping.append({
+            'type': 'approved', 'icon': '✅', 'name': r['name'],
+            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
+            'user': r['user'], 'id': r['id']
+        })
+    
+    return shopping
 # ============================================================
 # 4. ВХОД В СИСТЕМУ
 # ============================================================
