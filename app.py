@@ -749,16 +749,50 @@ with st.sidebar:
     if user.get('status') == "blocked":
         st.error("🚫 Аккаунт заблокирован")
     
+    # --- УВЕДОМЛЕНИЯ В БОКОВОЙ ПАНЕЛИ ---
     notifs = get_notifications()
-    if notifs and st.button(f"🔔 Уведомлений: {len(notifs)}", use_container_width=True):
-        st.session_state.active_tab = 0
-        st.rerun()
+    if notifs:
+        # Разделяем уведомления по типам
+        pending_count = len([n for n in notifs if n.get('icon') == '📝'])
+        low_stock_count = len([n for n in notifs if n.get('icon') == '⚠️'])
+        returned_count = len([n for n in notifs if n.get('icon') == '🔄'])
+        other_count = len(notifs) - pending_count - low_stock_count - returned_count
+        
+        # Формируем текст кнопки
+        button_text = f"🔔 Уведомлений: {len(notifs)}"
+        if pending_count > 0:
+            button_text += f" 📝{pending_count}"
+        if low_stock_count > 0 and role == "admin":
+            button_text += f" ⚠️{low_stock_count}"
+        if returned_count > 0 and role == "admin":
+            button_text += f" 🔄{returned_count}"
+        
+        if st.button(button_text, use_container_width=True):
+            # Прокручиваем к вкладке "Заявки" (индекс 0)
+            st.session_state.active_tab = 0
+            st.rerun()
+    else:
+        if st.button("✅ Нет уведомлений", use_container_width=True):
+            pass
     
     if role == "admin":
         shopping = get_shopping_list()
-        if shopping and st.button(f"🛒 К покупке: {len(shopping)}", use_container_width=True):
-            st.session_state.active_tab = 3
-            st.rerun()
+        if shopping:
+            low_stock_shopping = len([s for s in shopping if s.get('type') == 'low_stock'])
+            pending_shopping = len([s for s in shopping if s.get('type') == 'pending'])
+            in_work_shopping = len([s for s in shopping if s.get('type') == 'in_work'])
+            
+            button_text = f"🛒 К покупке: {len(shopping)}"
+            if low_stock_shopping > 0:
+                button_text += f" ⚠️{low_stock_shopping}"
+            if pending_shopping > 0:
+                button_text += f" 📝{pending_shopping}"
+            if in_work_shopping > 0:
+                button_text += f" 🔧{in_work_shopping}"
+            
+            if st.button(button_text, use_container_width=True):
+                st.session_state.active_tab = 3
+                st.rerun()
     
     if st.button("🚪 Выйти", use_container_width=True):
         st.session_state.user = None
@@ -803,32 +837,53 @@ with st.sidebar:
                         add_item_photo(item_id, photo_path, is_main)
                     st.success(f"✅ Товар '{name}' добавлен!")
                     st.rerun()
-
 # ============================================================
 # 8. ОСНОВНОЙ ИНТЕРФЕЙС
 # ============================================================
 
 st.title("📦 SmartStock Pro")
 
-# --- ВКЛАДКИ В ЗАВИСИМОСТИ ОТ РОЛИ ---
+# --- ПОЛУЧАЕМ УВЕДОМЛЕНИЯ ДЛЯ СЧЕТЧИКОВ ---
+notifs = get_notifications()
+
+# --- СЧЕТЧИКИ ДЛЯ КАЖДОЙ ВКЛАДКИ ---
+# Счетчик заявок (новые + возвращенные)
+if role == "admin":
+    pending_count = len([n for n in notifs if n.get('type') == 'request' and n.get('status') == 'Новая заявка'])
+    returned_count = len([n for n in notifs if n.get('type') == 'returned'])
+    request_count = pending_count + returned_count
+else:
+    # Для сотрудника - заявки с измененным статусом
+    request_count = len([n for n in notifs if n.get('type') == 'request'])
+
+# Счетчик низкого запаса (только для админа)
+if role == "admin":
+    low_stock_count = len([n for n in notifs if n.get('type') == 'low_stock'])
+else:
+    low_stock_count = 0
+
+# Счетчик списаний (новые списания) - показываем всем
+consumption_count = 0  # Можно добавить логику для новых списаний
+
+# --- СОЗДАЕМ ВКЛАДКИ С СЧЕТЧИКАМИ ---
 if role == "admin":
     tabs = st.tabs([
-        "📝 Заявки",      # 0
-        "📋 Товары",      # 1
-        "📤 Списания",    # 2
-        "🛒 Покупки",     # 3
-        "🚜 Парк",        # 4
-        "👥 Пользователи",# 5
-        "⚙️ Управление"   # 6
+        f"📝 Заявки ({request_count})" if request_count > 0 else "📝 Заявки",
+        f"📋 Товары ({low_stock_count})" if low_stock_count > 0 else "📋 Товары",
+        "📤 Списания",
+        "🛒 Покупки",
+        "🚜 Парк",
+        "👥 Пользователи",
+        "⚙️ Управление"
     ])
 else:
     tabs = st.tabs([
-        "📝 Заявки",      # 0
-        "📋 Товары",      # 1
-        "📤 Списания",    # 2
-        "🛒 Покупки",     # 3
-        "🚜 Парк",        # 4
-        "⚙️ Управление"   # 5
+        f"📝 Заявки ({request_count})" if request_count > 0 else "📝 Заявки",
+        "📋 Товары",
+        "📤 Списания",
+        "🛒 Покупки",
+        "🚜 Парк",
+        "⚙️ Управление"
     ])
 
 # ============================================================
