@@ -395,7 +395,133 @@ def get_stats():
 # ============================================================
 # УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
 # ============================================================
-
+def get_notifications():
+    notifications = []
+    
+    if role == "admin":
+        # --- НОВЫЕ ЗАЯВКИ (PENDING) ---
+        for req in get_requests(status='pending'):
+            r = unpack_request(req)
+            nid = f"pending_{r['id']}"
+            if nid not in st.session_state.dismissed_notifications:
+                # Получаем фото товара из заявки
+                photo_path = r.get('photo', '')
+                notifications.append({
+                    'id': nid,
+                    'type': 'request',
+                    'status': 'Новая заявка',
+                    'status_color': '🔵',
+                    'icon': '📝',
+                    'title': r['name'],
+                    'description': r.get('description', ''),
+                    'text': f'От: {r["user"]} | {r["quantity"]} {r["unit"]}',
+                    'date': r['date'],
+                    'request_id': r['id'],
+                    'user': r['user'],
+                    'quantity': r['quantity'],
+                    'unit': r['unit'],
+                    'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
+                    'actions': ['approve', 'reject', 'work']
+                })
+        
+        # --- ВОЗВРАЩЕННЫЕ ЗАЯВКИ ---
+        for req in get_requests(status='returned'):
+            r = unpack_request(req)
+            nid = f"returned_{r['id']}"
+            if nid not in st.session_state.dismissed_notifications:
+                photo_path = r.get('photo', '')
+                notifications.append({
+                    'id': nid,
+                    'type': 'returned',
+                    'status': 'Возврат',
+                    'status_color': '🟣',
+                    'icon': '🔄',
+                    'title': r['name'],
+                    'description': r.get('description', ''),
+                    'text': f'От: {r["user"]} | Причина: {r["admin_comment"][:50] if r["admin_comment"] else "Не указана"}',
+                    'date': r['date'],
+                    'request_id': r['id'],
+                    'user': r['user'],
+                    'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
+                    'actions': ['review']
+                })
+        
+        # --- ТОВАРЫ С НИЗКИМ ЗАПАСОМ ---
+        for item in get_low_stock():
+            nid = f"low_{item[0]}"
+            if nid not in st.session_state.dismissed_notifications:
+                # Определяем критичность
+                if item[6] == 0:
+                    status = "🚨 КРИТИЧНО! Нет в наличии"
+                    status_color = "🔴"
+                elif item[6] <= item[7] / 2:
+                    status = "⚠️ Очень мало!"
+                    status_color = "🟠"
+                else:
+                    status = "⚠️ Заканчивается"
+                    status_color = "🟡"
+                
+                # Получаем фото товара
+                photos = get_item_photos(item[0])
+                photo_path = None
+                if photos:
+                    main_photo = next((p for p in photos if p[2] == 1), photos[0])
+                    if os.path.exists(main_photo[1]):
+                        photo_path = main_photo[1]
+                
+                notifications.append({
+                    'id': nid,
+                    'type': 'low_stock',
+                    'status': status,
+                    'status_color': status_color,
+                    'icon': '⚠️',
+                    'title': item[1],
+                    'description': f'Осталось {item[6]} {item[5]} из {item[7]} (порог)',
+                    'text': f'Осталось {item[6]} {item[5]} (порог: {item[7]}) | 📍 {item[2]}',
+                    'date': item[4],
+                    'item_id': item[0],
+                    'quantity': item[6],
+                    'threshold': item[7],
+                    'photo': photo_path,
+                    'actions': ['restock']
+                })
+    
+    else:  # СОТРУДНИК
+        for req in get_requests(user=user_name):
+            r = unpack_request(req)
+            nid = f"{r['status']}_{r['id']}"
+            if nid not in st.session_state.dismissed_notifications:
+                status_map = {
+                    'pending': ('⏳', 'На рассмотрении', '🟡'),
+                    'in_work': ('🔧', 'В работе', '🔵'),
+                    'approved': ('✅', 'Выполнено', '🟢'),
+                    'rejected': ('❌', 'Отклонено', '🔴'),
+                    'suggested': ('💡', 'Предложен товар', '🟣'),
+                    'returned': ('🔄', 'Возвращено', '🟠')
+                }
+                icon, status_text, color = status_map.get(r['status'], ('📋', r['status'], '⚪'))
+                
+                photo_path = r.get('photo', '')
+                extra_text = ""
+                if r['status'] == 'suggested' and r['suggested_item_id']:
+                    extra_text = " | 💡 Есть предложение со склада!"
+                
+                notifications.append({
+                    'id': nid,
+                    'type': 'request',
+                    'status': status_text,
+                    'status_color': color,
+                    'icon': icon,
+                    'title': r['name'],
+                    'description': r.get('description', ''),
+                    'text': f'Статус: {status_text}{extra_text}',
+                    'date': r['date'],
+                    'request_id': r['id'],
+                    'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
+                    'actions': ['view']
+                })
+    
+    return sorted(notifications, key=lambda x: x['date'], reverse=True)
 def get_notifications():
     notifications = []
     
@@ -812,43 +938,62 @@ with tabs[0]:
         # --- КАРТОЧКИ УВЕДОМЛЕНИЙ ---
         for n in notifs:
             with st.container():
-                # Стилизованная карточка
+                # Цвет фона в зависимости от статуса
+                bg_color = {
+                    '🔴': '#fff5f5',
+                    '🟠': '#fff8e1',
+                    '🟡': '#fffde7',
+                    '🟢': '#f1f8e9',
+                    '🔵': '#e3f2fd',
+                    '🟣': '#f3e5f5',
+                }.get(n.get('status_color'), '#f5f5f5')
+                
                 st.markdown(f"""
                 <div style="
                     border: 1px solid #ddd;
                     border-radius: 10px;
                     padding: 15px;
                     margin-bottom: 10px;
-                    background-color: {'#fff5f5' if n.get('status_color') == '🔴' else '#fff8e1' if n.get('status_color') == '🟠' else '#f5f5f5'};
+                    background-color: {bg_color};
                 ">
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Основное содержимое карточки
-                col1, col2, col3 = st.columns([1, 5, 3])
+                # --- ОСНОВНОЕ СОДЕРЖИМОЕ КАРТОЧКИ ---
+                col1, col2, col3 = st.columns([1, 4, 3])
                 
-                # --- КОЛОНКА 1: СТАТУС + ИКОНКА ---
+                # --- КОЛОНКА 1: СТАТУС ---
                 with col1:
                     st.markdown(f"### {n.get('status_color', '⚪')}")
                     st.markdown(f"# {n['icon']}")
                     st.caption(n.get('status', 'Статус'))
                 
-                # --- КОЛОНКА 2: НАЗВАНИЕ + ТЕКСТ ---
+                # --- КОЛОНКА 2: НАЗВАНИЕ + ОПИСАНИЕ + ТЕКСТ ---
                 with col2:
                     st.markdown(f"**{n['title']}**")
+                    if n.get('description'):
+                        st.caption(f"📝 {n['description'][:100]}")
                     st.caption(n['text'])
-                    st.caption(f"📅 {n.get('date', 'Н/Д')[:16] if n.get('date') else 'Н/Д'}")
+                    if n.get('date'):
+                        try:
+                            date_obj = datetime.strptime(n['date'][:16], "%Y-%m-%d %H:%M")
+                            date_str = date_obj.strftime("%d.%m.%Y %H:%M")
+                        except:
+                            date_str = n['date'][:16]
+                        st.caption(f"📅 {date_str}")
                 
                 # --- КОЛОНКА 3: ФОТО + КНОПКИ ---
                 with col3:
                     # Фото
                     if n.get('photo'):
                         try:
-                            st.image(n['photo'], width=80)
+                            st.image(n['photo'], width=100)
                         except:
-                            pass
+                            st.caption("📷 Ошибка загрузки")
                     else:
                         st.caption("📷 Нет фото")
+                    
+                    st.divider()
                     
                     # Кнопки действий
                     actions = n.get('actions', [])
