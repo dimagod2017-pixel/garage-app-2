@@ -1256,26 +1256,35 @@ with tabs[1]:
                                         st.success(f"✅ Загружено {len(uploaded)} фото!")
                                         st.rerun()
                 
+                st.divider()
+                
                 # ============================================================
                 # БЛОК УПРАВЛЕНИЯ (РАЗНЫЙ ДЛЯ АДМИНА И СОТРУДНИКА)
                 # ============================================================
                 
-                # --- ДЛЯ СОТРУДНИКА: ТОЛЬКО КНОПКА "ВЗЯТЬ" ---
+                # --- ДЛЯ СОТРУДНИКА: КНОПКА "ВЗЯТЬ" ---
                 if role == "employee":
                     with st.expander("📤 Взять товар", expanded=False):
                         if quantity > 0:
-                            take_qty = st.number_input(
-                                "Количество", 
-                                min_value=0.1, 
-                                max_value=float(quantity), 
-                                value=1.0, 
-                                key=f"tq_{uid}"
-                            )
-                            eq_search = st.text_input(
-                                "Поиск техники", 
-                                key=f"eqs_{uid}"
-                            )
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                take_qty = st.number_input(
+                                    "Количество", 
+                                    min_value=0.1, 
+                                    max_value=float(quantity), 
+                                    value=1.0, 
+                                    key=f"tq_{uid}"
+                                )
+                            with col2:
+                                eq_search = st.text_input(
+                                    "Поиск техники (название или номер)", 
+                                    key=f"eqs_{uid}",
+                                    placeholder="Введите название..."
+                                )
+                            
                             eq_list = search_equipment(eq_search) if eq_search else get_equipment()
+                            
                             if eq_list:
                                 eq_options = {f"{e[1]}" + (f" (№{e[2]})" if e[2] else ""): e for e in eq_list}
                                 selected = st.selectbox(
@@ -1284,18 +1293,23 @@ with tabs[1]:
                                     key=f"eq_sel_{uid}"
                                 )
                                 eq = eq_options[selected]
+                                
                                 take_photo = st.file_uploader(
-                                    "📸 Фото", 
+                                    "📸 Фото (опционально)", 
                                     type=["jpg","jpeg","png"], 
                                     key=f"tp_{uid}"
                                 )
-                                if st.button("✅ Подтвердить", key=f"confirm_{uid}"):
+                                
+                                if st.button("✅ Подтвердить взятие", key=f"confirm_{uid}", use_container_width=True):
                                     photo_path = ""
                                     if take_photo:
+                                        if not os.path.exists("images/take"):
+                                            os.makedirs("images/take")
                                         ext = take_photo.name.split('.')[-1]
                                         photo_path = f"images/take/take_{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
                                         with open(photo_path, "wb") as f:
                                             f.write(take_photo.getbuffer())
+                                    
                                     success, msg = take_item(
                                         item_id, 
                                         take_qty, 
@@ -1309,7 +1323,7 @@ with tabs[1]:
                                     else:
                                         st.error(msg)
                             else:
-                                st.warning("⚠️ Нет техники. Добавьте в 'Парк'")
+                                st.warning("⚠️ Нет добавленной техники. Добавьте технику в разделе 'Парк'")
                         else:
                             st.warning("🚫 Товара нет в наличии")
                 
