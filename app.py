@@ -1168,7 +1168,6 @@ with tabs[1]:
                                 st.divider()
                                 st.markdown("**⚙️ Управление фото**")
                                 
-                                # Кнопки управления текущим фото
                                 col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
                                 
                                 with col_btn1:
@@ -1187,7 +1186,7 @@ with tabs[1]:
                                             set_main_photo(current_photo[0])
                                             st.rerun()
                                     else:
-                                        st.button("⭐ Главное", disabled=True, use_container_width=True)
+                                        st.button("⭐ Главное", key=f"main_disabled_{uid}", disabled=True, use_container_width=True)
                                 
                                 with col_btn4:
                                     if st.button("🗑️ Удалить", key=f"del_photo_{uid}", use_container_width=True):
@@ -1195,7 +1194,6 @@ with tabs[1]:
                                         st.session_state[photo_key] = 0
                                         st.rerun()
                                 
-                                # Список всех фото с миниатюрами
                                 if len(photos) > 1:
                                     st.markdown("**📸 Все фото товара:**")
                                     cols = st.columns(min(4, len(photos)))
@@ -1208,7 +1206,6 @@ with tabs[1]:
                                                     st.session_state[photo_key] = i
                                                     st.rerun()
                                 
-                                # Добавление новых фото
                                 st.markdown("**📤 Добавить фото:**")
                                 uploaded = st.file_uploader(
                                     "Выберите фотографии (можно несколько)",
@@ -1258,8 +1255,6 @@ with tabs[1]:
                                             add_item_photo(item_id, path, is_main=(i == 0 and is_main_new))
                                         st.success(f"✅ Загружено {len(uploaded)} фото!")
                                         st.rerun()
-                
-                st.divider()
                 
                 # ============================================================
                 # БЛОК УПРАВЛЕНИЯ (РАЗНЫЙ ДЛЯ АДМИНА И СОТРУДНИКА)
