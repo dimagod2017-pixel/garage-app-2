@@ -644,17 +644,24 @@ def login_page():
                 if username and password:
                     user = get_user(username, password)
                     if user:
-                        if user[4] == "blocked":
+                        # user = (id, username, password, full_name, role, status, created_at, approved_by)
+                        user_id = user[0]
+                        user_username = user[1]
+                        user_full_name = user[2]
+                        user_role = user[3]      # <-- role на позиции 3
+                        user_status = user[4]    # <-- status на позиции 4
+                        
+                        if user_status == "blocked":
                             st.error("❌ Ваш аккаунт заблокирован. Обратитесь к администратору.")
-                        elif user[4] == "pending":
+                        elif user_status == "pending":
                             st.warning("⏳ Ваш аккаунт ожидает одобрения администратора.")
                         else:
                             st.session_state.user = {
-                                "id": user[0],
-                                "username": user[1],
-                                "full_name": user[2],
-                                "role": user[3],
-                                "status": user[4]
+                                "id": user_id,
+                                "username": user_username,
+                                "full_name": user_full_name,
+                                "role": user_role,
+                                "status": user_status
                             }
                             st.rerun()
                     else:
@@ -695,10 +702,14 @@ if st.session_state.user is None:
     login_page()
     st.stop()
 
+# --- ПОЛУЧАЕМ ДАННЫЕ ПОЛЬЗОВАТЕЛЯ ИЗ СЕССИИ ---
 user = st.session_state.user
 role = user["role"]
 user_name = user["full_name"]
 username = user["username"]
+
+# ДЛЯ ОТЛАДКИ - выводим в консоль
+print(f"✅ Вошёл пользователь: {username}, роль: {role}")
 
 # ============================================================
 # 7. БОКОВАЯ ПАНЕЛЬ
@@ -732,7 +743,6 @@ with st.sidebar:
         with st.form("quick_add", clear_on_submit=True):
             st.markdown("### ➕ Новый товар")
             
-            # --- ПОЛЯ ДЛЯ ТОВАРА ---
             name = st.text_input("Название*", key="quick_name")
             location = st.text_input("Место*", key="quick_location")
             rooms = get_room_names()
@@ -746,16 +756,10 @@ with st.sidebar:
             
             st.markdown("---")
             st.markdown("📸 **Фото товара**")
-            uploaded_photo = st.file_uploader(
-                "Выберите фото", 
-                type=["jpg", "jpeg", "png"], 
-                key="quick_photo"
-            )
+            uploaded_photo = st.file_uploader("Выберите фото", type=["jpg","jpeg","png"], key="quick_photo")
             is_main = st.checkbox("⭐ Сделать главным", value=True, key="quick_main")
             
-            # --- КНОПКА ОТПРАВКИ ---
             if st.form_submit_button("💾 Сохранить", use_container_width=True):
-                # Проверка обязательных полей
                 if not name:
                     st.error("❌ Введите название товара!")
                 elif not location:
@@ -763,17 +767,13 @@ with st.sidebar:
                 elif room == "Нет помещений":
                     st.error("❌ Выберите помещение!")
                 else:
-                    # Добавляем товар
                     item_id = add_item(name, location, room, qty, unit)
-                    
-                    # Добавляем фото если есть
                     if uploaded_photo:
                         ext = uploaded_photo.name.split('.')[-1]
                         photo_path = f"images/items/{item_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
                         with open(photo_path, "wb") as f:
                             f.write(uploaded_photo.getbuffer())
                         add_item_photo(item_id, photo_path, is_main)
-                    
                     st.success(f"✅ Товар '{name}' добавлен!")
                     st.rerun()
 # ============================================================
