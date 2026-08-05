@@ -396,6 +396,168 @@ def get_stats():
 # УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
 # ============================================================
 
+# ============================================================
+# УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
+# ============================================================
+
+def get_notifications():
+    notifications = []
+    
+    if role == "admin":
+        # --- НОВЫЕ ЗАЯВКИ (PENDING) ---
+        for req in get_requests(status='pending'):
+            r = unpack_request(req)
+            nid = f"pending_{r['id']}"
+            if nid not in st.session_state.dismissed_notifications:
+                # Получаем фото товара из заявки
+                photo_path = r.get('photo', '')
+                notifications.append({
+                    'id': nid,
+                    'type': 'request',
+                    'status': 'Новая заявка',
+                    'status_color': '🔵',
+                    'icon': '📝',
+                    'title': r['name'],
+                    'text': f'От: {r["user"]} | {r["quantity"]} {r["unit"]}',
+                    'date': r['date'],
+                    'request_id': r['id'],
+                    'user': r['user'],
+                    'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
+                    'actions': ['approve', 'reject', 'work']
+                })
+        
+        # --- ВОЗВРАЩЕННЫЕ ЗАЯВКИ ---
+        for req in get_requests(status='returned'):
+            r = unpack_request(req)
+            nid = f"returned_{r['id']}"
+            if nid not in st.session_state.dismissed_notifications:
+                photo_path = r.get('photo', '')
+                notifications.append({
+                    'id': nid,
+                    'type': 'returned',
+                    'status': 'Возврат',
+                    'status_color': '🟣',
+                    'icon': '🔄',
+                    'title': r['name'],
+                    'text': f'От: {r["user"]} | Причина: {r["admin_comment"][:50] if r["admin_comment"] else "Не указана"}',
+                    'date': r['date'],
+                    'request_id': r['id'],
+                    'user': r['user'],
+                    'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
+                    'actions': ['review']
+                })
+        
+        # --- ТОВАРЫ С НИЗКИМ ЗАПАСОМ ---
+        for item in get_low_stock():
+            nid = f"low_{item[0]}"
+            if nid not in st.session_state.dismissed_notifications:
+                # Определяем критичность
+                if item[6] == 0:
+                    status = "🚨 КРИТИЧНО!"
+                    status_color = "🔴"
+                elif item[6] <= item[7] / 2:
+                    status = "⚠️ Очень мало!"
+                    status_color = "🟠"
+                else:
+                    status = "⚠️ Заканчивается"
+                    status_color = "🟡"
+                
+                # Получаем фото товара
+                photos = get_item_photos(item[0])
+                photo_path = None
+                if photos:
+                    main_photo = next((p for p in photos if p[2] == 1), photos[0])
+                    if os.path.exists(main_photo[1]):
+                        photo_path = main_photo[1]
+                
+                notifications.append({
+                    'id': nid,
+                    'type': 'low_stock',
+                    'status': status,
+                    'status_color': status_color,
+                    'icon': '⚠️',
+                    'title': item[1],
+                    'text': f'Осталось {item[6]} {item[5]} (порог: {item[7]}) | 📍 {item[2]}',
+                    'date': item[4],
+                    'item_id': item[0],
+                    'quantity': item[6],
+                    'threshold': item[7],
+                    'photo': photo_path,
+                    'actions': ['restock']
+                })
+    
+    else:  # СОТРУДНИК
+        for req in get_requests(user=user_name):
+            r = unpack_request(req)
+            nid = f"{r['status']}_{r['id']}"
+            if nid not in st.session_state.dismissed_notifications:
+                status_map = {
+                    'pending': ('⏳', 'На рассмотрении', '🟡'),
+                    'in_work': ('🔧', 'В работе', '🔵'),
+                    'approved': ('✅', 'Выполнено', '🟢'),
+                    'rejected': ('❌', 'Отклонено', '🔴'),
+                    'suggested': ('💡', 'Предложен товар', '🟣'),
+                    'returned': ('🔄', 'Возвращено', '🟠')
+                }
+                icon, status_text, color = status_map.get(r['status'], ('📋', r['status'], '⚪'))
+                
+                photo_path = r.get('photo', '')
+                extra_text = ""
+                if r['status'] == 'suggested' and r['suggested_item_id']:
+                    extra_text = " | 💡 Есть предложение со склада!"
+                
+                notifications.append({
+                    'id': nid,
+                    'type': 'request',
+                    'status': status_text,
+                    'status_color': color,
+                    'icon': icon,
+                    'title': r['name'],
+                    'text': f'Статус: {status_text}{extra_text}',
+                    'date': r['date'],
+                    'request_id': r['id'],
+                    'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
+                    'actions': ['view']
+                })
+    
+    return sorted(notifications, key=lambda x: x['date'], reverse=True)
+
+
+def get_shopping_list():
+    shopping = []
+    
+    for req in get_requests(status='in_work'):
+        r = unpack_request(req)
+        shopping.append({
+            'type': 'in_work', 'icon': '🔧', 'name': r['name'],
+            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
+            'user': r['user'], 'id': r['id']
+        })
+    
+    for req in get_requests(status='pending'):
+        r = unpack_request(req)
+        shopping.append({
+            'type': 'pending', 'icon': '📝', 'name': r['name'],
+            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
+            'user': r['user'], 'id': r['id']
+        })
+    
+    for item in get_low_stock():
+        shopping.append({
+            'type': 'low_stock', 'icon': '⚠️', 'name': item[1],
+            'qty': float(item[6] or 0), 'unit': item[5],
+            'room': item[3], 'id': item[0]
+        })
+    
+    for req in get_requests(status='approved'):
+        r = unpack_request(req)
+        shopping.append({
+            'type': 'approved', 'icon': '✅', 'name': r['name'],
+            'qty': float(r['quantity'] or 0), 'unit': r['unit'],
+            'user': r['user'], 'id': r['id']
+        })
+    
+    return shopping
 def get_notifications():
     notifications = []
     
