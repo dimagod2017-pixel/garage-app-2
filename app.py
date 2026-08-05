@@ -619,16 +619,13 @@ tabs = st.tabs(["🔔 Уведомления", "📊 Дашборд", "🔍 По
 with tabs[0]:
     st.markdown("## 📬 Уведомления")
     
-    # Получаем уведомления
     notifs = get_notifications()
     
-    # Счетчики по типам
     if notifs:
         pending_count = len([n for n in notifs if n.get('icon') == '📝'])
         low_stock_count = len([n for n in notifs if n.get('icon') == '⚠️'])
         returned_count = len([n for n in notifs if n.get('icon') == '🔄'])
         
-        # Статистика уведомлений
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("📝 Новые заявки", pending_count)
@@ -641,7 +638,6 @@ with tabs[0]:
         
         st.divider()
         
-        # Кнопка очистки
         if st.button("🗑️ Очистить все уведомления", use_container_width=True):
             for n in notifs:
                 st.session_state.dismissed_notifications.append(n['id'])
@@ -649,29 +645,20 @@ with tabs[0]:
         
         st.divider()
         
-        # Группировка уведомлений по типам
         for n in notifs:
-            # Определяем цвет для иконки
             icon_color = {
-                '📝': '🔵',
-                '⚠️': '🟠',
-                '🔄': '🟣',
-                '⏳': '🟡',
-                '🔧': '🔵',
-                '✅': '🟢',
-                '❌': '🔴',
-                '💡': '💡'
+                '📝': '🔵', '⚠️': '🟠', '🔄': '🟣',
+                '⏳': '🟡', '🔧': '🔵', '✅': '🟢',
+                '❌': '🔴', '💡': '💡'
             }.get(n.get('icon'), '⚪')
             
             with st.container():
                 col1, col2, col3 = st.columns([5, 2, 1])
                 
-                # --- ЛЕВАЯ КОЛОНКА: ИКОНКА + ЗАГОЛОВОК + ТЕКСТ ---
                 with col1:
                     st.markdown(f"**{icon_color} {n['icon']} {n['title']}**")
                     st.caption(n['text'])
                 
-                # --- СРЕДНЯЯ КОЛОНКА: ДАТА ---
                 with col2:
                     if n.get('date'):
                         try:
@@ -683,30 +670,26 @@ with tabs[0]:
                         date_str = "Н/Д"
                     st.caption(f"📅 {date_str}")
                 
-                # --- ПРАВАЯ КОЛОНКА: КНОПКИ ДЕЙСТВИЙ ---
                 with col3:
-                    # Для администратора - кнопки действий с заявками
                     if role == "admin" and n.get('request_id'):
-                        if n.get('icon') == '📝':  # Новая заявка
+                        if n.get('icon') == '📝':
                             if st.button("🔧", key=f"w_{n['id']}", help="Взять в работу"):
                                 update_request_status(n['request_id'], "in_work")
                                 st.session_state.dismissed_notifications.append(n['id'])
                                 st.rerun()
-                        elif n.get('icon') == '🔄':  # Возврат
+                        elif n.get('icon') == '🔄':
                             if st.button("📝", key=f"review_{n['id']}", help="Пересмотреть"):
                                 st.session_state.active_tab = 4
                                 st.rerun()
-                        elif n.get('icon') == '⚠️':  # Низкий запас
+                        elif n.get('icon') == '⚠️':
                             if st.button("📦", key=f"restock_{n['id']}", help="Пополнить"):
                                 st.session_state.dismissed_notifications.append(n['id'])
                                 st.rerun()
                     
-                    # Кнопка скрыть
                     if st.button("✖️", key=f"d_{n['id']}", help="Скрыть уведомление"):
                         st.session_state.dismissed_notifications.append(n['id'])
                         st.rerun()
                 
-                # --- ДОПОЛНИТЕЛЬНЫЕ КНОПКИ ДЛЯ АДМИНА (НОВЫЕ ЗАЯВКИ) ---
                 if role == "admin" and n.get('request_id') and n.get('icon') == '📝':
                     col1, col2 = st.columns(2)
                     with col1:
