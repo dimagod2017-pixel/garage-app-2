@@ -1552,7 +1552,7 @@ with tabs[1]:
     else:
         st.info("📭 Склад пуст. Добавьте товары через боковую панель.")
 # ============================================================
-# 8.3 СПИСАНИЯ (ИНДЕКС 2) - ОБНОВЛЕННАЯ ВЕРСИЯ
+# 8.3 СПИСАНИЯ (ИНДЕКС 2) - ИСПРАВЛЕННАЯ ВЕРСИЯ
 # ============================================================
 
 with tabs[2]:
@@ -1597,7 +1597,7 @@ with tabs[2]:
             search_consumption = st.text_input(
                 "🔍 Поиск по товару, сотруднику или технике", 
                 placeholder="Введите запрос...", 
-                key="consumption_search"
+                key="consumption_search_main"
             )
         with col2:
             # Получаем уникальные даты для фильтра
@@ -1605,10 +1605,10 @@ with tabs[2]:
             date_filter = st.selectbox(
                 "📅 Фильтр по дате", 
                 ["Все"] + dates,
-                key="consumption_date"
+                key="consumption_date_main"
             )
         with col3:
-            if st.button("🔄 Обновить", use_container_width=True):
+            if st.button("🔄 Обновить", key="refresh_consumption", use_container_width=True):
                 st.rerun()
         
         # --- ФИЛЬТРАЦИЯ ---
@@ -1654,7 +1654,6 @@ with tabs[2]:
                     
                     for idx, c in enumerate(items):
                         # Распаковка данных
-                        # c = (id, item_id, quantity, unit, object_name, user, date, equipment_name, equipment_number, photo, item_name)
                         item_id = c[1] if len(c) > 1 else ""
                         quantity = c[2] if len(c) > 2 else 0
                         unit = c[3] if len(c) > 3 else "шт"
@@ -1666,7 +1665,10 @@ with tabs[2]:
                         photo = c[9] if len(c) > 9 and c[9] else None
                         item_name = c[10] if len(c) > 10 else "Товар"
                         
-                        uid = f"cons_{item_id}_{idx}"
+                        # УНИКАЛЬНЫЙ КЛЮЧ с использованием uuid
+                        import uuid
+                        unique_suffix = str(uuid.uuid4())[:8]
+                        uid = f"cons_{item_id}_{idx}_{unique_suffix}"
                         
                         with st.container():
                             col1, col2, col3 = st.columns([2, 1, 1])
@@ -1703,17 +1705,21 @@ with tabs[2]:
                                 st.markdown("**⚙️ Действия**")
                                 
                                 # Кнопка просмотра деталей
-                                if st.button("📋 Подробнее", key=f"detail_{uid}", use_container_width=True):
-                                    st.session_state[f"detail_{uid}"] = not st.session_state.get(f"detail_{uid}", False)
+                                detail_key = f"detail_{uid}"
+                                if st.button("📋 Подробнее", key=detail_key, use_container_width=True):
+                                    st.session_state[detail_key] = not st.session_state.get(detail_key, False)
                                 
                                 # Кнопка подтверждения (только для админа)
                                 if role == "admin":
-                                    if st.button("✅ Подтвердить", key=f"confirm_{uid}", use_container_width=True):
+                                    confirm_key = f"confirm_{uid}"
+                                    if st.button("✅ Подтвердить", key=confirm_key, use_container_width=True):
                                         st.success("✅ Списание подтверждено!")
+                                        st.session_state[confirm_key] = True
                                         st.rerun()
                             
                             # --- РАЗВЕРНУТАЯ ИНФОРМАЦИЯ ---
-                            if st.session_state.get(f"detail_{uid}", False):
+                            detail_key = f"detail_{uid}"
+                            if st.session_state.get(detail_key, False):
                                 with st.container():
                                     st.markdown("---")
                                     st.markdown("### 📋 Детальная информация")
@@ -1732,8 +1738,9 @@ with tabs[2]:
                                         st.markdown(f"**🕐 Время:** {date[11:16] if len(date) > 11 else ''}")
                                     
                                     st.markdown("---")
-                                    if st.button("❌ Закрыть", key=f"close_{uid}"):
-                                        st.session_state[f"detail_{uid}"] = False
+                                    close_key = f"close_{uid}"
+                                    if st.button("❌ Закрыть", key=close_key, use_container_width=True):
+                                        st.session_state[detail_key] = False
                                         st.rerun()
                             
                             st.divider()
@@ -1742,7 +1749,6 @@ with tabs[2]:
     else:
         st.info("📭 История списаний пуста")
         st.caption("💡 Списания появляются когда сотрудники берут товары через кнопку 'Взять'")
-
 # ============================================================
 # 8.4 ПОКУПКИ (ИНДЕКС 3)
 # ============================================================
