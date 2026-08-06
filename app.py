@@ -446,6 +446,53 @@ def get_user_by_code(code):
         print(f"🔍 get_user_by_code вернул: id={result[0]}, username={result[1]}, role={result[3]}, status={result[4]}")
     
     return result
+
+def get_user(username, password):
+    """Получить пользователя по логину и паролю (для совместимости)"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
+    result = c.fetchone()
+    conn.close()
+    
+    if result:
+        print(f"🔍 get_user вернул: id={result[0]}, username={result[1]}, role={result[3]}, status={result[4]}")
+    
+    return result
+
+def get_all_users():
+    """Получить всех пользователей"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT id, username, full_name, role, status, created_at FROM users ORDER BY created_at DESC")
+    result = c.fetchall()
+    conn.close()
+    return result
+
+def update_user_status(user_id, status):
+    """Обновить статус пользователя"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE users SET status=? WHERE id=?", (status, user_id))
+    conn.commit()
+    conn.close()
+
+def delete_user(user_id):
+    """Удалить пользователя"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM users WHERE id=? AND role != 'admin'", (user_id,))
+    conn.commit()
+    conn.close()
+
+def get_pending_users():
+    """Получить пользователей, ожидающих подтверждения"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT id, username, full_name, created_at FROM users WHERE status='pending'")
+    result = c.fetchall()
+    conn.close()
+    return result
 # ============================================================
 # 5. УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
 # ============================================================
