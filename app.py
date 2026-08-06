@@ -1685,10 +1685,10 @@ with tabs[2]:
             search_lower = search_consumption.lower()
             filtered_cons = [
                 c for c in filtered_cons 
-                if search_lower in str(c[10]).lower() or
-                   search_lower in str(c[7]).lower() or
-                   search_lower in str(c[8]).lower() or
-                   search_lower in str(c[4]).lower()
+                if search_lower in str(c[10]).lower() or      # название товара
+                   search_lower in str(c[7]).lower() or      # сотрудник
+                   search_lower in str(c[8]).lower() or      # техника
+                   search_lower in str(c[4]).lower()         # назначение
             ]
         
         if date_filter != "Все":
@@ -1715,6 +1715,8 @@ with tabs[2]:
                     items.sort(key=lambda x: x[6] if x[6] else "", reverse=True)
                     
                     for idx, c in enumerate(items):
+                        # Распаковка данных
+                        consumption_id = c[0]  # ID списания
                         item_id = c[1] if len(c) > 1 else ""
                         quantity = c[2] if len(c) > 2 else 0
                         unit = c[3] if len(c) > 3 else "шт"
@@ -1724,7 +1726,7 @@ with tabs[2]:
                         equipment_name = c[7] if len(c) > 7 else ""
                         equipment_number = c[8] if len(c) > 8 else ""
                         photo = c[9] if len(c) > 9 and c[9] else None
-                        item_name = c[10] if len(c) > 10 else "Товар"
+                        item_name = c[10] if len(c) > 10 else "Товар"  # <-- НАЗВАНИЕ ТОВАРА
                         
                         import uuid
                         unique_suffix = str(uuid.uuid4())[:8]
@@ -1735,7 +1737,7 @@ with tabs[2]:
                             
                             # --- КОЛОНКА 1: ИНФОРМАЦИЯ ---
                             with col1:
-                                st.markdown(f"**📦 {item_name}**")
+                                st.markdown(f"**📦 {item_name}**")  # <-- ОТОБРАЖАЕМ НАЗВАНИЕ
                                 st.markdown(f"**Количество:** {quantity} {unit}")
                                 st.markdown(f"**👤 Сотрудник:** {user}")
                                 st.markdown(f"**📝 Назначение:** {object_name}")
@@ -1759,84 +1761,55 @@ with tabs[2]:
                                     else:
                                         st.caption("📷 Нет фото")
                             
-                            # --- КОЛОНКА 3: КНОПКИ ДЕЙСТВИЙ ---
+                            # --- КОЛОНКА 3: КНОПКИ ДЕЙСТВИЙ (ТОЛЬКО ДЛЯ АДМИНА) ---
                             with col3:
-                                st.markdown("**⚙️ Действия**")
-                                
-                                # Кнопка просмотра деталей
-                                detail_key = f"detail_{uid}"
-                                if st.button("📋 Подробнее", key=detail_key, use_container_width=True):
-                                    st.session_state[detail_key] = not st.session_state.get(detail_key, False)
-                                
-                                # --- КНОПКИ ТОЛЬКО ДЛЯ АДМИНА ---
                                 if role == "admin":
-                                    st.divider()
+                                    st.markdown("**⚙️ Действия**")
                                     
-                                    # 1. Кнопка подтверждения
-                                    confirm_key = f"confirm_{uid}"
-                                    if st.button("✅ Подтвердить", key=confirm_key, use_container_width=True):
-                                        st.success("✅ Списание подтверждено!")
-                                        st.session_state[confirm_key] = True
-                                        st.rerun()
-                                    
-                                    # 2. Кнопка возврата (если товар не пригодился)
+                                    # 1. Кнопка возврата (если товар не пригодился)
                                     return_key = f"return_{uid}"
                                     if st.button("↩️ Вернуть", key=return_key, use_container_width=True):
-                                        # Возвращаем товар на склад
-                                        conn = sqlite3.connect('storage.db')
-                                        c = conn.cursor()
-                                        # Получаем текущее количество
-                                        c.execute("SELECT quantity FROM items WHERE id=?", (item_id,))
-                                        current_qty = c.fetchone()
-                                        if current_qty:
-                                            new_qty = current_qty[0] + quantity
-                                            c.execute("UPDATE items SET quantity=? WHERE id=?", (new_qty, item_id))
-                                            # Удаляем запись о списании
-                                            c.execute("DELETE FROM consumption WHERE id=?", (c[0],))
+                                        try:
+                                            conn = sqlite3.connect('storage.db')
+                                            c = conn.cursor()
+                                            
+                                            # Получаем текущее количество товара
+                                            c.execute("SELECT quantity FROM items WHERE id=?", (item_id,))
+                                            result = c.fetchone()
+                                            
+                                            if result:
+                                                current_qty = result[0]
+                                                new_qty = current_qty + quantity
+                                                
+                                                # Обновляем количество на складе
+                                                c.execute("UPDATE items SET quantity=? WHERE id=?", (new_qty, item_id))
+                                                
+                                                # Удаляем запись о списании
+                                                c.execute("DELETE FROM consumption WHERE id=?", (consumption_id,))
+                                                
+                                                conn.commit()
+                                                conn.close()
+                                                st.success(f"✅ {quantity} {unit} товара '{item_name}' возвращено на склад!")
+                                                st.rerun()
+                                            else:
+                                                conn.close()
+                                                st.error("❌ Ошибка: товар не найден!")
+                                        except Exception as e:
+                                            st.error(f"❌ Ошибка: {str(e)}")
+                                    
+                                    # 2. Кнопка удаления записи
+                                    delete_key = f"delete_{uid}"
+                                    if st.button("🗑️ Удалить", key=delete_key, use_container_width=True):
+                                        try:
+                                            conn = sqlite3.connect('storage.db')
+                                            c = conn.cursor()
+                                            c.execute("DELETE FROM consumption WHERE id=?", (consumption_id,))
                                             conn.commit()
                                             conn.close()
-                                            st.success(f"✅ {quantity} {unit} товара '{item_name}' возвращено на склад!")
+                                            st.success("🗑️ Запись о списании удалена!")
                                             st.rerun()
-                                        else:
-                                            conn.close()
-                                            st.error("❌ Ошибка: товар не найден!")
-                                    
-                                    # 3. Кнопка удаления записи
-                                    delete_key = f"delete_{uid}"
-                                    if st.button("🗑️ Удалить запись", key=delete_key, use_container_width=True):
-                                        conn = sqlite3.connect('storage.db')
-                                        c = conn.cursor()
-                                        c.execute("DELETE FROM consumption WHERE id=?", (c[0],))
-                                        conn.commit()
-                                        conn.close()
-                                        st.success("🗑️ Запись о списании удалена!")
-                                        st.rerun()
-                            
-                            # --- РАЗВЕРНУТАЯ ИНФОРМАЦИЯ ---
-                            detail_key = f"detail_{uid}"
-                            if st.session_state.get(detail_key, False):
-                                with st.container():
-                                    st.markdown("---")
-                                    st.markdown("### 📋 Детальная информация")
-                                    
-                                    col1, col2 = st.columns(2)
-                                    with col1:
-                                        st.markdown(f"**📦 Товар:** {item_name}")
-                                        st.markdown(f"**🔢 ID товара:** {item_id}")
-                                        st.markdown(f"**📊 Количество:** {quantity} {unit}")
-                                        st.markdown(f"**👤 Сотрудник:** {user}")
-                                        st.markdown(f"**📝 Назначение:** {object_name}")
-                                    with col2:
-                                        st.markdown(f"**🚜 Техника:** {equipment_name or 'Не указана'}")
-                                        st.markdown(f"**🔢 Номер техники:** {equipment_number or 'Не указан'}")
-                                        st.markdown(f"**📅 Дата:** {date}")
-                                        st.markdown(f"**🕐 Время:** {date[11:16] if len(date) > 11 else ''}")
-                                    
-                                    st.markdown("---")
-                                    close_key = f"close_{uid}"
-                                    if st.button("❌ Закрыть", key=close_key, use_container_width=True):
-                                        st.session_state[detail_key] = False
-                                        st.rerun()
+                                        except Exception as e:
+                                            st.error(f"❌ Ошибка: {str(e)}")
                             
                             st.divider()
         else:
