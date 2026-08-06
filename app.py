@@ -421,6 +421,7 @@ def get_stats():
 # ============================================================
 
 def add_user(username, password, full_name):
+    """Добавить нового пользователя"""
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     try:
@@ -431,28 +432,16 @@ def add_user(username, password, full_name):
         return True, "Пользователь зарегистрирован! Ожидайте одобрения администратора."
     except sqlite3.IntegrityError:
         conn.close()
-        return False, "Пользователь с таким именем уже существует!"
-        
-def get_user_by_code(code):
-    """Получить пользователя по 4-значному коду"""
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE password=?", (code,))
-    result = c.fetchone()
-    conn.close()
-    
-    if result:
-        print(f"🔍 get_user_by_code вернул: id={result[0]}, username={result[1]}, role={result[3]}, status={result[4]}")
-    
-    return result
+        return False, "Пользователь с таким логином уже существует!"
+
 def get_user(username, password):
+    """Получить пользователя по логину и паролю"""
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
     result = c.fetchone()
     conn.close()
     
-    # Диагностика
     if result:
         print(f"🔍 get_user вернул: id={result[0]}, username={result[1]}, role={result[3]}, status={result[4]}")
     
@@ -650,47 +639,37 @@ def get_shopping_list():
     return shopping
 
 # ============================================================
-# 6. ВХОД В СИСТЕМУ (ПО 4-ЗНАЧНОМУ КОДУ)
+# 6. ВХОД В СИСТЕМУ
 # ============================================================
 
 def login_page():
     st.markdown("<h1 style='text-align:center;'>📦 Управление складом</h1>", unsafe_allow_html=True)
     
-    tab1, tab2 = st.tabs(["🔐 Вход по коду", "📝 Регистрация"])
+    tab1, tab2 = st.tabs(["🔐 Вход", "📝 Регистрация"])
     
     with tab1:
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            # Ввод 4-значного кода
-            access_code = st.text_input(
-                "Введите 4-значный код доступа", 
-                type="password",
-                placeholder="Например: 1234",
-                max_chars=4
-            )
+            username = st.text_input("Логин", placeholder="Введите логин")
+            password = st.text_input("Пароль", type="password", placeholder="Введите пароль")
             
             if st.button("🔓 Войти", use_container_width=True):
-                if access_code and len(access_code) == 4:
-                    user = get_user_by_code(access_code)
+                if username and password:
+                    user = get_user(username, password)
                     if user:
-                        # user = (id, username, password, full_name, role, status, created_at, approved_by)
                         user_id = user[0]
                         user_username = user[1]
                         user_full_name = user[2]
                         user_role = user[3]
                         user_status = user[4]
                         
-                        print(f"🔍 Найден пользователь: {user_username}, роль: {user_role}, статус: {user_status}")
-                        
                         if user_status == "blocked":
                             st.error("❌ Ваш аккаунт заблокирован. Обратитесь к администратору.")
                         elif user_status == "pending":
                             st.warning("⏳ Ваш аккаунт ожидает одобрения администратора.")
                         else:
-                            # Принудительно устанавливаем роль для admin
                             if user_username == "admin":
                                 user_role = "admin"
-                                print("🔧 Принудительно установлена роль admin")
                             
                             st.session_state.user = {
                                 "id": user_id,
@@ -699,15 +678,14 @@ def login_page():
                                 "role": user_role,
                                 "status": user_status
                             }
-                            print(f"✅ Сессия создана: {st.session_state.user}")
                             st.rerun()
                     else:
-                        st.error("❌ Неверный код доступа!")
+                        st.error("❌ Неверный логин или пароль!")
                 else:
-                    st.warning("⚠️ Введите 4-значный код!")
+                    st.warning("⚠️ Введите логин и пароль")
             
             st.divider()
-            st.caption("💡 Для входа используйте код:\n- Администратор: 1209")
+            st.caption("💡 Для входа используйте:\n- Логин: admin\n- Пароль: 1209")
     
     with tab2:
         col1, col2, col3 = st.columns([1, 2, 1])
@@ -715,76 +693,33 @@ def login_page():
             st.markdown("### 📝 Регистрация нового сотрудника")
             
             with st.form("register_form"):
-                reg_username = st.text_input(
-                    "Придумайте логин*", 
-                    placeholder="Например: ivanov",
-                    help="Будет использоваться как уникальный идентификатор"
-                )
-                reg_full_name = st.text_input(
-                    "Ваше полное имя*", 
-                    placeholder="Например: Иванов Иван Иванович",
-                    help="Будет отображаться в списаниях"
-                )
-                reg_code = st.text_input(
-                    "Придумайте 4-значный код доступа*", 
-                    type="password",
-                    placeholder="Например: 1234",
-                    max_chars=4,
-                    help="Код должен состоять из 4 цифр"
-                )
-                reg_code_confirm = st.text_input(
-                    "Подтвердите код доступа*", 
-                    type="password",
-                    placeholder="Повторите код",
-                    max_chars=4
-                )
+                reg_username = st.text_input("Придумайте логин*", placeholder="Например: ivanov")
+                reg_full_name = st.text_input("Ваше полное имя*", placeholder="Например: Иванов Иван Иванович")
+                reg_password = st.text_input("Придумайте пароль*", type="password")
+                reg_password_confirm = st.text_input("Подтвердите пароль*", type="password")
                 
                 if st.form_submit_button("📝 Зарегистрироваться", use_container_width=True):
-                    if not reg_username or not reg_full_name or not reg_code:
+                    if not reg_username or not reg_full_name or not reg_password:
                         st.error("❌ Заполните все обязательные поля!")
-                    elif reg_code != reg_code_confirm:
-                        st.error("❌ Коды не совпадают!")
-                    elif len(reg_code) != 4:
-                        st.error("❌ Код должен состоять из 4 цифр!")
-                    elif not reg_code.isdigit():
-                        st.error("❌ Код должен содержать только цифры!")
+                    elif reg_password != reg_password_confirm:
+                        st.error("❌ Пароли не совпадают!")
+                    elif len(reg_password) < 4:
+                        st.error("❌ Пароль должен содержать минимум 4 символа!")
                     else:
-                        success, msg = add_user(reg_username, reg_code, reg_full_name)
+                        success, msg = add_user(reg_username, reg_password, reg_full_name)
                         if success:
                             st.success(f"✅ {msg}")
                             st.info("📧 После одобрения администратором вы сможете войти в систему.")
                         else:
                             st.error(f"❌ {msg}")
-
-if st.session_state.user is None:
-    login_page()
-    st.stop()
-
-# --- ПОЛУЧАЕМ ДАННЫЕ ПОЛЬЗОВАТЕЛЯ ИЗ СЕССИИ ---
-user = st.session_state.user
-
-# Диагностика
-print(f"🔍 Данные из сессии: {user}")
-
-role = user.get("role", "employee")
-user_name = user.get("full_name", "Пользователь")
-username = user.get("username", "")
-
-# Если роль не admin, но это admin - принудительно исправляем
-if username == "admin" and role != "admin":
-    print("⚠️ Исправляем роль для admin!")
-    role = "admin"
-    user["role"] = "admin"
-    st.session_state.user = user
-
-print(f"✅ Вошёл пользователь: {username}, роль: {role}")
 # ============================================================
 # 7. БОКОВАЯ ПАНЕЛЬ
 # ============================================================
 
 with st.sidebar:
     st.markdown(f"### 👤 {user.get('full_name', user_name)}")
-    st.caption(f"Имя: {user.get('full_name', user_name)}")
+    st.caption(f"👤 Имя: {user.get('full_name', user_name)}")
+    st.caption(f"🔑 Логин: {user.get('username', '')}")
     st.caption(f"Роль: {'🔑 Администратор' if role == 'admin' else '🔧 Сотрудник'}")
     if user.get('status') == "blocked":
         st.error("🚫 Аккаунт заблокирован")
