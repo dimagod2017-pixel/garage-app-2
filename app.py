@@ -504,6 +504,7 @@ def get_notifications():
     current_role = st.session_state.user.get("role", "employee") if st.session_state.user else "employee"
     
     if current_role == "admin":
+        # --- НОВЫЕ ЗАЯВКИ (PENDING) ---
         for req in get_requests(status='pending'):
             r = unpack_request(req)
             nid = f"pending_{r['id']}"
@@ -522,9 +523,11 @@ def get_notifications():
                     'request_id': r['id'],
                     'user': r['user'],
                     'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
-                    'actions': ['approve', 'reject', 'work']
+                    'actions': ['approve', 'reject', 'work'],
+                    'is_read': r.get('seen', 0) == 1
                 })
         
+        # --- ВОЗВРАЩЕННЫЕ ЗАЯВКИ ---
         for req in get_requests(status='returned'):
             r = unpack_request(req)
             nid = f"returned_{r['id']}"
@@ -543,9 +546,11 @@ def get_notifications():
                     'request_id': r['id'],
                     'user': r['user'],
                     'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
-                    'actions': ['review']
+                    'actions': ['review'],
+                    'is_read': r.get('seen', 0) == 1
                 })
         
+        # --- ТОВАРЫ С НИЗКИМ ЗАПАСОМ ---
         for item in get_low_stock():
             nid = f"low_{item[0]}"
             if nid not in st.session_state.dismissed_notifications:
@@ -578,7 +583,8 @@ def get_notifications():
                     'date': item[4],
                     'item_id': item[0],
                     'photo': photo_path,
-                    'actions': ['restock']
+                    'actions': ['restock'],
+                    'is_read': False
                 })
     
     else:  # СОТРУДНИК
@@ -613,7 +619,8 @@ def get_notifications():
                     'date': r['date'],
                     'request_id': r['id'],
                     'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
-                    'actions': ['view']
+                    'actions': ['view'],
+                    'is_read': r.get('seen', 0) == 1
                 })
     
     return sorted(notifications, key=lambda x: x['date'], reverse=True)
@@ -653,6 +660,32 @@ def get_shopping_list():
         })
     
     return shopping
+
+# ============================================================
+# ФУНКЦИИ ДЛЯ ПОДСЧЕТА НЕПРОЧИТАННЫХ
+# ============================================================
+
+def get_unread_counts():
+    """Получить количество непрочитанных уведомлений по типам"""
+    notifs = get_notifications()
+    
+    # Счетчики для админа
+    unread_requests = len([n for n in notifs if n.get('type') in ['request', 'returned'] and not n.get('is_read', False)])
+    unread_low_stock = len([n for n in notifs if n.get('type') == 'low_stock' and not n.get('is_read', False)])
+    
+    # Счетчик непрочитанных списаний (для всех)
+    # Получаем последние 10 списаний и считаем непрочитанные
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM consumption WHERE date > datetime('now', '-7 days')")
+    new_consumptions = c.fetchone()[0]
+    conn.close()
+    
+    return {
+        'unread_requests': unread_requests,
+        'unread_low_stock': unread_low_stock,
+        'unread_consumptions': new_consumptions
+    }
 
 # ============================================================
 # 6. ВХОД В СИСТЕМУ (ПО 4-ЗНАЧНОМУ КОДУ)
@@ -876,49 +909,51 @@ with st.sidebar:
 
 st.title("📦 SmartStock Pro")
 
-# --- ПОЛУЧАЕМ УВЕДОМЛЕНИЯ ДЛЯ СЧЕТЧИКОВ ---
-notifs = get_notifications()
+# --- ПОЛУЧАЕМ СЧЕТЧИКИ ---
+counts = get_unread_counts()
 
-# --- СЧЕТЧИКИ ДЛЯ КАЖДОЙ ВКЛАДКИ ---
-# Счетчик заявок (новые + возвращенные)
+# --- ФОРМИРУЕМ НАЗВАНИЯ ВКЛАДОК С СЧЕТЧИКАМИ ---
 if role == "admin":
-    pending_count = len([n for n in notifs if n.get('type') == 'request' and n.get('status') == 'Новая заявка'])
-    returned_count = len([n for n in notifs if n.get('type') == 'returned'])
-    request_count = pending_count + returned_count
-else:
-    # Для сотрудника - заявки с измененным статусом
-    request_count = len([n for n in notifs if n.get('type') == 'request'])
-
-# Счетчик низкого запаса (только для админа)
-if role == "admin":
-    low_stock_count = len([n for n in notifs if n.get('type') == 'low_stock'])
-else:
-    low_stock_count = 0
-
-# Счетчик списаний (новые списания) - показываем всем
-consumption_count = 0  # Можно добавить логику для новых списаний
-
-# --- СОЗДАЕМ ВКЛАДКИ С СЧЕТЧИКАМИ ---
-if role == "admin":
+    # Для админа: заявки + возвраты + низкий запас
+    request_label = "📝 Заявки"
+    if counts['unread_requests'] > 0:
+        request_label += f" 🔴{counts['unread_requests']}"
+    
+    low_stock_label = "📋 Товары"
+    if counts['unread_low_stock'] > 0:
+        low_stock_label += f" ⚠️{counts['unread_low_stock']}"
+    
+    consumption_label = "📤 Списания"
+    if counts['unread_consumptions'] > 0:
+        consumption_label += f" 🆕{counts['unread_consumptions']}"
+    
     tabs = st.tabs([
-        f"📝 Заявки ({request_count})" if request_count > 0 else "📝 Заявки",
-        f"📋 Товары ({low_stock_count})" if low_stock_count > 0 else "📋 Товары",
-        "📤 Списания",
+        request_label,
+        low_stock_label,
+        consumption_label,
         "🛒 Покупки",
         "🚜 Парк",
         "👥 Пользователи",
         "⚙️ Управление"
     ])
 else:
+    # Для сотрудника: только заявки
+    request_label = "📝 Заявки"
+    if counts['unread_requests'] > 0:
+        request_label += f" 🔴{counts['unread_requests']}"
+    
+    consumption_label = "📤 Списания"
+    if counts['unread_consumptions'] > 0:
+        consumption_label += f" 🆕{counts['unread_consumptions']}"
+    
     tabs = st.tabs([
-        f"📝 Заявки ({request_count})" if request_count > 0 else "📝 Заявки",
+        request_label,
         "📋 Товары",
-        "📤 Списания",
+        consumption_label,
         "🛒 Покупки",
         "🚜 Парк",
         "⚙️ Управление"
     ])
-
 # ============================================================
 # 8.1 ЗАЯВКИ (ИНДЕКС 0)
 # ============================================================
