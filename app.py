@@ -92,7 +92,6 @@ def init_db():
         is_main INTEGER DEFAULT 0
     )''')
     
-    # ===== НОВАЯ ТАБЛИЦА ПОЛЬЗОВАТЕЛЕЙ =====
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE,
@@ -103,13 +102,13 @@ def init_db():
         created_at TEXT,
         approved_by TEXT
     )''')
+    
     # Добавляем админа по умолчанию (пароль 1209)
     c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
     if c.fetchone()[0] == 0:
         c.execute("""INSERT INTO users (username, password, full_name, role, status, created_at) 
                      VALUES (?, ?, ?, ?, ?, ?)""",
                   ("admin", "1209", "Администратор", "admin", "active", datetime.now().strftime("%Y-%m-%d %H:%M")))
-    
     else:
         # Обновляем роль админа если нужно
         c.execute("UPDATE users SET role='admin', status='active' WHERE username='admin'")
@@ -310,6 +309,7 @@ def rotate_photo(path, degrees):
         return False
 
 def take_item(item_id, quantity, eq_name, eq_number, photo_path=""):
+    """Списание товара. Сохраняет username (логин) пользователя."""
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute("SELECT quantity, unit FROM items WHERE id=?", (item_id,))
@@ -319,10 +319,15 @@ def take_item(item_id, quantity, eq_name, eq_number, photo_path=""):
         return False, "Недостаточно товара"
     new_q = row[0] - quantity
     c.execute("UPDATE items SET quantity=? WHERE id=?", (new_q, item_id))
+    
+    # Получаем username (логин) пользователя
+    user_login = st.session_state.user.get("username", "Пользователь")
+    
     c.execute("""INSERT INTO consumption (item_id, quantity, unit, object_name, user, date, equipment_name, equipment_number, photo)
                  VALUES (?,?,?,?,?,?,?,?,?)""",
               (item_id, quantity, row[1], f"{eq_name} (№{eq_number})", 
-               st.session_state.user.get("full_name", "Пользователь"), datetime.now().strftime("%Y-%m-%d %H:%M"),
+               user_login,  # Сохраняем ЛОГИН (username)
+               datetime.now().strftime("%Y-%m-%d %H:%M"),
                eq_name, eq_number, photo_path))
     conn.commit()
     conn.close()
@@ -421,7 +426,7 @@ def get_stats():
 # ============================================================
 
 def add_user(username, code, full_name):
-    """Добавить нового пользователя с 4-значным кодом"""
+    """Добавить нового пользователя. username - логин, code - 4-значный код доступа, full_name - полное имя"""
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     try:
@@ -441,23 +446,15 @@ def get_user_by_code(code):
     c.execute("SELECT * FROM users WHERE password=?", (code,))
     result = c.fetchone()
     conn.close()
-    
-    if result:
-        print(f"🔍 get_user_by_code вернул: id={result[0]}, username={result[1]}, role={result[3]}, status={result[4]}")
-    
     return result
 
 def get_user(username, password):
-    """Получить пользователя по логину и паролю (для совместимости)"""
+    """Получить пользователя по логину и паролю"""
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
     result = c.fetchone()
     conn.close()
-    
-    if result:
-        print(f"🔍 get_user вернул: id={result[0]}, username={result[1]}, role={result[3]}, status={result[4]}")
-    
     return result
 
 def get_all_users():
@@ -493,6 +490,18 @@ def get_pending_users():
     result = c.fetchall()
     conn.close()
     return result
+
+def get_user_full_name(username):
+    """Получить полное имя пользователя по логину"""
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT full_name FROM users WHERE username=?", (username,))
+    result = c.fetchone()
+    conn.close()
+    if result and result[0]:
+        return result[0]
+    return username
+
 # ============================================================
 # 5. УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
 # ============================================================
@@ -588,6 +597,7 @@ def get_notifications():
                 })
     
     else:  # СОТРУДНИК
+        user_name = st.session_state.user.get("username", "")
         for req in get_requests(user=user_name):
             r = unpack_request(req)
             nid = f"{r['status']}_{r['id']}"
@@ -669,12 +679,9 @@ def get_unread_counts():
     """Получить количество непрочитанных уведомлений по типам"""
     notifs = get_notifications()
     
-    # Счетчики для админа
     unread_requests = len([n for n in notifs if n.get('type') in ['request', 'returned'] and not n.get('is_read', False)])
     unread_low_stock = len([n for n in notifs if n.get('type') == 'low_stock' and not n.get('is_read', False)])
     
-    # Счетчик непрочитанных списаний (для всех)
-    # Получаем последние 10 списаний и считаем непрочитанные
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute("SELECT COUNT(*) FROM consumption WHERE date > datetime('now', '-7 days')")
@@ -711,10 +718,10 @@ def login_page():
                     user = get_user_by_code(access_code)
                     if user:
                         user_id = user[0]
-                        user_username = user[1]
-                        user_full_name = user[2]
-                        user_role = user[3]
-                        user_status = user[4]
+                        user_username = user[1]    # ЛОГИН (например: ivanov)
+                        user_full_name = user[2]   # ПОЛНОЕ ИМЯ (например: Иванов Иван)
+                        user_role = user[3]        # РОЛЬ
+                        user_status = user[4]      # СТАТУС
                         
                         if user_status == "blocked":
                             st.error("❌ Ваш аккаунт заблокирован. Обратитесь к администратору.")
@@ -726,8 +733,8 @@ def login_page():
                             
                             st.session_state.user = {
                                 "id": user_id,
-                                "username": user_username,
-                                "full_name": user_full_name,
+                                "username": user_username,      # ЛОГИН
+                                "full_name": user_full_name,    # ПОЛНОЕ ИМЯ
                                 "role": user_role,
                                 "status": user_status
                             }
@@ -746,7 +753,7 @@ def login_page():
                 reg_username = st.text_input(
                     "Придумайте логин*", 
                     placeholder="Например: ivanov",
-                    help="Будет отображаться в боковой панели"
+                    help="Будет отображаться в системе"
                 )
                 reg_full_name = st.text_input(
                     "Ваше полное имя*", 
@@ -794,24 +801,24 @@ if st.session_state.user is None:
 
 user = st.session_state.user
 role = user.get("role", "employee")
-user_name = user.get("full_name", "Пользователь")
-username = user.get("username", "")
+user_name = user.get("username", "Пользователь")  # Это ЛОГИН (например: ivanov)
+user_full_name = user.get("full_name", "")  # Это ПОЛНОЕ ИМЯ (например: Иванов Иван)
 
 # Если роль не admin, но это admin - принудительно исправляем
-if username == "admin" and role != "admin":
-    print("⚠️ Исправляем роль для admin!")
+if user_name == "admin" and role != "admin":
     role = "admin"
     user["role"] = "admin"
     st.session_state.user = user
-
-print(f"✅ Вошёл пользователь: {username}, роль: {role}")
 
 # ============================================================
 # 7. БОКОВАЯ ПАНЕЛЬ
 # ============================================================
 
 with st.sidebar:
-    st.markdown(f"### 👤 {user.get('username', username)}")
+    # Отображаем логин и полное имя
+    st.markdown(f"### 👤 {user_name}")
+    if user_full_name:
+        st.caption(f"Имя: {user_full_name}")
     st.caption(f"Роль: {'🔑 Администратор' if role == 'admin' else '🔧 Сотрудник'}")
     if user.get('status') == "blocked":
         st.error("🚫 Аккаунт заблокирован")
@@ -900,6 +907,7 @@ with st.sidebar:
                         add_item_photo(item_id, photo_path, is_main)
                     st.success(f"✅ Товар '{name}' добавлен!")
                     st.rerun()
+
 # ============================================================
 # 8. ОСНОВНОЙ ИНТЕРФЕЙС
 # ============================================================
@@ -911,7 +919,6 @@ counts = get_unread_counts()
 
 # --- ФОРМИРУЕМ НАЗВАНИЯ ВКЛАДОК С СЧЕТЧИКАМИ ---
 if role == "admin":
-    # Для админа: заявки + возвраты + низкий запас
     request_label = "📝 Заявки"
     if counts['unread_requests'] > 0:
         request_label += f" 🔴{counts['unread_requests']}"
@@ -934,7 +941,6 @@ if role == "admin":
         "⚙️ Управление"
     ])
 else:
-    # Для сотрудника: только заявки
     request_label = "📝 Заявки"
     if counts['unread_requests'] > 0:
         request_label += f" 🔴{counts['unread_requests']}"
@@ -951,6 +957,7 @@ else:
         "🚜 Парк",
         "⚙️ Управление"
     ])
+
 # ============================================================
 # 8.1 ЗАЯВКИ (ИНДЕКС 0)
 # ============================================================
@@ -1213,7 +1220,6 @@ with tabs[1]:
             uid = f"{item_id}_{idx}"
             
             with st.container():
-                # --- ЗАГОЛОВОК КАРТОЧКИ ---
                 col1, col2 = st.columns([3, 1])
                 with col1:
                     st.markdown(f"### {status_icon} {name}")
@@ -1224,12 +1230,8 @@ with tabs[1]:
                 
                 st.divider()
                 
-                # --- ОСНОВНОЙ БЛОК: ИНФОРМАЦИЯ (СЛЕВА) + ФОТО (СПРАВА) ---
                 col_left, col_right = st.columns([2, 2])
                 
-                # ============================================================
-                # ЛЕВАЯ КОЛОНКА: ИНФОРМАЦИЯ О ТОВАРЕ (ДЛЯ ВСЕХ)
-                # ============================================================
                 with col_left:
                     st.markdown(f"**📦 Название:** {name}")
                     st.markdown(f"**📍 Место:** {location}")
@@ -1244,9 +1246,6 @@ with tabs[1]:
                     else:
                         st.success(status_text)
                 
-                # ============================================================
-                # ПРАВАЯ КОЛОНКА: ФОТО ТОВАРА (ДЛЯ ВСЕХ)
-                # ============================================================
                 with col_right:
                     photos = get_item_photos(item_id)
                     
@@ -1263,7 +1262,6 @@ with tabs[1]:
                         current_photo = photos[current_idx]
                         
                         if os.path.exists(current_photo[1]):
-                            # Навигация по фото (для всех)
                             if len(photos) > 1:
                                 c1, c2, c3 = st.columns([1, 2, 1])
                                 with c1:
@@ -1283,7 +1281,6 @@ with tabs[1]:
                             else:
                                 st.caption("📸 Обычное фото")
                             
-                            # --- НАСТРОЙКИ ФОТО (ТОЛЬКО ДЛЯ АДМИНА) ---
                             if role == "admin":
                                 st.divider()
                                 st.markdown("**⚙️ Управление фото**")
@@ -1351,7 +1348,6 @@ with tabs[1]:
                     else:
                         st.info("📷 Нет фото")
                         
-                        # Добавление фото если нет фото (только для админа)
                         if role == "admin":
                             st.markdown("**📤 Добавить фото:**")
                             uploaded = st.file_uploader(
@@ -1377,10 +1373,6 @@ with tabs[1]:
                                         st.rerun()
                 
                 st.divider()
-                
-                # ============================================================
-                # БЛОК УПРАВЛЕНИЯ
-                # ============================================================
                 
                 # --- ДЛЯ ВСЕХ (КРОМЕ АДМИНА): ТОЛЬКО КНОПКА "ВЗЯТЬ" ---
                 if role != "admin":
@@ -1451,30 +1443,24 @@ with tabs[1]:
                 
                 # --- ДЛЯ АДМИНИСТРАТОРА: ВСЕ НАСТРОЙКИ ---
                 else:
-                    # Строка кнопок управления в ряд
                     col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
                     
-                    # 1. РЕДАКТИРОВАТЬ
                     with col_btn1:
                         if st.button("✏️ Редактировать", key=f"edit_btn_{uid}", use_container_width=True):
                             st.session_state[f"edit_mode_{uid}"] = not st.session_state.get(f"edit_mode_{uid}", False)
                     
-                    # 2. СПИСАТЬ (ВЗЯТЬ)
                     with col_btn2:
                         if st.button("📤 Списать", key=f"take_btn_{uid}", use_container_width=True):
                             st.session_state[f"take_mode_{uid}"] = not st.session_state.get(f"take_mode_{uid}", False)
                     
-                    # 3. ПЕРЕМЕСТИТЬ
                     with col_btn3:
                         if st.button("📦 Переместить", key=f"move_btn_{uid}", use_container_width=True):
                             st.session_state[f"move_mode_{uid}"] = not st.session_state.get(f"move_mode_{uid}", False)
                     
-                    # 4. УДАЛИТЬ
                     with col_btn4:
                         if st.button("🗑️ Удалить", key=f"del_btn_{uid}", use_container_width=True):
                             st.session_state[f"del_mode_{uid}"] = not st.session_state.get(f"del_mode_{uid}", False)
                     
-                    # --- РЕДАКТИРОВАНИЕ ---
                     if st.session_state.get(f"edit_mode_{uid}", False):
                         with st.container():
                             st.markdown("---")
@@ -1508,7 +1494,6 @@ with tabs[1]:
                                         st.session_state[f"edit_mode_{uid}"] = False
                                         st.rerun()
                     
-                    # --- СПИСАТЬ (ВЗЯТЬ) ---
                     if st.session_state.get(f"take_mode_{uid}", False):
                         with st.container():
                             st.markdown("---")
@@ -1571,7 +1556,6 @@ with tabs[1]:
                                 else:
                                     st.warning("🚫 Товара нет в наличии")
                     
-                    # --- ПЕРЕМЕЩЕНИЕ ---
                     if st.session_state.get(f"move_mode_{uid}", False):
                         with st.container():
                             st.markdown("---")
@@ -1595,7 +1579,6 @@ with tabs[1]:
                                         st.session_state[f"move_mode_{uid}"] = False
                                         st.rerun()
                     
-                    # --- УДАЛЕНИЕ ---
                     if st.session_state.get(f"del_mode_{uid}", False):
                         with st.container():
                             st.markdown("---")
@@ -1659,17 +1642,17 @@ with tabs[2]:
             search_consumption = st.text_input(
                 "🔍 Поиск по названию, сотруднику или технике", 
                 placeholder="Введите запрос...", 
-                key="consumption_search_v3"
+                key="consumption_search_final_v4"
             )
         with col2:
             dates = sorted(set([row[6][:10] for row in cons if row[6]]), reverse=True)
             date_filter = st.selectbox(
                 "📅 Фильтр по дате", 
                 ["Все"] + dates,
-                key="consumption_date_v3"
+                key="consumption_date_final_v4"
             )
         with col3:
-            if st.button("🔄 Обновить", key="refresh_consumption_v3", use_container_width=True):
+            if st.button("🔄 Обновить", key="refresh_consumption_final_v4", use_container_width=True):
                 st.rerun()
         
         # --- ФИЛЬТРАЦИЯ ---
@@ -1680,9 +1663,9 @@ with tabs[2]:
             filtered_cons = [
                 row for row in filtered_cons 
                 if (row[-1] and search_lower in str(row[-1]).lower()) or          # название товара
-                   (row[5] and search_lower in str(row[5]).lower()) or            # сотрудник
-                   (row[7] and search_lower in str(row[7]).lower()) or            # оборудование
-                   (row[8] and search_lower in str(row[8]).lower())               # номер оборудования
+                   (row[5] and search_lower in str(row[5]).lower()) or            # логин сотрудника
+                   (row[7] and search_lower in str(row[7]).lower()) or            # название техники
+                   (row[8] and search_lower in str(row[8]).lower())               # номер техники
             ]
         
         if date_filter != "Все":
@@ -1715,7 +1698,7 @@ with tabs[2]:
                         quantity = row[2]                          # Количество
                         unit = row[3]                              # Единица измерения
                         object_name = row[4]                       # Назначение (техника)
-                        user_login = row[5]                        # Логин сотрудника
+                        user_login = row[5]                        # ЛОГИН сотрудника (username)
                         date = row[6]                              # Дата
                         equipment_name = row[7]                    # Название техники
                         equipment_number = row[8]                  # Номер техники
@@ -1723,20 +1706,14 @@ with tabs[2]:
                         item_name = row[-1] if len(row) > 10 and row[-1] else f"Товар (ID: {item_id})"  # Название товара
                         
                         # Получаем полное имя пользователя для отображения
-                        display_name = user_login
-                        try:
-                            conn_user = sqlite3.connect('storage.db')
-                            cur_user = conn_user.cursor()
-                            cur_user.execute("SELECT full_name FROM users WHERE username=?", (user_login,))
-                            user_data = cur_user.fetchone()
-                            conn_user.close()
-                            if user_data and user_data[0]:
-                                display_name = f"{user_data[0]} ({user_login})"
-                        except:
-                            pass
+                        user_full_name_display = get_user_full_name(user_login)
+                        if user_full_name_display and user_full_name_display != user_login:
+                            display_name = f"{user_full_name_display} ({user_login})"
+                        else:
+                            display_name = user_login
                         
                         # Уникальный ключ на основе ID списания
-                        uid = f"cons_v3_{consumption_id}"
+                        uid = f"cons_final_v4_{consumption_id}"
                         
                         with st.container():
                             col1, col2, col3 = st.columns([2, 1, 1])
@@ -1844,6 +1821,7 @@ with tabs[2]:
     else:
         st.info("📭 История списаний пуста")
         st.caption("💡 Списания появляются когда сотрудники берут товары через кнопку 'Взять'")
+
 # ============================================================
 # 8.4 ПОКУПКИ (ИНДЕКС 3)
 # ============================================================
@@ -1899,22 +1877,22 @@ if role == "admin":
         pending_users = get_pending_users()
         if pending_users:
             st.markdown("### ⏳ Ожидают подтверждения")
-            for user in pending_users:
+            for user_pending in pending_users:
                 with st.container():
                     col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
                     with col1:
-                        st.markdown(f"**{user[1]}**")
+                        st.markdown(f"**{user_pending[1]}**")  # username
                     with col2:
-                        st.caption(f"👤 {user[2]}")
+                        st.caption(f"👤 {user_pending[2]}")     # full_name
                     with col3:
-                        if st.button("✅ Одобрить", key=f"approve_{user[0]}", use_container_width=True):
-                            update_user_status(user[0], "active")
-                            st.success(f"✅ Пользователь {user[1]} одобрен!")
+                        if st.button("✅ Одобрить", key=f"approve_{user_pending[0]}", use_container_width=True):
+                            update_user_status(user_pending[0], "active")
+                            st.success(f"✅ Пользователь {user_pending[1]} одобрен!")
                             st.rerun()
                     with col4:
-                        if st.button("❌ Отклонить", key=f"reject_{user[0]}", use_container_width=True):
-                            delete_user(user[0])
-                            st.success(f"❌ Пользователь {user[1]} отклонён!")
+                        if st.button("❌ Отклонить", key=f"reject_{user_pending[0]}", use_container_width=True):
+                            delete_user(user_pending[0])
+                            st.success(f"❌ Пользователь {user_pending[1]} отклонён!")
                             st.rerun()
                     st.divider()
         else:
@@ -1943,16 +1921,16 @@ if role == "admin":
             
             st.divider()
             
-            for user in all_users:
+            for user_item in all_users:
                 with st.container():
                     col1, col2, col3, col4, col5 = st.columns([1.5, 2, 1.5, 1.5, 1])
                     
                     with col1:
-                        st.markdown(f"**{user[1]}**")
-                        st.caption(user[2])
+                        st.markdown(f"**{user_item[1]}**")       # username (логин)
+                        st.caption(user_item[2])                  # full_name (полное имя)
                     
                     with col2:
-                        if user[3] == "admin":
+                        if user_item[3] == "admin":
                             st.caption("🔑 Администратор")
                         else:
                             st.caption("👤 Сотрудник")
@@ -1963,23 +1941,23 @@ if role == "admin":
                             "blocked": "🚫 Заблокирован",
                             "pending": "⏳ Ожидает"
                         }
-                        st.caption(status_emoji.get(user[4], user[4]))
+                        st.caption(status_emoji.get(user_item[4], user_item[4]))
                     
                     with col4:
-                        st.caption(f"📅 {user[5][:10] if user[5] else 'Н/Д'}")
+                        st.caption(f"📅 {user_item[5][:10] if user_item[5] else 'Н/Д'}")
                     
                     with col5:
-                        if user[3] != "admin":
-                            if user[4] == "active":
-                                if st.button("🔒 Заблокировать", key=f"block_{user[0]}", use_container_width=True):
-                                    update_user_status(user[0], "blocked")
+                        if user_item[3] != "admin":
+                            if user_item[4] == "active":
+                                if st.button("🔒 Заблокировать", key=f"block_{user_item[0]}", use_container_width=True):
+                                    update_user_status(user_item[0], "blocked")
                                     st.rerun()
-                            elif user[4] == "blocked":
-                                if st.button("🔓 Разблокировать", key=f"unblock_{user[0]}", use_container_width=True):
-                                    update_user_status(user[0], "active")
+                            elif user_item[4] == "blocked":
+                                if st.button("🔓 Разблокировать", key=f"unblock_{user_item[0]}", use_container_width=True):
+                                    update_user_status(user_item[0], "active")
                                     st.rerun()
-                            if st.button("🗑️ Удалить", key=f"delete_{user[0]}", use_container_width=True):
-                                delete_user(user[0])
+                            if st.button("🗑️ Удалить", key=f"delete_user_{user_item[0]}", use_container_width=True):
+                                delete_user(user_item[0])
                                 st.rerun()
                     
                     st.divider()
