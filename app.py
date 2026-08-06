@@ -784,7 +784,7 @@ print(f"✅ Вошёл пользователь: {username}, роль: {role}")
 
 with st.sidebar:
     st.markdown(f"### 👤 {user.get('full_name', user_name)}")
-    st.caption(f"Код: {user.get('username', '')}")
+    st.caption(f"Имя: {user.get('full_name', user_name)}")
     st.caption(f"Роль: {'🔑 Администратор' if role == 'admin' else '🔧 Сотрудник'}")
     if user.get('status') == "blocked":
         st.error("🚫 Аккаунт заблокирован")
@@ -792,13 +792,10 @@ with st.sidebar:
     # --- УВЕДОМЛЕНИЯ В БОКОВОЙ ПАНЕЛИ ---
     notifs = get_notifications()
     if notifs:
-        # Разделяем уведомления по типам
         pending_count = len([n for n in notifs if n.get('icon') == '📝'])
         low_stock_count = len([n for n in notifs if n.get('icon') == '⚠️'])
         returned_count = len([n for n in notifs if n.get('icon') == '🔄'])
-        other_count = len(notifs) - pending_count - low_stock_count - returned_count
         
-        # Формируем текст кнопки
         button_text = f"🔔 Уведомлений: {len(notifs)}"
         if pending_count > 0:
             button_text += f" 📝{pending_count}"
@@ -808,7 +805,6 @@ with st.sidebar:
             button_text += f" 🔄{returned_count}"
         
         if st.button(button_text, use_container_width=True):
-            # Прокручиваем к вкладке "Заявки" (индекс 0)
             st.session_state.active_tab = 0
             st.rerun()
     else:
