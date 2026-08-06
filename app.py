@@ -712,6 +712,29 @@ def login_page():
                             st.info("📧 После одобрения администратором вы сможете войти в систему.")
                         else:
                             st.error(f"❌ {msg}")
+
+if st.session_state.user is None:
+    login_page()
+    st.stop()
+
+# ============================================================
+# ПОЛУЧАЕМ ДАННЫЕ ПОЛЬЗОВАТЕЛЯ ИЗ СЕССИИ
+# ============================================================
+
+user = st.session_state.user
+role = user.get("role", "employee")
+user_name = user.get("full_name", "Пользователь")
+username = user.get("username", "")
+
+# Если роль не admin, но это admin - принудительно исправляем
+if username == "admin" and role != "admin":
+    print("⚠️ Исправляем роль для admin!")
+    role = "admin"
+    user["role"] = "admin"
+    st.session_state.user = user
+
+print(f"✅ Вошёл пользователь: {username}, роль: {role}")
+
 # ============================================================
 # 7. БОКОВАЯ ПАНЕЛЬ
 # ============================================================
