@@ -1644,8 +1644,8 @@ with tabs[2]:
     if cons:
         # --- СТАТИСТИКА ---
         total_items = len(cons)
-        total_quantity = sum([c[2] for c in cons])
-        unique_users = len(set([c[5] for c in cons if c[5]]))
+        total_quantity = sum([row[2] for row in cons if row[2] is not None])
+        unique_users = len(set([row[5] for row in cons if row[5]]))
         
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -1657,23 +1657,23 @@ with tabs[2]:
         
         st.divider()
         
-        # --- ФИЛЬТРЫ ---
+        # --- ФИЛЬТРЫ (С УНИКАЛЬНЫМИ КЛЮЧАМИ) ---
         col1, col2, col3 = st.columns([2, 2, 1])
         with col1:
             search_consumption = st.text_input(
                 "🔍 Поиск", 
                 placeholder="Введите запрос...", 
-                key="consumption_search_main"
+                key="consumption_search_main_v2"
             )
         with col2:
-            dates = sorted(set([c[6][:10] for c in cons if c[6]]), reverse=True)
+            dates = sorted(set([row[6][:10] for row in cons if row[6]]), reverse=True)
             date_filter = st.selectbox(
                 "📅 Фильтр по дате", 
                 ["Все"] + dates,
-                key="consumption_date_main"
+                key="consumption_date_main_v2"
             )
         with col3:
-            if st.button("🔄 Обновить", key="refresh_consumption", use_container_width=True):
+            if st.button("🔄 Обновить", key="refresh_consumption_v2", use_container_width=True):
                 st.rerun()
         
         # --- ФИЛЬТРАЦИЯ ---
@@ -1682,15 +1682,16 @@ with tabs[2]:
         if search_consumption:
             search_lower = search_consumption.lower()
             filtered_cons = [
-                c for c in filtered_cons 
-                if search_lower in str(c[-1]).lower() or      # название товара
-                   search_lower in str(c[5]).lower() or       # сотрудник
-                   search_lower in str(c[7]).lower() or       # техника
-                   search_lower in str(c[4]).lower()          # назначение
+                row for row in filtered_cons 
+                if search_lower in str(row[4]).lower() or       # object_name
+                   search_lower in str(row[5]).lower() or       # сотрудник
+                   search_lower in str(row[9] or "").lower() or # equipment_name
+                   search_lower in str(row[10] or "").lower() or # equipment_number
+                   (row[-1] and search_lower in str(row[-1]).lower())  # название товара
             ]
         
         if date_filter != "Все":
-            filtered_cons = [c for c in filtered_cons if c[6] and c[6][:10] == date_filter]
+            filtered_cons = [row for row in filtered_cons if row[6] and row[6][:10] == date_filter]
         
         if filtered_cons:
             grouped_by_date = {}
@@ -1720,10 +1721,11 @@ with tabs[2]:
                         object_name = row[4]                      # Назначение
                         user = row[5]                             # Сотрудник
                         date = row[6]                             # Дата
-                        equipment_name = row[7]                   # Название техники
-                        equipment_number = row[8]                 # Номер техники
-                        photo = row[9] if len(row) > 9 and row[9] else None
-                        item_name = row[-1] if len(row) > 10 else "Товар"
+                        status = row[7] if len(row) > 7 else "pending"  # Статус
+                        photo = row[8] if len(row) > 8 and row[8] else None
+                        equipment_name = row[9] if len(row) > 9 else None
+                        equipment_number = row[10] if len(row) > 10 else None
+                        item_name = row[-1] if len(row) > 11 and row[-1] else f"Товар (ID: {item_id})"
                         
                         import uuid
                         unique_suffix = str(uuid.uuid4())[:8]
@@ -1740,6 +1742,7 @@ with tabs[2]:
                                 if equipment_name:
                                     st.markdown(f"**🚜 Техника:** {equipment_name}" + (f" (№{equipment_number})" if equipment_number else ""))
                                 st.caption(f"🕐 {date[11:16] if len(date) > 11 else ''}")
+                                st.caption(f"📌 Статус: {status}")
                             
                             with col2:
                                 st.markdown("**📸 Фото**")
@@ -1760,7 +1763,7 @@ with tabs[2]:
                                 if role == "admin":
                                     st.markdown("**⚙️ Действия**")
                                     
-                                    # Кнопка "Вернуть"
+                                    # 1. Кнопка "Вернуть"
                                     return_key = f"return_{uid}"
                                     if st.button("↩️ Вернуть", key=return_key, use_container_width=True):
                                         try:
@@ -1781,11 +1784,11 @@ with tabs[2]:
                                                 st.rerun()
                                             else:
                                                 db_conn.close()
-                                                st.error("❌ Товар не найден!")
+                                                st.error(f"❌ Товар с ID '{item_id}' не найден!")
                                         except Exception as e:
                                             st.error(f"❌ Ошибка: {str(e)}")
                                     
-                                    # Кнопка "Удалить"
+                                    # 2. Кнопка "Удалить"
                                     delete_key = f"delete_{uid}"
                                     if st.button("🗑️ Удалить", key=delete_key, use_container_width=True):
                                         try:
@@ -1805,7 +1808,6 @@ with tabs[2]:
     else:
         st.info("📭 История списаний пуста")
         st.caption("💡 Списания появляются когда сотрудники берут товары через кнопку 'Взять'")
-    
     # ============================================================
     # ДИАГНОСТИКА СТРУКТУРЫ БАЗЫ ДАННЫХ
     # ============================================================
