@@ -1645,7 +1645,7 @@ with tabs[2]:
         # --- СТАТИСТИКА ---
         total_items = len(cons)
         total_quantity = sum([c[2] for c in cons])
-        unique_users = len(set([c[7] for c in cons if c[7]]))
+        unique_users = len(set([c[5] for c in cons if c[5]]))
         
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -1683,10 +1683,10 @@ with tabs[2]:
             search_lower = search_consumption.lower()
             filtered_cons = [
                 c for c in filtered_cons 
-                if search_lower in str(c[10]).lower() or
-                   search_lower in str(c[7]).lower() or
-                   search_lower in str(c[8]).lower() or
-                   search_lower in str(c[4]).lower()
+                if search_lower in str(c[11]).lower() or      # название товара (i.name)
+                   search_lower in str(c[5]).lower() or       # сотрудник
+                   search_lower in str(c[7]).lower() or       # техника
+                   search_lower in str(c[4]).lower()          # назначение
             ]
         
         if date_filter != "Все":
@@ -1714,17 +1714,17 @@ with tabs[2]:
                     
                     for idx, c in enumerate(items):
                         # Распаковка данных
-                        consumption_id = c[0]  # ID списания
-                        item_id = c[1] if len(c) > 1 else ""
-                        quantity = c[2] if len(c) > 2 else 0
-                        unit = c[3] if len(c) > 3 else "шт"
-                        object_name = c[4] if len(c) > 4 else ""
-                        user = c[5] if len(c) > 5 else "Неизвестно"
-                        date = c[6] if len(c) > 6 else ""
-                        equipment_name = c[7] if len(c) > 7 else ""
-                        equipment_number = c[8] if len(c) > 8 else ""
-                        photo = c[9] if len(c) > 9 and c[9] else None
-                        item_name = c[10] if len(c) > 10 else "Товар"
+                        consumption_id = c[0]           # ID списания
+                        item_id = c[1]                  # ID товара
+                        quantity = c[2]                 # Количество
+                        unit = c[3]                     # Единица измерения
+                        object_name = c[4]              # Назначение
+                        user = c[5]                     # Сотрудник
+                        date = c[6]                     # Дата
+                        equipment_name = c[7]           # Название техники
+                        equipment_number = c[8]         # Номер техники
+                        photo = c[9] if len(c) > 9 and c[9] else None  # Фото
+                        item_name = c[11] if len(c) > 11 else "Товар"   # Название товара
                         
                         # Уникальный ключ
                         import uuid
@@ -1760,16 +1760,15 @@ with tabs[2]:
                                     else:
                                         st.caption("📷 Нет фото")
                             
-                            # --- КОЛОНКА 3: КНОПКИ ДЕЙСТВИЙ (ТОЛЬКО ДЛЯ АДМИНА) ---
+                            # --- КОЛОНКА 3: КНОПКИ ДЕЙСТВИЙ ---
                             with col3:
                                 if role == "admin":
                                     st.markdown("**⚙️ Действия**")
                                     
-                                    # Кнопка "Вернуть"
+                                    # 1. Кнопка "Вернуть"
                                     return_key = f"return_{uid}"
                                     if st.button("↩️ Вернуть", key=return_key, use_container_width=True):
                                         try:
-                                            # Подключаемся к БД
                                             conn = sqlite3.connect('storage.db')
                                             c_conn = conn.cursor()
                                             
@@ -1797,16 +1796,13 @@ with tabs[2]:
                                         except Exception as e:
                                             st.error(f"❌ Ошибка: {str(e)}")
                                     
-                                    # Кнопка "Удалить"
+                                    # 2. Кнопка "Удалить"
                                     delete_key = f"delete_{uid}"
                                     if st.button("🗑️ Удалить", key=delete_key, use_container_width=True):
                                         try:
                                             conn = sqlite3.connect('storage.db')
                                             c_conn = conn.cursor()
-                                            
-                                            # Удаляем запись о списании
                                             c_conn.execute("DELETE FROM consumption WHERE id=?", (consumption_id,))
-                                            
                                             conn.commit()
                                             conn.close()
                                             st.success("🗑️ Запись о списании удалена!")
@@ -1820,26 +1816,6 @@ with tabs[2]:
     else:
         st.info("📭 История списаний пуста")
         st.caption("💡 Списания появляются когда сотрудники берут товары через кнопку 'Взять'")
-        # --- ДИАГНОСТИКА ---
-    st.write("🔍 Проверка данных:")
-    if cons:
-        st.write(f"✅ Найдено записей: {len(cons)}")
-        st.write(f"📋 Первая запись: {cons[0]}")
-        st.write(f"📌 ID списания: {cons[0][0]}")
-        st.write(f"📌 ID товара: {cons[0][1]}")
-        st.write(f"📌 Название товара: {cons[0][10] if len(cons[0]) > 10 else 'НЕТ!'}")
-    else:
-        st.warning("⚠️ Нет записей в таблице consumption")
-        # --- ДИАГНОСТИКА ---
-    st.write("🔍 Проверка данных:")
-    if cons:
-        st.write(f"✅ Найдено записей: {len(cons)}")
-        st.write(f"📋 Первая запись: {cons[0]}")
-        st.write(f"📌 ID списания: {cons[0][0]}")
-        st.write(f"📌 ID товара: {cons[0][1]}")
-        st.write(f"📌 Название товара: {cons[0][10] if len(cons[0]) > 10 else 'НЕТ!'}")
-    else:
-        st.warning("⚠️ Нет записей в таблице consumption")
 # ============================================================
 # 8.4 ПОКУПКИ (ИНДЕКС 3)
 # ============================================================
