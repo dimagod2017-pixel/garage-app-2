@@ -1620,7 +1620,7 @@ with tabs[1]:
     else:
         st.info("📭 Склад пуст. Добавьте товары через боковую панель.")
 # ============================================================
-# 8.3 СПИСАНИЯ (ИНДЕКС 2) - ИСПРАВЛЕННАЯ ВЕРСИЯ
+# 8.3 СПИСАНИЯ (ИНДЕКС 2) - С КНОПКАМИ "ВЕРНУТЬ" И "УДАЛИТЬ"
 # ============================================================
 
 with tabs[2]:
@@ -1668,7 +1668,6 @@ with tabs[2]:
                 key="consumption_search_main"
             )
         with col2:
-            # Получаем уникальные даты для фильтра
             dates = sorted(set([c[6][:10] for c in cons if c[6]]), reverse=True)
             date_filter = st.selectbox(
                 "📅 Фильтр по дате", 
@@ -1686,10 +1685,10 @@ with tabs[2]:
             search_lower = search_consumption.lower()
             filtered_cons = [
                 c for c in filtered_cons 
-                if search_lower in str(c[10]).lower() or      # название товара
-                   search_lower in str(c[7]).lower() or      # сотрудник
-                   search_lower in str(c[8]).lower() or      # техника
-                   search_lower in str(c[4]).lower()         # назначение
+                if search_lower in str(c[10]).lower() or
+                   search_lower in str(c[7]).lower() or
+                   search_lower in str(c[8]).lower() or
+                   search_lower in str(c[4]).lower()
             ]
         
         if date_filter != "Все":
@@ -1697,7 +1696,6 @@ with tabs[2]:
         
         # --- ГРУППИРОВКА ПО ДАТАМ ---
         if filtered_cons:
-            # Группируем по датам
             grouped_by_date = {}
             for c in filtered_cons:
                 date_key = c[6][:10] if c[6] else "Без даты"
@@ -1705,23 +1703,18 @@ with tabs[2]:
                     grouped_by_date[date_key] = []
                 grouped_by_date[date_key].append(c)
             
-            # Сортируем даты
             sorted_dates = sorted(grouped_by_date.keys(), reverse=True)
             
-            # --- ОТОБРАЖЕНИЕ ПО ДАТАМ ---
             for date_key in sorted_dates:
                 items = grouped_by_date[date_key]
                 
-                # Заголовок даты с количеством
                 date_obj = datetime.strptime(date_key, "%Y-%m-%d") if date_key != "Без даты" else None
                 date_display = date_obj.strftime("%d.%m.%Y") if date_obj else "Без даты"
                 
                 with st.expander(f"📅 {date_display} — {len(items)} списаний", expanded=False):
-                    # Сортировка по времени
                     items.sort(key=lambda x: x[6] if x[6] else "", reverse=True)
                     
                     for idx, c in enumerate(items):
-                        # Распаковка данных
                         item_id = c[1] if len(c) > 1 else ""
                         quantity = c[2] if len(c) > 2 else 0
                         unit = c[3] if len(c) > 3 else "шт"
@@ -1733,7 +1726,6 @@ with tabs[2]:
                         photo = c[9] if len(c) > 9 and c[9] else None
                         item_name = c[10] if len(c) > 10 else "Товар"
                         
-                        # УНИКАЛЬНЫЙ КЛЮЧ с использованием uuid
                         import uuid
                         unique_suffix = str(uuid.uuid4())[:8]
                         uid = f"cons_{item_id}_{idx}_{unique_suffix}"
@@ -1757,7 +1749,6 @@ with tabs[2]:
                                 if photo and os.path.exists(photo):
                                     st.image(photo, width=150)
                                 else:
-                                    # Проверяем фото товара
                                     item_photos = get_item_photos(item_id)
                                     if item_photos:
                                         main_photo = next((p for p in item_photos if p[2] == 1), item_photos[0])
@@ -1777,12 +1768,48 @@ with tabs[2]:
                                 if st.button("📋 Подробнее", key=detail_key, use_container_width=True):
                                     st.session_state[detail_key] = not st.session_state.get(detail_key, False)
                                 
-                                # Кнопка подтверждения (только для админа)
+                                # --- КНОПКИ ТОЛЬКО ДЛЯ АДМИНА ---
                                 if role == "admin":
+                                    st.divider()
+                                    
+                                    # 1. Кнопка подтверждения
                                     confirm_key = f"confirm_{uid}"
                                     if st.button("✅ Подтвердить", key=confirm_key, use_container_width=True):
                                         st.success("✅ Списание подтверждено!")
                                         st.session_state[confirm_key] = True
+                                        st.rerun()
+                                    
+                                    # 2. Кнопка возврата (если товар не пригодился)
+                                    return_key = f"return_{uid}"
+                                    if st.button("↩️ Вернуть", key=return_key, use_container_width=True):
+                                        # Возвращаем товар на склад
+                                        conn = sqlite3.connect('storage.db')
+                                        c = conn.cursor()
+                                        # Получаем текущее количество
+                                        c.execute("SELECT quantity FROM items WHERE id=?", (item_id,))
+                                        current_qty = c.fetchone()
+                                        if current_qty:
+                                            new_qty = current_qty[0] + quantity
+                                            c.execute("UPDATE items SET quantity=? WHERE id=?", (new_qty, item_id))
+                                            # Удаляем запись о списании
+                                            c.execute("DELETE FROM consumption WHERE id=?", (c[0],))
+                                            conn.commit()
+                                            conn.close()
+                                            st.success(f"✅ {quantity} {unit} товара '{item_name}' возвращено на склад!")
+                                            st.rerun()
+                                        else:
+                                            conn.close()
+                                            st.error("❌ Ошибка: товар не найден!")
+                                    
+                                    # 3. Кнопка удаления записи
+                                    delete_key = f"delete_{uid}"
+                                    if st.button("🗑️ Удалить запись", key=delete_key, use_container_width=True):
+                                        conn = sqlite3.connect('storage.db')
+                                        c = conn.cursor()
+                                        c.execute("DELETE FROM consumption WHERE id=?", (c[0],))
+                                        conn.commit()
+                                        conn.close()
+                                        st.success("🗑️ Запись о списании удалена!")
                                         st.rerun()
                             
                             # --- РАЗВЕРНУТАЯ ИНФОРМАЦИЯ ---
