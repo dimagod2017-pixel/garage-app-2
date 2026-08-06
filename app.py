@@ -1552,17 +1552,196 @@ with tabs[1]:
     else:
         st.info("📭 Склад пуст. Добавьте товары через боковую панель.")
 # ============================================================
-# 8.3 СПИСАНИЯ (ИНДЕКС 2)
+# 8.3 СПИСАНИЯ (ИНДЕКС 2) - ОБНОВЛЕННАЯ ВЕРСИЯ
 # ============================================================
 
 with tabs[2]:
     st.markdown("## 📤 Списания")
-    cons = get_consumption()
+    
+    # --- ПОЛУЧАЕМ ДАННЫЕ С НАЗВАНИЕМ ТОВАРА ---
+    def get_consumption_with_name():
+        conn = sqlite3.connect('storage.db')
+        c = conn.cursor()
+        c.execute("""
+            SELECT c.*, i.name 
+            FROM consumption c 
+            LEFT JOIN items i ON c.item_id = i.id 
+            ORDER BY c.date DESC 
+            LIMIT 500
+        """)
+        result = c.fetchall()
+        conn.close()
+        return result
+    
+    cons = get_consumption_with_name()
+    
     if cons:
-        for c in cons:
-            st.write(f"📤 {c[9]} — {c[2]} {c[3]} → {c[4]} | {c[5]} | {c[6]}")
+        # --- СТАТИСТИКА ---
+        total_items = len(cons)
+        total_quantity = sum([c[2] for c in cons])
+        unique_users = len(set([c[7] for c in cons if c[7]]))
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("📦 Всего списаний", total_items)
+        with col2:
+            st.metric("📊 Всего единиц", f"{total_quantity:.1f}")
+        with col3:
+            st.metric("👥 Сотрудников", unique_users)
+        
+        st.divider()
+        
+        # --- ФИЛЬТРЫ ---
+        col1, col2, col3 = st.columns([2, 2, 1])
+        with col1:
+            search_consumption = st.text_input(
+                "🔍 Поиск по товару, сотруднику или технике", 
+                placeholder="Введите запрос...", 
+                key="consumption_search"
+            )
+        with col2:
+            # Получаем уникальные даты для фильтра
+            dates = sorted(set([c[6][:10] for c in cons if c[6]]), reverse=True)
+            date_filter = st.selectbox(
+                "📅 Фильтр по дате", 
+                ["Все"] + dates,
+                key="consumption_date"
+            )
+        with col3:
+            if st.button("🔄 Обновить", use_container_width=True):
+                st.rerun()
+        
+        # --- ФИЛЬТРАЦИЯ ---
+        filtered_cons = cons
+        
+        if search_consumption:
+            search_lower = search_consumption.lower()
+            filtered_cons = [
+                c for c in filtered_cons 
+                if search_lower in str(c[10]).lower() or      # название товара
+                   search_lower in str(c[7]).lower() or      # сотрудник
+                   search_lower in str(c[8]).lower() or      # техника
+                   search_lower in str(c[4]).lower()         # назначение
+            ]
+        
+        if date_filter != "Все":
+            filtered_cons = [c for c in filtered_cons if c[6] and c[6][:10] == date_filter]
+        
+        # --- ГРУППИРОВКА ПО ДАТАМ ---
+        if filtered_cons:
+            # Группируем по датам
+            grouped_by_date = {}
+            for c in filtered_cons:
+                date_key = c[6][:10] if c[6] else "Без даты"
+                if date_key not in grouped_by_date:
+                    grouped_by_date[date_key] = []
+                grouped_by_date[date_key].append(c)
+            
+            # Сортируем даты
+            sorted_dates = sorted(grouped_by_date.keys(), reverse=True)
+            
+            # --- ОТОБРАЖЕНИЕ ПО ДАТАМ ---
+            for date_key in sorted_dates:
+                items = grouped_by_date[date_key]
+                
+                # Заголовок даты с количеством
+                date_obj = datetime.strptime(date_key, "%Y-%m-%d") if date_key != "Без даты" else None
+                date_display = date_obj.strftime("%d.%m.%Y") if date_obj else "Без даты"
+                
+                with st.expander(f"📅 {date_display} — {len(items)} списаний", expanded=False):
+                    # Сортировка по времени
+                    items.sort(key=lambda x: x[6] if x[6] else "", reverse=True)
+                    
+                    for idx, c in enumerate(items):
+                        # Распаковка данных
+                        # c = (id, item_id, quantity, unit, object_name, user, date, equipment_name, equipment_number, photo, item_name)
+                        item_id = c[1] if len(c) > 1 else ""
+                        quantity = c[2] if len(c) > 2 else 0
+                        unit = c[3] if len(c) > 3 else "шт"
+                        object_name = c[4] if len(c) > 4 else ""
+                        user = c[5] if len(c) > 5 else "Неизвестно"
+                        date = c[6] if len(c) > 6 else ""
+                        equipment_name = c[7] if len(c) > 7 else ""
+                        equipment_number = c[8] if len(c) > 8 else ""
+                        photo = c[9] if len(c) > 9 and c[9] else None
+                        item_name = c[10] if len(c) > 10 else "Товар"
+                        
+                        uid = f"cons_{item_id}_{idx}"
+                        
+                        with st.container():
+                            col1, col2, col3 = st.columns([2, 1, 1])
+                            
+                            # --- КОЛОНКА 1: ИНФОРМАЦИЯ ---
+                            with col1:
+                                st.markdown(f"**📦 {item_name}**")
+                                st.markdown(f"**Количество:** {quantity} {unit}")
+                                st.markdown(f"**👤 Сотрудник:** {user}")
+                                st.markdown(f"**📝 Назначение:** {object_name}")
+                                if equipment_name:
+                                    st.markdown(f"**🚜 Техника:** {equipment_name}" + (f" (№{equipment_number})" if equipment_number else ""))
+                                st.caption(f"🕐 {date[11:16] if len(date) > 11 else ''}")
+                            
+                            # --- КОЛОНКА 2: ФОТО ---
+                            with col2:
+                                st.markdown("**📸 Фото**")
+                                if photo and os.path.exists(photo):
+                                    st.image(photo, width=150)
+                                else:
+                                    # Проверяем фото товара
+                                    item_photos = get_item_photos(item_id)
+                                    if item_photos:
+                                        main_photo = next((p for p in item_photos if p[2] == 1), item_photos[0])
+                                        if os.path.exists(main_photo[1]):
+                                            st.image(main_photo[1], width=150)
+                                        else:
+                                            st.caption("📷 Нет фото")
+                                    else:
+                                        st.caption("📷 Нет фото")
+                            
+                            # --- КОЛОНКА 3: КНОПКИ ДЕЙСТВИЙ ---
+                            with col3:
+                                st.markdown("**⚙️ Действия**")
+                                
+                                # Кнопка просмотра деталей
+                                if st.button("📋 Подробнее", key=f"detail_{uid}", use_container_width=True):
+                                    st.session_state[f"detail_{uid}"] = not st.session_state.get(f"detail_{uid}", False)
+                                
+                                # Кнопка подтверждения (только для админа)
+                                if role == "admin":
+                                    if st.button("✅ Подтвердить", key=f"confirm_{uid}", use_container_width=True):
+                                        st.success("✅ Списание подтверждено!")
+                                        st.rerun()
+                            
+                            # --- РАЗВЕРНУТАЯ ИНФОРМАЦИЯ ---
+                            if st.session_state.get(f"detail_{uid}", False):
+                                with st.container():
+                                    st.markdown("---")
+                                    st.markdown("### 📋 Детальная информация")
+                                    
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.markdown(f"**📦 Товар:** {item_name}")
+                                        st.markdown(f"**🔢 ID товара:** {item_id}")
+                                        st.markdown(f"**📊 Количество:** {quantity} {unit}")
+                                        st.markdown(f"**👤 Сотрудник:** {user}")
+                                        st.markdown(f"**📝 Назначение:** {object_name}")
+                                    with col2:
+                                        st.markdown(f"**🚜 Техника:** {equipment_name or 'Не указана'}")
+                                        st.markdown(f"**🔢 Номер техники:** {equipment_number or 'Не указан'}")
+                                        st.markdown(f"**📅 Дата:** {date}")
+                                        st.markdown(f"**🕐 Время:** {date[11:16] if len(date) > 11 else ''}")
+                                    
+                                    st.markdown("---")
+                                    if st.button("❌ Закрыть", key=f"close_{uid}"):
+                                        st.session_state[f"detail_{uid}"] = False
+                                        st.rerun()
+                            
+                            st.divider()
+        else:
+            st.info("📭 Нет списаний по выбранным фильтрам")
     else:
-        st.info("Нет списаний")
+        st.info("📭 История списаний пуста")
+        st.caption("💡 Списания появляются когда сотрудники берут товары через кнопку 'Взять'")
 
 # ============================================================
 # 8.4 ПОКУПКИ (ИНДЕКС 3)
