@@ -1618,11 +1618,72 @@ with tabs[1]:
         st.info("📭 Склад пуст. Добавьте товары через боковую панель.")
 
 # ============================================================
-# 8.3 СПИСАНИЯ (ИНДЕКС 2) - ИСПРАВЛЕННАЯ ВЕРСИЯ
+# 8.3 СПИСАНИЯ (ИНДЕКС 2) - С ДИАГНОСТИКОЙ
 # ============================================================
 
 with tabs[2]:
     st.markdown("## 📤 Списания")
+    
+    # ============================================================
+    # ДИАГНОСТИКА СТРУКТУРЫ БАЗЫ ДАННЫХ
+    # ============================================================
+    
+    st.markdown("### 🔍 Диагностика базы данных")
+    
+    conn_diag = sqlite3.connect('storage.db')
+    c_diag = conn_diag.cursor()
+    
+    # 1. Проверяем структуру таблицы consumption
+    c_diag.execute("PRAGMA table_info(consumption)")
+    columns = c_diag.fetchall()
+    
+    st.markdown("**📋 Структура таблицы consumption:**")
+    col_names = []
+    for col in columns:
+        col_names.append(col[1])
+        st.write(f"  [{col[0]}] {col[1]} ({col[2]})")
+    
+    # 2. Проверяем данные в таблице consumption
+    c_diag.execute("SELECT * FROM consumption LIMIT 3")
+    samples = c_diag.fetchall()
+    
+    if samples:
+        st.markdown("**📋 Примеры записей из consumption:**")
+        for i, sample in enumerate(samples):
+            st.write(f"  Запись {i+1}: {sample}")
+            st.write(f"  Количество полей: {len(sample)}")
+            for j, val in enumerate(sample):
+                st.write(f"    [{j}] {col_names[j] if j < len(col_names) else '?'}: {val}")
+            st.write("  ---")
+    else:
+        st.warning("⚠️ Нет записей в таблице consumption!")
+    
+    # 3. Проверяем JOIN запрос
+    c_diag.execute("""
+        SELECT c.*, i.name 
+        FROM consumption c 
+        LEFT JOIN items i ON c.item_id = i.id 
+        LIMIT 3
+    """)
+    joined = c_diag.fetchall()
+    
+    if joined:
+        st.markdown("**📋 Результат JOIN (c.*, i.name):**")
+        for i, row in enumerate(joined):
+            st.write(f"  Запись {i+1}: {row}")
+            st.write(f"  Количество полей: {len(row)}")
+            st.write(f"  Название товара (последнее поле): {row[-1] if len(row) > 0 else 'НЕТ!'}")
+            st.write(f"  ID списания (первое поле): {row[0] if len(row) > 0 else 'НЕТ!'}")
+            st.write("  ---")
+    else:
+        st.warning("⚠️ Нет данных после JOIN!")
+    
+    conn_diag.close()
+    st.divider()
+    
+    # ============================================================
+    # ОСНОВНОЙ КОД ВКЛАДКИ
+    # ============================================================
     
     # --- ПОЛУЧАЕМ ДАННЫЕ ---
     def get_consumption_with_name():
@@ -1683,7 +1744,7 @@ with tabs[2]:
             search_lower = search_consumption.lower()
             filtered_cons = [
                 c for c in filtered_cons 
-                if search_lower in str(c[11]).lower() or      # название товара (i.name)
+                if search_lower in str(c[-1]).lower() or      # название товара (последнее поле)
                    search_lower in str(c[5]).lower() or       # сотрудник
                    search_lower in str(c[7]).lower() or       # техника
                    search_lower in str(c[4]).lower()          # назначение
@@ -1713,18 +1774,18 @@ with tabs[2]:
                     items.sort(key=lambda x: x[6] if x[6] else "", reverse=True)
                     
                     for idx, c in enumerate(items):
-                        # Распаковка данных
-                        consumption_id = c[0]           # ID списания
-                        item_id = c[1]                  # ID товара
-                        quantity = c[2]                 # Количество
-                        unit = c[3]                     # Единица измерения
-                        object_name = c[4]              # Назначение
-                        user = c[5]                     # Сотрудник
-                        date = c[6]                     # Дата
-                        equipment_name = c[7]           # Название техники
-                        equipment_number = c[8]         # Номер техники
+                        # Распаковка данных (с использованием последнего поля для названия товара)
+                        consumption_id = c[0]                    # ID списания
+                        item_id = c[1]                          # ID товара
+                        quantity = c[2]                         # Количество
+                        unit = c[3]                             # Единица измерения
+                        object_name = c[4]                      # Назначение
+                        user = c[5]                             # Сотрудник
+                        date = c[6]                             # Дата
+                        equipment_name = c[7]                   # Название техники
+                        equipment_number = c[8]                 # Номер техники
                         photo = c[9] if len(c) > 9 and c[9] else None  # Фото
-                        item_name = c[11] if len(c) > 11 else "Товар"   # Название товара
+                        item_name = c[-1] if len(c) > 10 else "Товар"  # Название товара (последнее поле)
                         
                         # Уникальный ключ
                         import uuid
@@ -1760,7 +1821,7 @@ with tabs[2]:
                                     else:
                                         st.caption("📷 Нет фото")
                             
-                            # --- КОЛОНКА 3: КНОПКИ ДЕЙСТВИЙ ---
+                            # --- КОЛОНКА 3: КНОПКИ ДЕЙСТВИЙ (ТОЛЬКО ДЛЯ АДМИНА) ---
                             with col3:
                                 if role == "admin":
                                     st.markdown("**⚙️ Действия**")
@@ -1776,7 +1837,7 @@ with tabs[2]:
                                             c_conn.execute("SELECT quantity FROM items WHERE id=?", (item_id,))
                                             result = c_conn.fetchone()
                                             
-                                            if result:
+                                            if result is not None:
                                                 current_qty = result[0]
                                                 new_qty = current_qty + quantity
                                                 
@@ -1792,7 +1853,7 @@ with tabs[2]:
                                                 st.rerun()
                                             else:
                                                 conn.close()
-                                                st.error("❌ Товар не найден в базе!")
+                                                st.error(f"❌ Товар с ID '{item_id}' не найден!")
                                         except Exception as e:
                                             st.error(f"❌ Ошибка: {str(e)}")
                                     
