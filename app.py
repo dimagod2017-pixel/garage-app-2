@@ -907,7 +907,6 @@ else:
         request_label, "📋 Товары", consumption_label,
         "🛒 Покупки", "🚜 Парк", "⚙️ Управление"
     ])
-
 # ============================================================
 # 8.1 ЗАЯВКИ (ИНДЕКС 0)
 # ============================================================
@@ -948,7 +947,6 @@ with tabs[0]:
                     photo_path = f"images/req_{uuid.uuid4()}.{ext}"
                     with open(photo_path, "wb") as f:
                         f.write(photo.getbuffer())
-                    st.write(f"📸 Фото сохранено: {photo_path}")  # Отладочная информация
                 
                 # Отправляем заявку
                 add_request(name, qty, unit, desc, photo_path, current_username)
@@ -980,6 +978,14 @@ with tabs[0]:
                             st.image(r['photo'], width=200)
                         else:
                             st.caption("📷 Нет фото")
+                    
+                    # Кнопка удаления для отклоненных заявок
+                    if r['status'] == 'rejected':
+                        st.divider()
+                        if st.button("🗑️ Удалить заявку", key=f"del_req_emp_{r['id']}", use_container_width=True):
+                            delete_request(r['id'])
+                            st.success("🗑️ Заявка удалена!")
+                            st.rerun()
                     
                     if r['status'] == 'suggested' and r['suggested_item_id']:
                         st.divider()
@@ -1096,18 +1102,53 @@ with tabs[0]:
                                         st.rerun()
                             
                             elif status == 'approved':
-                                if st.button("📦 Создать товар", key=f"create_{r['id']}"):
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.button("📦 Создать товар", key=f"create_{r['id']}"):
+                                        st.session_state[f"create_mode_{r['id']}"] = True
+                                with col2:
+                                    if st.button("🗑️ Удалить", key=f"del_approved_{r['id']}"):
+                                        delete_request(r['id'])
+                                        st.success("🗑️ Заявка удалена!")
+                                        st.rerun()
+                                
+                                if st.session_state.get(f"create_mode_{r['id']}"):
                                     rooms = get_room_names()
                                     if rooms:
                                         room = st.selectbox("Помещение", rooms, key=f"cr_{r['id']}")
                                         loc = st.text_input("Место", key=f"cl_{r['id']}")
-                                        if st.button("💾 Сохранить", key=f"cs_{r['id']}") and loc:
-                                            item_id = add_item(r['name'], loc, room, r['quantity'], r['unit'])
-                                            delete_request(r['id'])
-                                            st.success(f"✅ Товар '{r['name']}' создан!")
-                                            st.rerun()
+                                        c1, c2 = st.columns(2)
+                                        with c1:
+                                            if st.button("💾 Сохранить", key=f"cs_{r['id']}") and loc:
+                                                item_id = add_item(r['name'], loc, room, r['quantity'], r['unit'])
+                                                delete_request(r['id'])
+                                                st.success(f"✅ Товар '{r['name']}' создан!")
+                                                st.rerun()
+                                        with c2:
+                                            if st.button("❌ Отмена", key=f"cancel_create_{r['id']}"):
+                                                st.session_state[f"create_mode_{r['id']}"] = False
+                                                st.rerun()
+                            
+                            elif status == 'rejected':
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.button("🔄 Вернуть на рассмотрение", key=f"return_to_pending_{r['id']}"):
+                                        update_request_status(r['id'], "pending", "")
+                                        st.rerun()
+                                with col2:
+                                    if st.button("🗑️ Удалить", key=f"del_rejected_{r['id']}"):
+                                        delete_request(r['id'])
+                                        st.success("🗑️ Заявка удалена!")
+                                        st.rerun()
+                            
+                            elif status == 'suggested':
+                                if st.button("🗑️ Удалить", key=f"del_suggested_{r['id']}"):
+                                    delete_request(r['id'])
+                                    st.success("🗑️ Заявка удалена!")
+                                    st.rerun()
                 else:
                     st.info(f"Нет заявок со статусом '{label}'")
+
 # ============================================================
 # 8.2 ТОВАРЫ (ИНДЕКС 1)
 # ============================================================
