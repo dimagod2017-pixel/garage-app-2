@@ -911,12 +911,18 @@ else:
 # ============================================================
 # 8.1 ЗАЯВКИ (ИНДЕКС 0)
 # ============================================================
-# (без изменений)
 
 with tabs[0]:
     st.markdown("## 📝 Заявки")
     
-    if role == "employee":
+    # Получаем роль пользователя
+    current_user_role = st.session_state.user.get("role", "employee")
+    current_username = st.session_state.user.get("username", "")
+    
+    # ============================================================
+    # ДЛЯ СОТРУДНИКА
+    # ============================================================
+    if current_user_role != "admin":
         with st.form("new_request", clear_on_submit=True):
             st.subheader("➕ Новая заявка")
             name = st.text_input("Название*")
@@ -934,13 +940,13 @@ with tabs[0]:
                     photo_path = f"images/req_{uuid.uuid4()}.{ext}"
                     with open(photo_path, "wb") as f:
                         f.write(photo.getbuffer())
-                add_request(name, qty, unit, desc, photo_path, user_name)
+                add_request(name, qty, unit, desc, photo_path, current_username)
                 st.success("✅ Заявка отправлена!")
                 st.rerun()
         
         st.divider()
         st.subheader("📋 Мои заявки")
-        my_requests = get_requests(user=user_name)
+        my_requests = get_requests(user=current_username)
         
         if my_requests:
             for req in my_requests:
@@ -1001,7 +1007,10 @@ with tabs[0]:
         else:
             st.info("У вас нет заявок")
     
-    elif role == "admin":
+    # ============================================================
+    # ДЛЯ АДМИНИСТРАТОРА
+    # ============================================================
+    else:
         statuses = {
             "⏳ Новые": "pending", "🔧 В работе": "in_work",
             "🔄 Возвраты": "returned", "💡 Предложенные": "suggested",
@@ -1088,7 +1097,6 @@ with tabs[0]:
                                             st.rerun()
                 else:
                     st.info(f"Нет заявок со статусом '{label}'")
-
 # ============================================================
 # 8.2 ТОВАРЫ (ИНДЕКС 1)
 # ============================================================
