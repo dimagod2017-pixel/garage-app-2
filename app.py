@@ -932,14 +932,25 @@ with tabs[0]:
             with c2:
                 unit = st.selectbox("Ед.", ["шт", "л", "кг", "м", "комплект"])
             desc = st.text_area("Описание")
-            photo = st.file_uploader("Фото", type=["jpg","jpeg","png"])
-            if st.form_submit_button("📤 Отправить") and name:
+            photo = st.file_uploader("Фото", type=["jpg","jpeg","png"], key="request_photo")
+            
+            submitted = st.form_submit_button("📤 Отправить")
+            
+            if submitted and name:
                 photo_path = ""
-                if photo:
+                if photo is not None:
+                    # Создаем папку если её нет
+                    if not os.path.exists("images"):
+                        os.makedirs("images")
+                    
+                    # Сохраняем фото
                     ext = photo.name.split('.')[-1]
                     photo_path = f"images/req_{uuid.uuid4()}.{ext}"
                     with open(photo_path, "wb") as f:
                         f.write(photo.getbuffer())
+                    st.write(f"📸 Фото сохранено: {photo_path}")  # Отладочная информация
+                
+                # Отправляем заявку
                 add_request(name, qty, unit, desc, photo_path, current_username)
                 st.success("✅ Заявка отправлена!")
                 st.rerun()
