@@ -1799,25 +1799,256 @@ with tabs[3]:
 # ============================================================
 # 8.5 ПАРК ТЕХНИКИ (ИНДЕКС 4)
 # ============================================================
-# (без изменений)
 
 with tabs[4]:
     st.markdown("## 🚜 Парк техники")
-    if role == "admin":
-        with st.form("add_eq"):
-            c1, c2 = st.columns(2)
-            with c1:
-                name = st.text_input("Название*")
-            with c2:
-                num = st.text_input("Номер")
-            if st.form_submit_button("Добавить") and name:
-                add_equipment(name, num)
-                st.rerun()
     
-    for eq in get_equipment():
-        with st.expander(f"🚜 {eq[1]}" + (f" (№{eq[2]})" if eq[2] else "")):
-            st.caption(f"📅 Добавлен: {eq[3][:10] if eq[3] else 'Н/Д'}")
-
+    # ============================================================
+    # ДОБАВЛЕНИЕ НОВОЙ ТЕХНИКИ (ТОЛЬКО ДЛЯ АДМИНА)
+    # ============================================================
+    if role == "admin":
+        with st.expander("➕ Добавить новую технику", expanded=False):
+            with st.form("add_eq"):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    name = st.text_input("Название техники*", placeholder="Например: Трактор МТЗ-82")
+                with c2:
+                    num = st.text_input("Гос. номер", placeholder="Например: А 123 ВС")
+                with c3:
+                    eq_type = st.selectbox("Тип техники", ["Трактор", "Комбайн", "Автомобиль", "Погрузчик", "Другое"])
+                
+                st.divider()
+                st.markdown("### 🔧 Агрегаты и навесное оборудование")
+                st.caption("Добавьте агрегаты, которые закреплены за этой техникой")
+                
+                # Динамическое добавление агрегатов
+                num_aggregates = st.number_input("Количество агрегатов", min_value=0, max_value=10, value=0, key="num_agg")
+                
+                aggregates = []
+                for i in range(int(num_aggregates)):
+                    st.markdown(f"**Агрегат {i+1}**")
+                    col_a1, col_a2, col_a3 = st.columns(3)
+                    with col_a1:
+                        agg_name = st.text_input(f"Название агрегата", key=f"agg_name_{i}", placeholder="Например: Плуг ПЛН-3-35")
+                    with col_a2:
+                        agg_type = st.selectbox(f"Тип", ["Плуг", "Культиватор", "Сеялка", "Борона", "Косилка", "Опрыскиватель", "Другое"], key=f"agg_type_{i}")
+                    with col_a3:
+                        agg_number = st.text_input(f"Инв. номер", key=f"agg_num_{i}", placeholder="Например: 12345")
+                    aggregates.append({"name": agg_name, "type": agg_type, "number": agg_number})
+                
+                submitted = st.form_submit_button("💾 Сохранить технику", use_container_width=True)
+                
+                if submitted and name:
+                    # Добавляем технику
+                    add_equipment(name, num)
+                    
+                    # Сохраняем агрегаты в отдельную таблицу
+                    if aggregates:
+                        conn = sqlite3.connect('storage.db')
+                        c = conn.cursor()
+                        
+                        # Создаем таблицу для агрегатов если её нет
+                        c.execute('''CREATE TABLE IF NOT EXISTS equipment_aggregates (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            equipment_name TEXT,
+                            aggregate_name TEXT,
+                            aggregate_type TEXT,
+                            aggregate_number TEXT,
+                            date_added TEXT
+                        )''')
+                        
+                        for agg in aggregates:
+                            if agg["name"]:  # Сохраняем только если есть название
+                                c.execute("""INSERT INTO equipment_aggregates 
+                                    (equipment_name, aggregate_name, aggregate_type, aggregate_number, date_added) 
+                                    VALUES (?, ?, ?, ?, ?)""",
+                                    (name, agg["name"], agg["type"], agg["number"], 
+                                     datetime.now().strftime("%Y-%m-%d %H:%M")))
+                        
+                        conn.commit()
+                        conn.close()
+                    
+                    st.success(f"✅ Техника '{name}' добавлена с {len([a for a in aggregates if a['name']])} агрегатами!")
+                    st.rerun()
+    
+    # ============================================================
+    # ОТОБРАЖЕНИЕ ВСЕЙ ТЕХНИКИ
+    # ============================================================
+    st.divider()
+    
+    # Поиск и фильтры
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        search_eq = st.text_input("🔍 Поиск техники", placeholder="Введите название или номер...", key="eq_search_main")
+    with col2:
+        filter_type = st.selectbox("Тип техники", ["Все", "Трактор", "Комбайн", "Автомобиль", "Погрузчик", "Другое"], key="eq_filter_type")
+    
+    equipment_list = get_equipment()
+    
+    # Получаем агрегаты для всей техники
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    
+    # Создаем таблицу если её нет
+    c.execute('''CREATE TABLE IF NOT EXISTS equipment_aggregates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        equipment_name TEXT,
+        aggregate_name TEXT,
+        aggregate_type TEXT,
+        aggregate_number TEXT,
+        date_added TEXT
+    )''')
+    
+    c.execute("SELECT * FROM equipment_aggregates ORDER BY equipment_name, aggregate_type")
+    all_aggregates = c.fetchall()
+    conn.close()
+    
+    # Группируем агрегаты по технике
+    aggregates_by_equipment = {}
+    for agg in all_aggregates:
+        eq_name = agg[1]
+        if eq_name not in aggregates_by_equipment:
+            aggregates_by_equipment[eq_name] = []
+        aggregates_by_equipment[eq_name].append({
+            "id": agg[0],
+            "name": agg[2],
+            "type": agg[3],
+            "number": agg[4],
+            "date": agg[5]
+        })
+    
+    # Фильтрация
+    if search_eq:
+        search_lower = search_eq.lower()
+        equipment_list = [eq for eq in equipment_list 
+                         if search_lower in eq[1].lower() or 
+                         (eq[2] and search_lower in eq[2].lower())]
+    
+    if equipment_list:
+        # Статистика
+        total_eq = len(equipment_list)
+        total_aggregates = sum([len(aggregates_by_equipment.get(eq[1], [])) for eq in equipment_list])
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("🚜 Всего техники", total_eq)
+        with col2:
+            st.metric("🔧 Всего агрегатов", total_aggregates)
+        with col3:
+            eq_with_agg = len([eq for eq in equipment_list if len(aggregates_by_equipment.get(eq[1], [])) > 0])
+            st.metric("📦 Техники с агрегатами", eq_with_agg)
+        
+        st.divider()
+        
+        # Отображение техники
+        for eq in equipment_list:
+            eq_name = eq[1]
+            eq_number = eq[2] if len(eq) > 2 else ""
+            eq_date = eq[3] if len(eq) > 3 else ""
+            
+            # Получаем агрегаты для этой техники
+            eq_aggregates = aggregates_by_equipment.get(eq_name, [])
+            
+            # Заголовок
+            expander_title = f"🚜 {eq_name}"
+            if eq_number:
+                expander_title += f" (№{eq_number})"
+            if eq_aggregates:
+                expander_title += f" | 🔧 {len(eq_aggregates)} агрегатов"
+            
+            with st.expander(expander_title, expanded=False):
+                # Основная информация
+                col1, col2 = st.columns([2, 1])
+                with col1:
+                    st.markdown(f"**Название:** {eq_name}")
+                    if eq_number:
+                        st.markdown(f"**Гос. номер:** {eq_number}")
+                    st.caption(f"📅 Добавлен: {eq_date[:10] if eq_date else 'Н/Д'}")
+                
+                with col2:
+                    if role == "admin":
+                        if st.button("🗑️ Удалить технику", key=f"del_eq_{eq[0]}", use_container_width=True):
+                            # Удаляем технику и её агрегаты
+                            conn = sqlite3.connect('storage.db')
+                            c = conn.cursor()
+                            c.execute("DELETE FROM equipment WHERE id=?", (eq[0],))
+                            c.execute("DELETE FROM equipment_aggregates WHERE equipment_name=?", (eq_name,))
+                            conn.commit()
+                            conn.close()
+                            st.success(f"🗑️ Техника '{eq_name}' и все её агрегаты удалены!")
+                            st.rerun()
+                
+                # Агрегаты
+                st.divider()
+                
+                if eq_aggregates:
+                    st.markdown("### 🔧 Закрепленные агрегаты")
+                    
+                    # Группируем агрегаты по типу
+                    agg_by_type = {}
+                    for agg in eq_aggregates:
+                        agg_type = agg["type"]
+                        if agg_type not in agg_by_type:
+                            agg_by_type[agg_type] = []
+                        agg_by_type[agg_type].append(agg)
+                    
+                    # Отображаем по типам
+                    for agg_type, aggs in agg_by_type.items():
+                        with st.container():
+                            st.markdown(f"**{agg_type}** ({len(aggs)} шт.)")
+                            
+                            for agg in aggs:
+                                col1, col2, col3 = st.columns([2, 2, 1])
+                                with col1:
+                                    st.write(f"📦 {agg['name']}")
+                                with col2:
+                                    if agg['number']:
+                                        st.write(f"🔢 Инв. №: {agg['number']}")
+                                with col3:
+                                    if role == "admin":
+                                        if st.button("🗑️", key=f"del_agg_{agg['id']}", use_container_width=True):
+                                            conn = sqlite3.connect('storage.db')
+                                            c = conn.cursor()
+                                            c.execute("DELETE FROM equipment_aggregates WHERE id=?", (agg['id'],))
+                                            conn.commit()
+                                            conn.close()
+                                            st.success(f"🗑️ Агрегат '{agg['name']}' удален!")
+                                            st.rerun()
+                            st.divider()
+                else:
+                    st.info("🔧 Нет закрепленных агрегатов")
+                
+                # Добавление нового агрегата (только для админа)
+                if role == "admin":
+                    st.markdown("### ➕ Добавить агрегат")
+                    with st.form(key=f"add_agg_{eq[0]}"):
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            new_agg_name = st.text_input("Название агрегата*", key=f"new_agg_name_{eq[0]}")
+                        with col2:
+                            new_agg_type = st.selectbox("Тип", 
+                                ["Плуг", "Культиватор", "Сеялка", "Борона", "Косилка", "Опрыскиватель", "Другое"],
+                                key=f"new_agg_type_{eq[0]}")
+                        with col3:
+                            new_agg_number = st.text_input("Инв. номер", key=f"new_agg_num_{eq[0]}")
+                        
+                        if st.form_submit_button("💾 Добавить агрегат", use_container_width=True):
+                            if new_agg_name:
+                                conn = sqlite3.connect('storage.db')
+                                c = conn.cursor()
+                                c.execute("""INSERT INTO equipment_aggregates 
+                                    (equipment_name, aggregate_name, aggregate_type, aggregate_number, date_added) 
+                                    VALUES (?, ?, ?, ?, ?)""",
+                                    (eq_name, new_agg_name, new_agg_type, new_agg_number, 
+                                     datetime.now().strftime("%Y-%m-%d %H:%M")))
+                                conn.commit()
+                                conn.close()
+                                st.success(f"✅ Агрегат '{new_agg_name}' добавлен к '{eq_name}'!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Введите название агрегата!")
+    else:
+        st.info("🚜 Парк техники пуст. Добавьте технику через форму выше.")
 # ============================================================
 # 8.6 ПОЛЬЗОВАТЕЛИ (ИНДЕКС 5) - ТОЛЬКО ДЛЯ АДМИНА
 # ============================================================
