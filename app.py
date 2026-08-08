@@ -1191,8 +1191,41 @@ with tabs[0]:
                     with open(photo_path, "wb") as f:
                         f.write(photo.getbuffer())
                 add_request(name, qty, unit, desc, photo_path, current_username)
-                st.success("✅ Заявка успешно отправлена!")
-                st.info("📋 Следите за статусом заявки в разделе «Мои заявки»")
+                
+                # Красивое уведомление об успехе с анимацией
+                st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+                    border: 2px solid #10b981;
+                    border-radius: 15px;
+                    padding: 25px;
+                    text-align: center;
+                    animation: fadeIn 0.5s ease;
+                    margin: 20px 0;
+                ">
+                    <div style="font-size: 50px; margin-bottom: 15px;">✅</div>
+                    <div style="font-size: 22px; font-weight: 700; color: #065f46; margin-bottom: 10px;">
+                        Заявка успешно отправлена!
+                    </div>
+                    <div style="font-size: 16px; color: #047857;">
+                        📋 Следите за статусом в разделе «Мои заявки»
+                    </div>
+                    <div style="margin-top: 15px; font-size: 14px; color: #059669;">
+                        ⏳ Страница обновится через 3 секунды...
+                    </div>
+                </div>
+                
+                <style>
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(-20px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                </style>
+                """, unsafe_allow_html=True)
+                
+                # Задержка 3 секунды перед обновлением
+                import time
+                time.sleep(3)
                 st.rerun()
         
         st.divider()
@@ -1303,14 +1336,14 @@ with tabs[0]:
                                         update_request_status(r['id'], "approved")
                                         st.rerun()
                                 with c2:
-                                    if st.button("💡 Со склада", key=f"sug_{r['id']}"):
-                                        st.session_state[f"sug_{r['id']}"] = True
+                                    if st.button("💡 Со склада", key=f"sug_btn_{r['id']}"):
+                                        st.session_state[f"sug_mode_{r['id']}"] = True
                                 with c3:
-                                    if st.button("❌ Отклонить", key=f"rej_{r['id']}"):
+                                    if st.button("❌ Отклонить", key=f"rej_btn_{r['id']}"):
                                         update_request_status(r['id'], "rejected")
                                         st.rerun()
                                 
-                                if st.session_state.get(f"sug_{r['id']}"):
+                                if st.session_state.get(f"sug_mode_{r['id']}"):
                                     sq = st.text_input("Поиск товара на складе", key=f"sq_{r['id']}")
                                     if sq:
                                         found = search_items(sq)
@@ -1322,10 +1355,10 @@ with tabs[0]:
                                                 with col2:
                                                     if st.button("📤 Предложить", key=f"sel_{r['id']}_{item[0]}"):
                                                         update_request_status(r['id'], "suggested", f"Предложен: {item[1]}", item[0])
-                                                        st.session_state[f"sug_{r['id']}"] = False
+                                                        st.session_state[f"sug_mode_{r['id']}"] = False
                                                         st.rerun()
                                     if st.button("❌ Закрыть", key=f"close_{r['id']}"):
-                                        st.session_state[f"sug_{r['id']}"] = False
+                                        st.session_state[f"sug_mode_{r['id']}"] = False
                                         st.rerun()
                             
                             elif status == 'in_work':
