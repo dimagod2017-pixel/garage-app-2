@@ -1211,7 +1211,7 @@ with tabs[0]:
                         📋 Следите за статусом в разделе «Мои заявки»
                     </div>
                     <div style="margin-top: 15px; font-size: 14px; color: #059669;">
-                        ⏳ Страница обновится через 3 секунды...
+                        ⏳ Страница обновится через 6 секунд...
                     </div>
                 </div>
                 
@@ -1223,9 +1223,9 @@ with tabs[0]:
                 </style>
                 """, unsafe_allow_html=True)
                 
-                # Задержка 3 секунды перед обновлением
+                # Задержка 6 секунд перед обновлением
                 import time
-                time.sleep(3)
+                time.sleep(6)
                 st.rerun()
         
         st.divider()
@@ -1254,6 +1254,7 @@ with tabs[0]:
                         else:
                             st.caption("📷 Нет фото")
                     
+                    # Кнопка удаления для отклоненных заявок
                     if r['status'] == 'rejected':
                         st.divider()
                         if st.button("🗑️ Удалить заявку", key=f"del_req_emp_{r['id']}", use_container_width=True):
@@ -1298,6 +1299,9 @@ with tabs[0]:
         else:
             st.info("У вас нет заявок")
     
+    # ============================================================
+    # ДЛЯ АДМИНИСТРАТОРА
+    # ============================================================
     else:
         statuses = {
             "⏳ Новые": "pending", "🔧 В работе": "in_work",
