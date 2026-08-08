@@ -35,6 +35,268 @@ if "dismissed_notifications" not in st.session_state:
 st.set_page_config(page_title="Мой Склад", page_icon="📦", layout="wide")
 
 # ============================================================
+# 🎨 КРАСИВЫЙ ДИЗАЙН (CSS)
+# ============================================================
+
+st.markdown("""
+<style>
+/* ========== ЗАГОЛОВКИ ========== */
+h1 {
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800;
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+h2 {
+    color: #1e293b;
+    font-weight: 700;
+    border-bottom: 3px solid #2563eb;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+h3 {
+    color: #334155;
+    font-weight: 600;
+}
+
+/* ========== КАРТОЧКИ И КОНТЕЙНЕРЫ ========== */
+.stContainer {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 10px 0;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    border: 1px solid #e2e8f0;
+    transition: all 0.3s ease;
+}
+
+.stContainer:hover {
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+/* ========== МЕТРИКИ ========== */
+[data-testid="stMetric"] {
+    background: linear-gradient(135deg, #f8fafc, #ffffff);
+    border-radius: 12px;
+    padding: 15px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    transition: all 0.3s ease;
+}
+
+[data-testid="stMetric"]:hover {
+    box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+}
+
+[data-testid="stMetric"] label {
+    font-weight: 600;
+    color: #64748b;
+}
+
+[data-testid="stMetric"] div {
+    font-weight: 700;
+    color: #1e293b;
+}
+
+/* ========== КНОПКИ ========== */
+.stButton > button {
+    border-radius: 10px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: none;
+    padding: 10px 20px;
+    font-size: 14px;
+    letter-spacing: 0.3px;
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+}
+
+.stButton > button:active {
+    transform: translateY(0);
+}
+
+/* Основная кнопка */
+.stButton > button:not([kind="secondary"]):not([kind="tertiary"]) {
+    background: linear-gradient(135deg, #2563eb, #3b82f6);
+    color: white;
+}
+
+/* ========== ФОРМЫ ВВОДА ========== */
+.stTextInput > div > div > input,
+.stTextArea > div > div > textarea,
+.stSelectbox > div > div > div {
+    border-radius: 10px;
+    border: 2px solid #e2e8f0;
+    padding: 10px 15px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    background: #f8fafc;
+}
+
+.stTextInput > div > div > input:focus,
+.stTextArea > div > div > textarea:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    background: white;
+}
+
+/* ========== EXPANDER (СВОРАЧИВАЕМЫЕ БЛОКИ) ========== */
+.streamlit-expanderHeader {
+    background: linear-gradient(135deg, #f8fafc, #ffffff);
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    font-weight: 600;
+    color: #1e293b;
+    padding: 12px 15px;
+    transition: all 0.3s ease;
+}
+
+.streamlit-expanderHeader:hover {
+    background: linear-gradient(135deg, #eff6ff, #f8fafc);
+    border-color: #2563eb;
+}
+
+[data-testid="stExpander"] {
+    border-radius: 10px;
+    margin: 8px 0;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+/* ========== БОКОВАЯ ПАНЕЛЬ ========== */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #1e293b, #334155);
+    padding: 20px;
+}
+
+[data-testid="stSidebar"] * {
+    color: #f1f5f9;
+}
+
+[data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] h2 {
+    color: #f8fafc;
+}
+
+[data-testid="stSidebar"] .stButton > button {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #f1f5f9;
+}
+
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+/* ========== ТАБЫ (ВКЛАДКИ) ========== */
+[data-testid="stTabs"] {
+    background: white;
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.stTabs [role="tab"] {
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 600;
+    color: #64748b;
+    transition: all 0.3s ease;
+}
+
+.stTabs [role="tab"][aria-selected="true"] {
+    background: linear-gradient(135deg, #2563eb, #3b82f6);
+    color: white;
+}
+
+/* ========== УВЕДОМЛЕНИЯ ========== */
+.stAlert {
+    border-radius: 10px;
+    border: none;
+    font-weight: 500;
+}
+
+.stSuccess {
+    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+    color: #065f46;
+}
+
+.stWarning {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #92400e;
+}
+
+.stError {
+    background: linear-gradient(135deg, #fee2e2, #fecaca);
+    color: #991b1b;
+}
+
+.stInfo {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    color: #1e40af;
+}
+
+/* ========== ЗАГРУЗКА ФАЙЛОВ ========== */
+[data-testid="stFileUploader"] {
+    border-radius: 10px;
+    border: 2px dashed #e2e8f0;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+[data-testid="stFileUploader"]:hover {
+    border-color: #2563eb;
+    background: #f8fafc;
+}
+
+/* ========== АНИМАЦИИ ========== */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.stContainer, .stExpander {
+    animation: fadeIn 0.5s ease;
+}
+
+/* ========== КАСТОМНЫЙ СКРОЛЛБАР ========== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+/* ========== СКРЫТЬ ФУТЕР ========== */
+footer {
+    visibility: hidden;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ============================================================
 # 2. БАЗА ДАННЫХ
 # ============================================================
 
@@ -121,7 +383,6 @@ def init_db():
                      VALUES (?, ?, ?, ?, ?, ?)""",
                   ("admin", "1209", "Администратор", "admin", "active", now_local()))
     else:
-        # Обновляем роль админа если нужно
         c.execute("UPDATE users SET role='admin', status='active' WHERE username='admin'")
     
     conn.commit()
@@ -331,15 +592,12 @@ def take_item(item_id, quantity, eq_name, eq_number, photo_path=""):
     new_q = row[0] - quantity
     c.execute("UPDATE items SET quantity=? WHERE id=?", (new_q, item_id))
     
-    # Получаем username (логин) пользователя
     user_login = st.session_state.user.get("username", "Пользователь")
     
     c.execute("""INSERT INTO consumption (item_id, quantity, unit, object_name, user, date, equipment_name, equipment_number, photo)
                  VALUES (?,?,?,?,?,?,?,?,?)""",
               (item_id, quantity, row[1], f"{eq_name} (№{eq_number})", 
-               user_login,  # Сохраняем ЛОГИН (username)
-               now_local(),
-               eq_name, eq_number, photo_path))
+               user_login, now_local(), eq_name, eq_number, photo_path))
     conn.commit()
     conn.close()
     return True, f"✅ Взято {quantity} {row[1]} на {eq_name}"
@@ -516,11 +774,9 @@ def get_user_full_name(username):
 # ============================================================
 # 5. УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
 # ============================================================
-# ... (весь код уведомлений без изменений, так как там нет datetime.now())
 
 def get_notifications():
     notifications = []
-    
     current_role = st.session_state.user.get("role", "employee") if st.session_state.user else "employee"
     
     if current_role == "admin":
@@ -564,14 +820,12 @@ def get_notifications():
                 else:
                     status = "⚠️ Заканчивается"
                     status_color = "🟡"
-                
                 photos = get_item_photos(item[0])
                 photo_path = None
                 if photos:
                     main_photo = next((p for p in photos if p[2] == 1), photos[0])
                     if os.path.exists(main_photo[1]):
                         photo_path = main_photo[1]
-                
                 notifications.append({
                     'id': nid, 'type': 'low_stock', 'status': status, 'status_color': status_color,
                     'icon': '⚠️', 'title': item[1],
@@ -580,7 +834,6 @@ def get_notifications():
                     'date': item[4], 'item_id': item[0], 'photo': photo_path,
                     'actions': ['restock'], 'is_read': False
                 })
-    
     else:
         user_name = st.session_state.user.get("username", "")
         for req in get_requests(user=user_name):
@@ -596,12 +849,10 @@ def get_notifications():
                     'returned': ('🔄', 'Возвращено', '🟠')
                 }
                 icon, status_text, color = status_map.get(r['status'], ('📋', r['status'], '⚪'))
-                
                 photo_path = r.get('photo', '')
                 extra_text = ""
                 if r['status'] == 'suggested' and r['suggested_item_id']:
                     extra_text = " | 💡 Есть предложение со склада!"
-                
                 notifications.append({
                     'id': nid, 'type': 'request', 'status': status_text, 'status_color': color,
                     'icon': icon, 'title': r['name'], 'description': r.get('description', ''),
@@ -610,51 +861,37 @@ def get_notifications():
                     'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
                     'actions': ['view'], 'is_read': r.get('seen', 0) == 1
                 })
-    
     return sorted(notifications, key=lambda x: x['date'], reverse=True)
 
 def get_shopping_list():
     shopping = []
-    
     for req in get_requests(status='in_work'):
         r = unpack_request(req)
         shopping.append({'type': 'in_work', 'icon': '🔧', 'name': r['name'],
             'qty': float(r['quantity'] or 0), 'unit': r['unit'], 'user': r['user'], 'id': r['id']})
-    
     for req in get_requests(status='pending'):
         r = unpack_request(req)
         shopping.append({'type': 'pending', 'icon': '📝', 'name': r['name'],
             'qty': float(r['quantity'] or 0), 'unit': r['unit'], 'user': r['user'], 'id': r['id']})
-    
     for item in get_low_stock():
         shopping.append({'type': 'low_stock', 'icon': '⚠️', 'name': item[1],
             'qty': float(item[6] or 0), 'unit': item[5], 'room': item[3], 'id': item[0]})
-    
     for req in get_requests(status='approved'):
         r = unpack_request(req)
         shopping.append({'type': 'approved', 'icon': '✅', 'name': r['name'],
             'qty': float(r['quantity'] or 0), 'unit': r['unit'], 'user': r['user'], 'id': r['id']})
-    
     return shopping
 
 def get_unread_counts():
-    """Получить количество непрочитанных уведомлений по типам"""
     notifs = get_notifications()
-    
     unread_requests = len([n for n in notifs if n.get('type') in ['request', 'returned'] and not n.get('is_read', False)])
     unread_low_stock = len([n for n in notifs if n.get('type') == 'low_stock' and not n.get('is_read', False)])
-    
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute("SELECT COUNT(*) FROM consumption WHERE date > datetime('now', '-7 days')")
     new_consumptions = c.fetchone()[0]
     conn.close()
-    
-    return {
-        'unread_requests': unread_requests,
-        'unread_low_stock': unread_low_stock,
-        'unread_consumptions': new_consumptions
-    }
+    return {'unread_requests': unread_requests, 'unread_low_stock': unread_low_stock, 'unread_consumptions': new_consumptions}
 
 # ============================================================
 # 6. ВХОД В СИСТЕМУ (ПО 4-ЗНАЧНОМУ КОДУ)
@@ -870,8 +1107,6 @@ with st.sidebar:
 # ============================================================
 # 8. ОСНОВНОЙ ИНТЕРФЕЙС
 # ============================================================
-# ... (весь остальной UI код без изменений, так как там только отображение, 
-#      кроме трёх мест в разделе товаров и бэкапов, где есть datetime.now())
 
 st.title("📦 SmartStock Pro")
 
@@ -907,6 +1142,7 @@ else:
         request_label, "📋 Товары", consumption_label,
         "🛒 Покупки", "🚜 Парк", "⚙️ Управление"
     ])
+
 # ============================================================
 # 8.1 ЗАЯВКИ (ИНДЕКС 0)
 # ============================================================
@@ -914,13 +1150,9 @@ else:
 with tabs[0]:
     st.markdown("## 📝 Заявки")
     
-    # Получаем роль пользователя
     current_user_role = st.session_state.user.get("role", "employee")
     current_username = st.session_state.user.get("username", "")
     
-    # ============================================================
-    # ДЛЯ СОТРУДНИКА
-    # ============================================================
     if current_user_role != "admin":
         with st.form("new_request", clear_on_submit=True):
             st.subheader("➕ Новая заявка")
@@ -938,17 +1170,12 @@ with tabs[0]:
             if submitted and name:
                 photo_path = ""
                 if photo is not None:
-                    # Создаем папку если её нет
                     if not os.path.exists("images"):
                         os.makedirs("images")
-                    
-                    # Сохраняем фото
                     ext = photo.name.split('.')[-1]
                     photo_path = f"images/req_{uuid.uuid4()}.{ext}"
                     with open(photo_path, "wb") as f:
                         f.write(photo.getbuffer())
-                
-                # Отправляем заявку
                 add_request(name, qty, unit, desc, photo_path, current_username)
                 st.success("✅ Заявка отправлена!")
                 st.rerun()
@@ -979,7 +1206,6 @@ with tabs[0]:
                         else:
                             st.caption("📷 Нет фото")
                     
-                    # Кнопка удаления для отклоненных заявок
                     if r['status'] == 'rejected':
                         st.divider()
                         if st.button("🗑️ Удалить заявку", key=f"del_req_emp_{r['id']}", use_container_width=True):
@@ -1024,9 +1250,6 @@ with tabs[0]:
         else:
             st.info("У вас нет заявок")
     
-    # ============================================================
-    # ДЛЯ АДМИНИСТРАТОРА
-    # ============================================================
     else:
         statuses = {
             "⏳ Новые": "pending", "🔧 В работе": "in_work",
@@ -1582,7 +1805,6 @@ with tabs[1]:
 # ============================================================
 # 8.3 СПИСАНИЯ (ИНДЕКС 2)
 # ============================================================
-# (без изменений, даты берутся из БД)
 
 with tabs[2]:
     st.markdown("## 📤 Списания")
@@ -1775,7 +1997,6 @@ with tabs[2]:
 # ============================================================
 # 8.4 ПОКУПКИ (ИНДЕКС 3)
 # ============================================================
-# (без изменений)
 
 with tabs[3]:
     st.markdown("## 🛒 Список покупок")
@@ -1803,9 +2024,6 @@ with tabs[3]:
 with tabs[4]:
     st.markdown("## 🚜 Парк техники")
     
-    # ============================================================
-    # ДОБАВЛЕНИЕ НОВОЙ ТЕХНИКИ (ТОЛЬКО ДЛЯ АДМИНА)
-    # ============================================================
     if role == "admin":
         with st.expander("➕ Добавить новую технику", expanded=False):
             with st.form("add_eq"):
@@ -1819,7 +2037,6 @@ with tabs[4]:
                 st.markdown("### 🔧 Агрегаты и навесное оборудование")
                 st.caption("Добавьте агрегаты, которые закреплены за этой техникой")
                 
-                # Динамическое добавление агрегатов
                 num_aggregates = st.number_input("Количество агрегатов", min_value=0, max_value=10, value=0, key="num_agg")
                 
                 aggregates = []
@@ -1835,15 +2052,12 @@ with tabs[4]:
                 submitted = st.form_submit_button("💾 Сохранить технику", use_container_width=True)
                 
                 if submitted and name:
-                    # Добавляем технику
                     add_equipment(name, num)
                     
-                    # Сохраняем агрегаты в отдельную таблицу
                     if aggregates:
                         conn = sqlite3.connect('storage.db')
                         c = conn.cursor()
                         
-                        # Создаем таблицу для агрегатов если её нет
                         c.execute('''CREATE TABLE IF NOT EXISTS equipment_aggregates (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             equipment_name TEXT,
@@ -1853,12 +2067,11 @@ with tabs[4]:
                         )''')
                         
                         for agg in aggregates:
-                            if agg["name"]:  # Сохраняем только если есть название
+                            if agg["name"]:
                                 c.execute("""INSERT INTO equipment_aggregates 
                                     (equipment_name, aggregate_name, aggregate_number, date_added) 
                                     VALUES (?, ?, ?, ?)""",
-                                    (name, agg["name"], agg["number"], 
-                                     datetime.now().strftime("%Y-%m-%d %H:%M")))
+                                    (name, agg["name"], agg["number"], now_local()))
                         
                         conn.commit()
                         conn.close()
@@ -1866,27 +2079,20 @@ with tabs[4]:
                     st.success(f"✅ Техника '{name}' добавлена с {len([a for a in aggregates if a['name']])} агрегатами!")
                     st.rerun()
     
-    # ============================================================
-    # ОТОБРАЖЕНИЕ ВСЕЙ ТЕХНИКИ
-    # ============================================================
     st.divider()
     
-    # Поиск
     search_eq = st.text_input("🔍 Поиск техники", placeholder="Введите название или номер...", key="eq_search_main")
     
     equipment_list = get_equipment()
     
-    # Получаем агрегаты для всей техники
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     
-    # Обновляем структуру таблицы если нужно (удаляем старую колонку aggregate_type если есть)
     try:
         c.execute("ALTER TABLE equipment_aggregates DROP COLUMN aggregate_type")
     except:
-        pass  # Колонки нет или уже удалена
+        pass
     
-    # Создаем таблицу если её нет
     c.execute('''CREATE TABLE IF NOT EXISTS equipment_aggregates (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         equipment_name TEXT,
@@ -1899,7 +2105,6 @@ with tabs[4]:
     all_aggregates = c.fetchall()
     conn.close()
     
-    # Группируем агрегаты по технике
     aggregates_by_equipment = {}
     for agg in all_aggregates:
         eq_name = agg[1]
@@ -1912,7 +2117,6 @@ with tabs[4]:
             "date": agg[4]
         })
     
-    # Фильтрация
     if search_eq:
         search_lower = search_eq.lower()
         equipment_list = [eq for eq in equipment_list 
@@ -1920,7 +2124,6 @@ with tabs[4]:
                          (eq[2] and search_lower in eq[2].lower())]
     
     if equipment_list:
-        # Статистика
         total_eq = len(equipment_list)
         total_aggregates = sum([len(aggregates_by_equipment.get(eq[1], [])) for eq in equipment_list])
         
@@ -1935,16 +2138,13 @@ with tabs[4]:
         
         st.divider()
         
-        # Отображение техники
         for eq in equipment_list:
             eq_name = eq[1]
             eq_number = eq[2] if len(eq) > 2 else ""
             eq_date = eq[3] if len(eq) > 3 else ""
             
-            # Получаем агрегаты для этой техники
             eq_aggregates = aggregates_by_equipment.get(eq_name, [])
             
-            # Заголовок
             expander_title = f"🚜 {eq_name}"
             if eq_number:
                 expander_title += f" (№{eq_number})"
@@ -1952,7 +2152,6 @@ with tabs[4]:
                 expander_title += f" | 🔧 {len(eq_aggregates)} агрегатов"
             
             with st.expander(expander_title, expanded=False):
-                # Основная информация
                 col1, col2 = st.columns([2, 1])
                 with col1:
                     st.markdown(f"**Название:** {eq_name}")
@@ -1963,7 +2162,6 @@ with tabs[4]:
                 with col2:
                     if role == "admin":
                         if st.button("🗑️ Удалить технику", key=f"del_eq_{eq[0]}", use_container_width=True):
-                            # Удаляем технику и её агрегаты
                             conn = sqlite3.connect('storage.db')
                             c = conn.cursor()
                             c.execute("DELETE FROM equipment WHERE id=?", (eq[0],))
@@ -1973,7 +2171,6 @@ with tabs[4]:
                             st.success(f"🗑️ Техника '{eq_name}' и все её агрегаты удалены!")
                             st.rerun()
                 
-                # Агрегаты
                 st.divider()
                 
                 if eq_aggregates:
@@ -2001,7 +2198,6 @@ with tabs[4]:
                 else:
                     st.info("🔧 Нет закрепленных агрегатов")
                 
-                # Добавление нового агрегата (только для админа)
                 if role == "admin":
                     st.markdown("### ➕ Добавить агрегат")
                     with st.form(key=f"add_agg_{eq[0]}"):
@@ -2018,8 +2214,7 @@ with tabs[4]:
                                 c.execute("""INSERT INTO equipment_aggregates 
                                     (equipment_name, aggregate_name, aggregate_number, date_added) 
                                     VALUES (?, ?, ?, ?)""",
-                                    (eq_name, new_agg_name, new_agg_number, 
-                                     datetime.now().strftime("%Y-%m-%d %H:%M")))
+                                    (eq_name, new_agg_name, new_agg_number, now_local()))
                                 conn.commit()
                                 conn.close()
                                 st.success(f"✅ Агрегат '{new_agg_name}' добавлен к '{eq_name}'!")
@@ -2028,10 +2223,10 @@ with tabs[4]:
                                 st.error("❌ Введите название агрегата!")
     else:
         st.info("🚜 Парк техники пуст. Добавьте технику через форму выше.")
+
 # ============================================================
 # 8.6 ПОЛЬЗОВАТЕЛИ (ИНДЕКС 5) - ТОЛЬКО ДЛЯ АДМИНА
 # ============================================================
-# (без изменений)
 
 if role == "admin":
     with tabs[5]:
