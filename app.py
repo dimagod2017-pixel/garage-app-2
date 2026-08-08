@@ -1191,7 +1191,8 @@ with tabs[0]:
                     with open(photo_path, "wb") as f:
                         f.write(photo.getbuffer())
                 add_request(name, qty, unit, desc, photo_path, current_username)
-                st.success("✅ Заявка отправлена!")
+                st.success("✅ Заявка успешно отправлена!")
+                st.info("📋 Следите за статусом заявки в разделе «Мои заявки»")
                 st.rerun()
         
         st.divider()
