@@ -1108,7 +1108,12 @@ with st.sidebar:
 # 8. ОСНОВНОЙ ИНТЕРФЕЙС
 # ============================================================
 
-st.title("📦 SmartStock Pro")
+# Персонализированное приветствие
+if user_full_name:
+    greeting = f"Добро пожаловать, {user_full_name}!"
+else:
+    greeting = f"Добро пожаловать, {user_name}!"
+st.title(f"📦 {greeting}")
 
 counts = get_unread_counts()
 
