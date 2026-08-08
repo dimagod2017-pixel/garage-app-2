@@ -35,6 +35,54 @@ if "dismissed_notifications" not in st.session_state:
 st.set_page_config(page_title="Мой Склад", page_icon="📦", layout="wide")
 
 # ============================================================
+# ПРИМЕНЕНИЕ ФОНА (если загружен)
+# ============================================================
+import base64
+
+def apply_background():
+    """Применяет фоновое изображение из настроек"""
+    if os.path.exists("static"):
+        bg_files = [f for f in os.listdir("static") if f.startswith("background.")]
+        if bg_files:
+            bg_path = f"static/{bg_files[0]}"
+            
+            # Определяем тип изображения
+            ext = bg_path.split('.')[-1].lower()
+            mime_type = "image/jpeg" if ext in ["jpg", "jpeg"] else "image/png"
+            
+            # Кодируем в base64
+            with open(bg_path, 'rb') as f:
+                bg_base64 = base64.b64encode(f.read()).decode()
+            
+            # Получаем прозрачность из session_state
+            opacity = st.session_state.get("bg_opacity", 0.85)
+            
+            st.markdown(f"""
+            <style>
+            .stApp {{
+                background-image: url('data:{mime_type};base64,{bg_base64}');
+                background-size: cover;
+                background-position: center;
+                background-attachment: fixed;
+                background-repeat: no-repeat;
+            }}
+            
+            .stApp::before {{
+                content: '';
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(255, 255, 255, {opacity});
+                z-index: -1;
+            }}
+            </style>
+            """, unsafe_allow_html=True)
+
+# Применяем фон
+apply_background()
+# ============================================================
 # 🎨 КРАСИВЫЙ ДИЗАЙН (CSS)
 # ============================================================
 
