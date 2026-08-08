@@ -22,7 +22,7 @@ def now_local_file():
     return now_local().replace(" ", "_").replace(":", "")
 
 # Создаём папки
-for folder in ["images", "images/items", "images/take", "backups"]:
+for folder in ["images", "images/items", "images/take", "backups", "backgrounds"]:
     if not os.path.exists(folder):
         os.makedirs(folder)
 
@@ -42,11 +42,11 @@ import base64
 def apply_background():
     """Применяет фоновое изображение из настроек"""
     try:
-        # Проверяем, что static существует и это папка
-        if os.path.exists("static") and os.path.isdir("static"):
-            bg_files = [f for f in os.listdir("static") if f.startswith("background.")]
+        # Проверяем, что backgrounds существует и это папка
+        if os.path.exists("backgrounds") and os.path.isdir("backgrounds"):
+            bg_files = [f for f in os.listdir("backgrounds") if f.startswith("background.")]
             if bg_files:
-                bg_path = f"static/{bg_files[0]}"
+                bg_path = f"backgrounds/{bg_files[0]}"
                 ext = bg_path.split('.')[-1].lower()
                 mime_type = "image/jpeg" if ext in ["jpg", "jpeg"] else "image/png"
                 with open(bg_path, 'rb') as f:
