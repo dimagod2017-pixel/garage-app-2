@@ -42,7 +42,7 @@ st.markdown("""
 <style>
 /* ========== ЗАГОЛОВКИ ========== */
 h1 {
-    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    background: linear-gradient(135deg, #2563eb, #10b981, #7c3aed);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     font-weight: 800;
@@ -53,7 +53,7 @@ h1 {
 h2 {
     color: #1e293b;
     font-weight: 700;
-    border-bottom: 3px solid #2563eb;
+    border-bottom: 3px solid #10b981;
     padding-bottom: 0.5rem;
     margin-bottom: 1.5rem;
 }
@@ -75,22 +75,22 @@ h3 {
 }
 
 .stContainer:hover {
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    box-shadow: 0 10px 25px rgba(16, 185, 129, 0.15);
     transform: translateY(-2px);
 }
 
 /* ========== МЕТРИКИ ========== */
 [data-testid="stMetric"] {
-    background: linear-gradient(135deg, #f8fafc, #ffffff);
+    background: linear-gradient(135deg, #f0fdf4, #ffffff);
     border-radius: 12px;
     padding: 15px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #d1fae5;
     box-shadow: 0 2px 4px rgba(0,0,0,0.04);
     transition: all 0.3s ease;
 }
 
 [data-testid="stMetric"]:hover {
-    box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+    box-shadow: 0 6px 12px rgba(16, 185, 129, 0.2);
     transform: translateY(-2px);
 }
 
@@ -101,7 +101,7 @@ h3 {
 
 [data-testid="stMetric"] div {
     font-weight: 700;
-    color: #1e293b;
+    color: #065f46;
 }
 
 /* ========== КНОПКИ ========== */
@@ -117,17 +117,28 @@ h3 {
 
 .stButton > button:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+    box-shadow: 0 6px 15px rgba(16, 185, 129, 0.3);
 }
 
 .stButton > button:active {
     transform: translateY(0);
 }
 
-/* Основная кнопка */
+/* Основная кнопка — теперь зелёная с лёгким переходом */
 .stButton > button:not([kind="secondary"]):not([kind="tertiary"]) {
-    background: linear-gradient(135deg, #2563eb, #3b82f6);
+    background: linear-gradient(135deg, #10b981, #059669);
     color: white;
+}
+
+/* Вторичные кнопки (опционально, если появятся) */
+.stButton > button[kind="secondary"] {
+    background: #f8fafc;
+    color: #1e293b;
+    border: 1px solid #e2e8f0;
+}
+.stButton > button[kind="secondary"]:hover {
+    background: #e2e8f0;
+    border-color: #10b981;
 }
 
 /* ========== ФОРМЫ ВВОДА ========== */
@@ -144,25 +155,25 @@ h3 {
 
 .stTextInput > div > div > input:focus,
 .stTextArea > div > div > textarea:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
     background: white;
 }
 
 /* ========== EXPANDER (СВОРАЧИВАЕМЫЕ БЛОКИ) ========== */
 .streamlit-expanderHeader {
-    background: linear-gradient(135deg, #f8fafc, #ffffff);
+    background: linear-gradient(135deg, #f0fdf4, #ffffff);
     border-radius: 10px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #d1fae5;
     font-weight: 600;
-    color: #1e293b;
+    color: #065f46;
     padding: 12px 15px;
     transition: all 0.3s ease;
 }
 
 .streamlit-expanderHeader:hover {
-    background: linear-gradient(135deg, #eff6ff, #f8fafc);
-    border-color: #2563eb;
+    background: linear-gradient(135deg, #d1fae5, #f0fdf4);
+    border-color: #10b981;
 }
 
 [data-testid="stExpander"] {
@@ -174,7 +185,7 @@ h3 {
 
 /* ========== БОКОВАЯ ПАНЕЛЬ ========== */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #1e293b, #334155);
+    background: linear-gradient(180deg, #0f172a, #1e293b, #064e3b);
     padding: 20px;
 }
 
@@ -184,7 +195,7 @@ h3 {
 
 [data-testid="stSidebar"] h3,
 [data-testid="stSidebar"] h2 {
-    color: #f8fafc;
+    color: #ecfdf5;
 }
 
 [data-testid="stSidebar"] .stButton > button {
@@ -194,7 +205,8 @@ h3 {
 }
 
 [data-testid="stSidebar"] .stButton > button:hover {
-    background: rgba(255,255,255,0.2);
+    background: rgba(16, 185, 129, 0.2);
+    border-color: #10b981;
 }
 
 /* ========== ТАБЫ (ВКЛАДКИ) ========== */
@@ -214,7 +226,7 @@ h3 {
 }
 
 .stTabs [role="tab"][aria-selected="true"] {
-    background: linear-gradient(135deg, #2563eb, #3b82f6);
+    background: linear-gradient(135deg, #10b981, #059669);
     color: white;
 }
 
@@ -248,15 +260,15 @@ h3 {
 /* ========== ЗАГРУЗКА ФАЙЛОВ ========== */
 [data-testid="stFileUploader"] {
     border-radius: 10px;
-    border: 2px dashed #e2e8f0;
+    border: 2px dashed #d1fae5;
     padding: 20px;
     text-align: center;
     transition: all 0.3s ease;
 }
 
 [data-testid="stFileUploader"]:hover {
-    border-color: #2563eb;
-    background: #f8fafc;
+    border-color: #10b981;
+    background: #f0fdf4;
 }
 
 /* ========== АНИМАЦИИ ========== */
@@ -281,12 +293,12 @@ h3 {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #94a3b8;
+    background: #65a57a;
     border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #64748b;
+    background: #4da363;
 }
 
 /* ========== СКРЫТЬ ФУТЕР ========== */
