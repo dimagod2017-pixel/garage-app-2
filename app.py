@@ -2514,7 +2514,6 @@ if role == "admin":
             st.markdown("### 🎨 Настройка фона приложения")
             st.caption("Загрузите изображение для фона главной страницы")
             
-            # Инициализация session_state для фона
             if "bg_image" not in st.session_state:
                 st.session_state.bg_image = None
             if "bg_opacity" not in st.session_state:
@@ -2523,7 +2522,6 @@ if role == "admin":
             col1, col2 = st.columns([1, 1])
             
             with col1:
-                # Загрузка фонового изображения
                 uploaded_bg = st.file_uploader(
                     "📤 Загрузите фоновое изображение",
                     type=["jpg", "jpeg", "png"],
@@ -2532,17 +2530,68 @@ if role == "admin":
                 )
                 
                 if uploaded_bg:
-                    # Сохраняем фото
-                    if not os.path.exists("static"):
-                        os.makedirs("static")
+                    if not os.path.exists("backgrounds"):       # ← ЗДЕСЬ
+                        os.makedirs("backgrounds")              # ← ЗДЕСЬ
                     
                     ext = uploaded_bg.name.split('.')[-1]
-                    bg_path = f"static/background.{ext}"
+                    bg_path = f"backgrounds/background.{ext}"   # ← ЗДЕСЬ
                     with open(bg_path, "wb") as f:
                         f.write(uploaded_bg.getbuffer())
                     st.session_state.bg_image = bg_path
                     st.success(f"✅ Фон загружен: {uploaded_bg.name}")
                 
+                st.markdown("---")
+                st.markdown("**🔆 Прозрачность фона:**")
+                opacity = st.slider(
+                    "Чем выше значение, тем светлее фон",
+                    min_value=0.3,
+                    max_value=1.0,
+                    value=st.session_state.bg_opacity,
+                    step=0.05,
+                    key="bg_opacity_slider"
+                )
+                st.session_state.bg_opacity = opacity
+                
+                st.markdown("---")
+                st.markdown(f"**Текущая прозрачность:** {opacity:.0%}")
+                st.progress(opacity)
+            
+            with col2:
+                st.markdown("**👁️ Предпросмотр фона:**")
+                
+                bg_files = [f for f in os.listdir("backgrounds") if f.startswith("background.")] if os.path.exists("backgrounds") and os.path.isdir("backgrounds") else []  # ← ЗДЕСЬ
+                
+                if bg_files:
+                    current_bg = f"backgrounds/{bg_files[0]}"   # ← ЗДЕСЬ
+                    st.session_state.bg_image = current_bg
+                    st.image(current_bg, caption="Текущий фон", use_container_width=True)
+                    
+                    if st.button("🗑️ Удалить фон", use_container_width=True, key="remove_bg"):
+                        try:
+                            os.remove(current_bg)
+                            st.session_state.bg_image = None
+                            st.success("🗑️ Фон удалён!")
+                            st.rerun()
+                        except:
+                            st.error("❌ Ошибка удаления")
+                else:
+                    st.info("📷 Фон не загружен")
+                    st.caption("Загрузите изображение слева")
+                
+                st.markdown("---")
+                if st.button("✅ Применить фон", use_container_width=True, type="primary"):
+                    st.success("✅ Настройки фона применены!")
+                    st.rerun()
+            
+            st.divider()
+            st.markdown("**📋 Текущие настройки:**")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Фон", "Загружен" if st.session_state.bg_image else "Не загружен")
+            with col2:
+                st.metric("Прозрачность", f"{st.session_state.bg_opacity:.0%}")
+            with col3:
+                st.metric("Размер", f"{os.path.getsize(st.session_state.bg_image)//1024} KB" if st.session_state.bg_image and os.path.exists(st.session_state.bg_image) else "N/A")
                 # Настройка прозрачности
                 st.markdown("---")
                 st.markdown("**🔆 Прозрачность фона:**")
