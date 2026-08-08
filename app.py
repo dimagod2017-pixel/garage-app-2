@@ -1654,6 +1654,9 @@ with tabs[1]:
                 
                 st.divider()
                 
+                # ============================================================
+                # ДЛЯ СОТРУДНИКА: ВЗЯТЬ ТОВАР
+                # ============================================================
                 if role != "admin":
                     with st.expander("📤 Взять товар", expanded=False):
                         if quantity > 0:
@@ -1708,7 +1711,40 @@ with tabs[1]:
                                         eq[2] if len(eq) > 2 else "", photo_path
                                     )
                                     if success:
-                                        st.success(msg)
+                                        # Красивое уведомление об успешном взятии
+                                        st.markdown(f"""
+                                        <div style="
+                                            background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+                                            border: 2px solid #3b82f6;
+                                            border-radius: 15px;
+                                            padding: 25px;
+                                            text-align: center;
+                                            animation: fadeIn 0.5s ease;
+                                            margin: 20px 0;
+                                        ">
+                                            <div style="font-size: 50px; margin-bottom: 15px;">📤</div>
+                                            <div style="font-size: 22px; font-weight: 700; color: #1e40af; margin-bottom: 10px;">
+                                                Товар успешно взят!
+                                            </div>
+                                            <div style="font-size: 18px; color: #2563eb; margin-bottom: 10px;">
+                                                {name} — {take_qty} {unit}
+                                            </div>
+                                            <div style="font-size: 16px; color: #1d4ed8;">
+                                                🚜 На технику: {eq[1]}
+                                            </div>
+                                            <div style="margin-top: 15px; font-size: 14px; color: #3b82f6;">
+                                                ⏳ Страница обновится через 4 секунды...
+                                            </div>
+                                        </div>
+                                        <style>
+                                        @keyframes fadeIn {{
+                                            from {{ opacity: 0; transform: translateY(-20px); }}
+                                            to {{ opacity: 1; transform: translateY(0); }}
+                                        }}
+                                        </style>
+                                        """, unsafe_allow_html=True)
+                                        import time
+                                        time.sleep(4)
                                         st.rerun()
                                     else:
                                         st.error(msg)
@@ -1717,6 +1753,9 @@ with tabs[1]:
                         else:
                             st.warning("🚫 Товара нет в наличии")
                 
+                # ============================================================
+                # ДЛЯ АДМИНИСТРАТОРА
+                # ============================================================
                 else:
                     col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
                     
@@ -1797,8 +1836,41 @@ with tabs[1]:
                                                         f.write(take_photo.getbuffer())
                                                 success, msg = take_item(item_id, take_qty, eq[1], eq[2] if len(eq) > 2 else "", photo_path)
                                                 if success:
-                                                    st.success(msg)
                                                     st.session_state[f"take_mode_{uid}"] = False
+                                                    # Красивое уведомление об успешном списании
+                                                    st.markdown(f"""
+                                                    <div style="
+                                                        background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+                                                        border: 2px solid #3b82f6;
+                                                        border-radius: 15px;
+                                                        padding: 25px;
+                                                        text-align: center;
+                                                        animation: fadeIn 0.5s ease;
+                                                        margin: 20px 0;
+                                                    ">
+                                                        <div style="font-size: 50px; margin-bottom: 15px;">📤</div>
+                                                        <div style="font-size: 22px; font-weight: 700; color: #1e40af; margin-bottom: 10px;">
+                                                            Товар успешно списан!
+                                                        </div>
+                                                        <div style="font-size: 18px; color: #2563eb; margin-bottom: 10px;">
+                                                            {name} — {take_qty} {unit}
+                                                        </div>
+                                                        <div style="font-size: 16px; color: #1d4ed8;">
+                                                            🚜 На технику: {eq[1]}
+                                                        </div>
+                                                        <div style="margin-top: 15px; font-size: 14px; color: #3b82f6;">
+                                                            ⏳ Страница обновится через 4 секунды...
+                                                        </div>
+                                                    </div>
+                                                    <style>
+                                                    @keyframes fadeIn {{
+                                                        from {{ opacity: 0; transform: translateY(-20px); }}
+                                                        to {{ opacity: 1; transform: translateY(0); }}
+                                                    }}
+                                                    </style>
+                                                    """, unsafe_allow_html=True)
+                                                    import time
+                                                    time.sleep(4)
                                                     st.rerun()
                                                 else:
                                                     st.error(msg)
