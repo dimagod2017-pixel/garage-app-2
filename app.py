@@ -39,14 +39,11 @@ st.set_page_config(page_title="Мой Склад", page_icon="📦", layout="wid
 # ============================================================
 import base64
 
-# Создаём папку static если её нет
-if not os.path.exists("static"):
-    os.makedirs("static")
-
 def apply_background():
     """Применяет фоновое изображение из настроек"""
-    if os.path.exists("static"):
-        try:
+    try:
+        # Проверяем, что static существует и это папка
+        if os.path.exists("static") and os.path.isdir("static"):
             bg_files = [f for f in os.listdir("static") if f.startswith("background.")]
             if bg_files:
                 bg_path = f"static/{bg_files[0]}"
@@ -76,8 +73,8 @@ def apply_background():
                 }}
                 </style>
                 """, unsafe_allow_html=True)
-        except:
-            pass  # Если папка пуста или ошибка чтения — просто пропускаем
+    except:
+        pass  # Игнорируем любые ошибки с фоном
 
 apply_background()
 # ============================================================
