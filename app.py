@@ -2531,12 +2531,10 @@ if role == "admin":
                         st.write(f"🏠 **{room}**")
                     
                     with col2:
-                        # Кнопка переименования
                         if st.button("✏️", key=f"rename_room_{room}", use_container_width=True):
                             st.session_state[f"rename_mode_{room}"] = True
                     
                     with col3:
-                        # Кнопка удаления
                         if st.button("🗑️", key=f"delete_room_{room}", use_container_width=True):
                             st.session_state[f"delete_mode_{room}"] = True
                     
@@ -2586,7 +2584,18 @@ if role == "admin":
                 st.info("Нет созданных помещений")
         
         # --- ОФОРМЛЕНИЕ (ФОН) ---
-       with col1:
+        with tab_b:
+            st.markdown("### 🎨 Настройка фона приложения")
+            st.caption("Загрузите изображение для фона главной страницы")
+            
+            if "bg_image" not in st.session_state:
+                st.session_state.bg_image = None
+            if "bg_opacity" not in st.session_state:
+                st.session_state.bg_opacity = 0.85
+            
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
                 uploaded_bg = st.file_uploader(
                     "📤 Загрузите фоновое изображение",
                     type=["jpg", "jpeg", "png"],
@@ -2604,14 +2613,14 @@ if role == "admin":
                         f.write(uploaded_bg.getbuffer())
                     st.session_state.bg_image = bg_path
                     st.success(f"✅ Фон загружен: {uploaded_bg.name}")
-                    st.rerun()  # ← Добавьте это, чтобы фон применился сразу
+                    st.rerun()
                 
                 st.markdown("---")
                 st.markdown("**🔆 Прозрачность фона:**")
                 
                 # Форма для изменения прозрачности
-                with st.form(key="opacity_form"):
-                    opacity = st.slider(
+                with st.form(key="opacity_form_admin"):
+                    new_opacity = st.slider(
                         "Чем выше значение, тем светлее фон",
                         min_value=0.3,
                         max_value=1.0,
@@ -2622,10 +2631,72 @@ if role == "admin":
                     )
                     
                     if st.form_submit_button("🔄 Применить прозрачность", use_container_width=True):
-                        st.session_state.bg_opacity = opacity
-                        st.success(f"✅ Прозрачность изменена на {opacity:.0%}!")
+                        st.session_state.bg_opacity = new_opacity
+                        st.success(f"✅ Прозрачность изменена на {new_opacity:.0%}!")
                         st.rerun()
                 
                 st.markdown("---")
                 st.markdown(f"**Текущая прозрачность:** {st.session_state.bg_opacity:.0%}")
                 st.progress(st.session_state.bg_opacity)
+            
+            with col2:
+                st.markdown("**👁️ Предпросмотр фона:**")
+                
+                # Проверяем наличие фона
+                if os.path.exists("backgrounds") and os.path.isdir("backgrounds"):
+                    bg_files = [f for f in os.listdir("backgrounds") if f.startswith("background.")]
+                else:
+                    bg_files = []
+                
+                if bg_files:
+                    current_bg = f"backgrounds/{bg_files[0]}"
+                    st.session_state.bg_image = current_bg
+                    st.image(current_bg, caption="Текущий фон", use_container_width=True)
+                    
+                    if st.button("🗑️ Удалить фон", use_container_width=True, key="remove_bg_admin"):
+                        try:
+                            os.remove(current_bg)
+                            st.session_state.bg_image = None
+                            st.success("🗑️ Фон удалён!")
+                            st.rerun()
+                        except:
+                            st.error("❌ Ошибка удаления")
+                else:
+                    st.info("📷 Фон не загружен")
+                    st.caption("Загрузите изображение слева")
+                
+                st.markdown("---")
+                if st.button("✅ Применить фон", use_container_width=True, type="primary", key="apply_bg_admin"):
+                    st.success("✅ Настройки фона применены!")
+                    st.rerun()
+            
+            st.divider()
+            st.markdown("**📋 Текущие настройки:**")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Фон", "Загружен" if st.session_state.bg_image else "Не загружен")
+            with col2:
+                st.metric("Прозрачность", f"{st.session_state.bg_opacity:.0%}")
+            with col3:
+                st.metric("Размер", f"{os.path.getsize(st.session_state.bg_image)//1024} KB" if st.session_state.bg_image and os.path.exists(st.session_state.bg_image) else "N/A")
+        
+        # --- БЭКАПЫ ---
+        with tab_c:
+            st.markdown("### 💾 Бэкапы базы данных")
+            if st.button("💾 Создать бэкап", use_container_width=True):
+                fname = f"backup_{now_local_file()}.db"
+                shutil.copy2('storage.db', f"backups/{fname}")
+                st.success(f"✅ Бэкап создан: {fname}")
+            
+            if os.path.exists("backups"):
+                backups = sorted([f for f in os.listdir("backups") if f.endswith('.db')], reverse=True)
+                if backups:
+                    st.divider()
+                    st.markdown("**📦 Существующие бэкапы:**")
+                    for backup in backups[:10]:
+                        st.write(f"📦 {backup}")
+
+else:
+    with tabs[5]:
+        st.markdown("## ⚙️ Управление")
+        st.info("ℹ️ Для управления настройками обратитесь к администратору.")
