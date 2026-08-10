@@ -1211,8 +1211,7 @@ with tabs[1]:
     if items:
         st.success(f"Найдено товаров: {len(items)}")
 
-        # --- ЭКСПОРТ В EXCEL ---
-        # Формируем DataFrame из текущего списка товаров
+        # --- ЭКСПОРТ В EXCEL (без изменений) ---
         df_export = pd.DataFrame(items, columns=[
             "ID", "Название", "Место", "Помещение", "Дата добавления",
             "Ед.изм", "Количество", "Порог", "Фото"
@@ -1252,15 +1251,11 @@ with tabs[1]:
             elif quantity <= threshold: status_icon, status_text = "⚠️", f"Заканчивается (порог: {threshold})"
             else: status_icon, status_text = "✅", f"В наличии: {quantity} {unit}"
             uid = f"{item_id}_{idx}"
-            with st.container():
-                col1, col2 = st.columns([3,1])
-                with col1:
-                    st.markdown(f"### {status_icon} {name}")
-                    st.caption(f"📍 {location} | 🏠 {room} | 📅 {date_added[:10] if date_added else 'Н/Д'}")
-                with col2:
-                    st.markdown(f"### {quantity}")
-                    st.caption(unit)
-                st.divider()
+
+            # Заголовок expander'а: статус, название, количество, место, помещение
+            expander_label = f"{status_icon} **{name}**  |  {quantity} {unit}  |  📍 {location}  |  🏠 {room}"
+            with st.expander(expander_label, expanded=False):
+                # Содержимое карточки (как раньше, но без верхней строки с названием и количеством)
                 col_left, col_right = st.columns([2,2])
                 with col_left:
                     st.markdown(f"**📦 Название:** {name}")
@@ -1345,8 +1340,8 @@ with tabs[1]:
                                             add_item_photo(item_id, path, is_main=(i==0 and is_main_new))
                                         st.success(f"✅ Загружено {len(uploaded)} фото!")
                                         st.rerun()
+                # Кнопки действий (взять, списать и т.д.) – остаются как были
                 st.divider()
-                # --- ВЗЯТЬ ТОВАР (сотрудник) ---
                 if role != "admin":
                     with st.expander("📤 Взять товар", expanded=False):
                         if quantity > 0:
@@ -1359,7 +1354,6 @@ with tabs[1]:
                             if eq_search:
                                 ext_results = search_equipment_extended(eq_search)
                             else:
-                                # Показываем всю технику вместе с агрегатами
                                 ext_results = search_equipment_extended("")
                             
                             if ext_results:
@@ -1398,7 +1392,6 @@ with tabs[1]:
                                         st.error(msg)
                         else:
                             st.warning("🚫 Товара нет в наличии")
-                # --- АДМИНИСТРАТОР ---
                 else:
                     col_btn1,col_btn2,col_btn3,col_btn4 = st.columns(4)
                     with col_btn1:
@@ -1443,7 +1436,6 @@ with tabs[1]:
                                     if eq_search:
                                         ext_results = search_equipment_extended(eq_search)
                                     else:
-                                        # Показываем всю технику вместе с агрегатами
                                         ext_results = search_equipment_extended("")
                                     
                                     if ext_results:
@@ -1518,7 +1510,6 @@ with tabs[1]:
                                     st.rerun()
                             with col2:
                                 if st.button("❌ Отмена", key=f"del_cancel_{uid}", use_container_width=True): st.session_state[f"del_mode_{uid}"] = False; st.rerun()
-                st.divider()
     else:
         st.info("📭 Склад пуст. Добавьте товары через боковую панель.")
 # ============================================================
