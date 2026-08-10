@@ -335,35 +335,96 @@ def add_equipment(name, number=""):
         conn.close()
         return False
 
-def search_equipment(query):
+def search_items(query):
+    """Поиск товаров: все слова запроса должны присутствовать (AND) в названии, месте или помещении."""
+    if not query:
+        return get_all_items()
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    q = f"%{query}%"
-    c.execute("SELECT * FROM equipment WHERE name LIKE ? OR number LIKE ? ORDER BY name", (q, q))
+    words = query.strip().split()
+    conditions = []
+    params = []
+    for word in words:
+        like_word = f"%{word}%"
+        conditions.append("(name LIKE ? OR location LIKE ? OR room LIKE ?)")
+        params.extend([like_word, like_word, like_word])
+    where_clause = " AND ".join(conditions)
+    sql = f"SELECT id, name, location, room, date_added, unit, quantity, threshold, photos_count FROM items WHERE {where_clause} ORDER BY date_added DESC"
+    c.execute(sql, params)
     res = c.fetchall()
     conn.close()
     return res
 
 def search_equipment_extended(query):
-    """Расширенный поиск техники с агрегатами"""
+    """Расширенный поиск техники и агрегатов: все слова запроса ищутся в названии/номере техники
+    и в названии/номере агрегата. При пустом запросе возвращает всё."""
+    if not query:
+        # пустой запрос – вся техника + агрегаты
+        conn = sqlite3.connect('storage.db')
+        c = conn.cursor()
+        results = []
+        c.execute("SELECT name, number FROM equipment ORDER BY name")
+        for row in c.fetchall():
+            eq_name, eq_num = row[0], row[1] or ""
+            display = f"{eq_name}" + (f" (№{eq_num})" if eq_num else "")
+            results.append({"display": display, "eq_name": eq_name, "eq_number": eq_num,
+                            "agg_name": None, "agg_number": None})
+        c.execute('''SELECT e.name, e.number, a.aggregate_name, a.aggregate_number
+                     FROM equipment_aggregates a JOIN equipment e ON a.equipment_name = e.name
+                     ORDER BY e.name, a.aggregate_name''')
+        for row in c.fetchall():
+            eq_name, eq_num, agg_name, agg_num = row[0], row[1] or "", row[2], row[3] or ""
+            display = f"{eq_name}" + (f" (№{eq_num})" if eq_num else "") + f" 🔧 Агрегат: {agg_name}" + (f" (№{agg_num})" if agg_num else "")
+            results.append({"display": display, "eq_name": eq_name, "eq_number": eq_num,
+                            "agg_name": agg_name, "agg_number": agg_num})
+        conn.close()
+        seen = set()
+        unique = []
+        for r in results:
+            key = (r['eq_name'], r['eq_number'], r['agg_name'], r['agg_number'])
+            if key not in seen:
+                seen.add(key)
+                unique.append(r)
+        return unique
+
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    q = f"%{query}%"
+    words = query.strip().split()
     results = []
-    c.execute("SELECT name, number FROM equipment WHERE name LIKE ? OR number LIKE ?", (q, q))
+
+    # Поиск по технике
+    eq_conditions = []
+    eq_params = []
+    for word in words:
+        like_word = f"%{word}%"
+        eq_conditions.append("(name LIKE ? OR number LIKE ?)")
+        eq_params.extend([like_word, like_word])
+    eq_where = " AND ".join(eq_conditions)
+    c.execute(f"SELECT name, number FROM equipment WHERE {eq_where} ORDER BY name", eq_params)
     for row in c.fetchall():
         eq_name, eq_num = row[0], row[1] or ""
         display = f"{eq_name}" + (f" (№{eq_num})" if eq_num else "")
         results.append({"display": display, "eq_name": eq_name, "eq_number": eq_num,
                         "agg_name": None, "agg_number": None})
-    c.execute('''SELECT e.name, e.number, a.aggregate_name, a.aggregate_number
+
+    # Поиск по агрегатам
+    agg_conditions = []
+    agg_params = []
+    for word in words:
+        like_word = f"%{word}%"
+        agg_conditions.append("(a.aggregate_name LIKE ? OR a.aggregate_number LIKE ? OR e.name LIKE ? OR e.number LIKE ?)")
+        agg_params.extend([like_word, like_word, like_word, like_word])
+    agg_where = " AND ".join(agg_conditions)
+    c.execute(f'''SELECT e.name, e.number, a.aggregate_name, a.aggregate_number
                  FROM equipment_aggregates a JOIN equipment e ON a.equipment_name = e.name
-                 WHERE a.aggregate_number LIKE ? OR a.aggregate_name LIKE ?''', (q, q))
+                 WHERE {agg_where}
+                 ORDER BY e.name, a.aggregate_name''', agg_params)
     for row in c.fetchall():
         eq_name, eq_num, agg_name, agg_num = row[0], row[1] or "", row[2], row[3] or ""
         display = f"{eq_name}" + (f" (№{eq_num})" if eq_num else "") + f" 🔧 Агрегат: {agg_name}" + (f" (№{agg_num})" if agg_num else "")
         results.append({"display": display, "eq_name": eq_name, "eq_number": eq_num,
                         "agg_name": agg_name, "agg_number": agg_num})
+
     conn.close()
     seen = set()
     unique = []
@@ -378,15 +439,6 @@ def get_all_items():
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     c.execute("SELECT id, name, location, room, date_added, unit, quantity, threshold, photos_count FROM items ORDER BY date_added DESC")
-    res = c.fetchall()
-    conn.close()
-    return res
-
-def search_items(query):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    q = f"%{query}%"
-    c.execute("SELECT id, name, location, room, date_added, unit, quantity, threshold, photos_count FROM items WHERE name LIKE ? OR location LIKE ? OR room LIKE ?", (q, q, q))
     res = c.fetchall()
     conn.close()
     return res
@@ -615,79 +667,6 @@ def get_stats():
     stats['in_work'] = c.fetchone()[0]
     conn.close()
     return stats
-
-# ============================================================
-# 4. ПОЛЬЗОВАТЕЛИ
-# ============================================================
-def add_user(username, code, full_name):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    try:
-        c.execute("INSERT INTO users (username, password, full_name, role, status, created_at) VALUES (?,?,?,?,?,?)",
-                  (username, code, full_name, "employee", "pending", now_local()))
-        conn.commit()
-        conn.close()
-        return True, "Пользователь зарегистрирован! Ожидайте одобрения администратора."
-    except sqlite3.IntegrityError:
-        conn.close()
-        return False, "Пользователь с таким логином уже существует!"
-
-def get_user_by_code(code):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE password=?", (code,))
-    res = c.fetchone()
-    conn.close()
-    return res
-
-def get_user(username, password):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
-    res = c.fetchone()
-    conn.close()
-    return res
-
-def get_all_users():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT id, username, full_name, role, status, created_at FROM users ORDER BY created_at DESC")
-    res = c.fetchall()
-    conn.close()
-    return res
-
-def update_user_status(user_id, status):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("UPDATE users SET status=? WHERE id=?", (status, user_id))
-    conn.commit()
-    conn.close()
-
-def delete_user(user_id):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("DELETE FROM users WHERE id=? AND role != 'admin'", (user_id,))
-    conn.commit()
-    conn.close()
-
-def get_pending_users():
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT id, username, full_name, created_at FROM users WHERE status='pending'")
-    res = c.fetchall()
-    conn.close()
-    return res
-
-def get_user_full_name(username):
-    conn = sqlite3.connect('storage.db')
-    c = conn.cursor()
-    c.execute("SELECT full_name FROM users WHERE username=?", (username,))
-    res = c.fetchone()
-    conn.close()
-    if res and res[0]:
-        return res[0]
-    return username
-
 # ============================================================
 # 5. УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
 # ============================================================
