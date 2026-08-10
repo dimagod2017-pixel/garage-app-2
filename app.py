@@ -1159,6 +1159,30 @@ with tabs[1]:
     elif sort_by == "По количеству": items.sort(key=lambda x: x[6] or 0)
     if items:
         st.success(f"Найдено товаров: {len(items)}")
+
+        # --- ЭКСПОРТ В EXCEL ---
+        # Формируем DataFrame из текущего списка товаров
+        df_export = pd.DataFrame(items, columns=[
+            "ID", "Название", "Место", "Помещение", "Дата добавления",
+            "Ед.изм", "Количество", "Порог", "Фото"
+        ])
+        df_export = df_export[["Название", "Место", "Помещение", "Количество", "Ед.изм", "Порог", "Дата добавления"]]
+        df_export['Количество'] = pd.to_numeric(df_export['Количество'], errors='coerce')
+        df_export['Порог'] = pd.to_numeric(df_export['Порог'], errors='coerce')
+
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            df_export.to_excel(writer, sheet_name='Товары', index=False)
+
+        st.download_button(
+            label="📥 Скачать список товаров (Excel)",
+            data=buffer.getvalue(),
+            file_name=f"товары_{now_local_file()}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="download_items_excel"
+        )
+        # --- КОНЕЦ ЭКСПОРТА ---
+
         per_page = 10
         total_pages = (len(items)-1)//per_page + 1
         page = st.selectbox("Страница", range(1, total_pages+1), key="items_page") if total_pages > 1 else 1
@@ -1446,38 +1470,6 @@ with tabs[1]:
                 st.divider()
     else:
         st.info("📭 Склад пуст. Добавьте товары через боковую панель.")
-    st.success(f"Найдено товаров: {len(items)}")
-    # --- ЭКСПОРТ В EXCEL ---
-        if items:
-            # Формируем DataFrame из текущего списка товаров
-            df_export = pd.DataFrame(items, columns=[
-                "ID", "Название", "Место", "Помещение", "Дата добавления",
-                "Ед.изм", "Количество", "Порог", "Фото"
-            ])
-            # Оставляем только нужные колонки
-            df_export = df_export[["Название", "Место", "Помещение", "Количество", "Ед.изм", "Порог", "Дата добавления"]]
-            # Преобразуем числа для корректного отображения в Excel
-            df_export['Количество'] = pd.to_numeric(df_export['Количество'], errors='coerce')
-            df_export['Порог'] = pd.to_numeric(df_export['Порог'], errors='coerce')
-
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                df_export.to_excel(writer, sheet_name='Товары', index=False)
-
-            st.download_button(
-                label="📥 Скачать список товаров (Excel)",
-                data=buffer.getvalue(),
-                file_name=f"товары_{now_local_file()}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="download_items_excel"
-            )
-        # --- КОНЕЦ ЭКСПОРТА ---
-
-        per_page = 10
-        total_pages = (len(items)-1)//per_page + 1
-        page = st.selectbox("Страница", range(1, total_pages+1), key="items_page") if total_pages > 1 else 1
-        # ... остальной код пагинации и отображения товаров
-
 # ============================================================
 # 8.3 СПИСАНИЯ
 # ============================================================
