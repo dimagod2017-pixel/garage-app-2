@@ -1698,8 +1698,21 @@ with tabs[4]:
                     st.success(f"✅ Техника '{name}' добавлена с {len([a for a in aggregates if a['name']])} агрегатами!")
                     st.rerun()
     st.divider()
+    
+    # === ИЗМЕНЁННЫЙ ПОИСК С ПОДДЕРЖКОЙ АГРЕГАТОВ ===
     search_eq = st.text_input("🔍 Поиск техники", placeholder="Введите название или номер...", key="eq_search_main")
-    equipment_list = get_equipment()
+    
+    if search_eq:
+        # Используем расширенный поиск, который находит и агрегаты
+        ext_res = search_equipment_extended(search_eq)
+        # Извлекаем уникальные названия техники, к которым относятся найденные агрегаты
+        equipment_names = list(set([r['eq_name'] for r in ext_res]))
+        # Оставляем только ту технику, которая соответствует найденному (по названию или агрегату)
+        equipment_list = [eq for eq in get_equipment() if eq[1] in equipment_names]
+    else:
+        equipment_list = get_equipment()
+    # === КОНЕЦ ИЗМЕНЕНИЙ ===
+    
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     try: c.execute("ALTER TABLE equipment_aggregates DROP COLUMN aggregate_type")
@@ -1715,9 +1728,7 @@ with tabs[4]:
         eq_name = agg[1]
         if eq_name not in aggregates_by_equipment: aggregates_by_equipment[eq_name] = []
         aggregates_by_equipment[eq_name].append({"id": agg[0], "name": agg[2], "number": agg[3], "date": agg[4]})
-    if search_eq:
-        search_lower = search_eq.lower()
-        equipment_list = [eq for eq in equipment_list if search_lower in eq[1].lower() or (eq[2] and search_lower in eq[2].lower())]
+
     if equipment_list:
         total_eq = len(equipment_list)
         total_aggregates = sum([len(aggregates_by_equipment.get(eq[1], [])) for eq in equipment_list])
