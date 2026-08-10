@@ -667,6 +667,78 @@ def get_stats():
     stats['in_work'] = c.fetchone()[0]
     conn.close()
     return stats
+
+# ============================================================
+# 4. ПОЛЬЗОВАТЕЛИ
+# ============================================================
+def add_user(username, code, full_name):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO users (username, password, full_name, role, status, created_at) VALUES (?,?,?,?,?,?)",
+                  (username, code, full_name, "employee", "pending", now_local()))
+        conn.commit()
+        conn.close()
+        return True, "Пользователь зарегистрирован! Ожидайте одобрения администратора."
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, "Пользователь с таким логином уже существует!"
+
+def get_user_by_code(code):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE password=?", (code,))
+    res = c.fetchone()
+    conn.close()
+    return res
+
+def get_user(username, password):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password))
+    res = c.fetchone()
+    conn.close()
+    return res
+
+def get_all_users():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT id, username, full_name, role, status, created_at FROM users ORDER BY created_at DESC")
+    res = c.fetchall()
+    conn.close()
+    return res
+
+def update_user_status(user_id, status):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("UPDATE users SET status=? WHERE id=?", (status, user_id))
+    conn.commit()
+    conn.close()
+
+def delete_user(user_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM users WHERE id=? AND role != 'admin'", (user_id,))
+    conn.commit()
+    conn.close()
+
+def get_pending_users():
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT id, username, full_name, created_at FROM users WHERE status='pending'")
+    res = c.fetchall()
+    conn.close()
+    return res
+
+def get_user_full_name(username):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT full_name FROM users WHERE username=?", (username,))
+    res = c.fetchone()
+    conn.close()
+    if res and res[0]:
+        return res[0]
+    return username
 # ============================================================
 # 5. УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
 # ============================================================
