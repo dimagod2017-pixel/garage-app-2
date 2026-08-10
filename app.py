@@ -285,6 +285,16 @@ def init_db():
         next_maintenance_date TEXT,
         description TEXT,
         maintenance_type TEXT DEFAULT 'TO',
+        to_type TEXT DEFAULT 'TO-1',
+        created_by TEXT,
+        created_at TEXT
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS equipment_to_intervals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        equipment_name TEXT,
+        to_type TEXT DEFAULT 'TO-1',
+        interval_days INTEGER DEFAULT 0,
+        interval_hours INTEGER DEFAULT 0,
         created_by TEXT,
         created_at TEXT
     )''')
@@ -331,7 +341,6 @@ def init_db():
     conn.close()
 
 init_db()
-
 # ============================================================
 # 3. ФУНКЦИИ БАЗЫ ДАННЫХ
 # ============================================================
