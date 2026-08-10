@@ -1415,57 +1415,128 @@ with tabs[1]:
         # ==================== ПЛАН ТО ====================
         with tab1:
             st.subheader("📅 План технического обслуживания")
-            maint_data = []
+            
+            # --- НАСТРОЙКА ИНТЕРВАЛОВ (только админ) ---
+            if role == "admin":
+                st.divider()
+                st.subheader("⚙️ Настройка интервалов ТО")
+                selected_eq = st.selectbox("Выберите технику для настройки", [eq[1] for eq in equipment_list], key="to_interval_eq")
+                existing_intervals = get_to_intervals(selected_eq)
+                
+                # показываем существующие интервалы
+                if existing_intervals:
+                    st.write("**Существующие интервалы:**")
+                    for interval in existing_intervals:
+                        col1, col2, col3 = st.columns([2,2,1])
+                        with col1: st.write(f"**{interval[2]}** — {interval[3]} дн. / {interval[4]} м/ч")
+                        with col2: st.caption(f"Создал: {interval[5]}")
+                        with col3:
+                            if st.button("🗑️", key=f"del_to_int_{interval[0]}"):
+                                delete_to_interval(interval[0])
+                                st.success("Интервал удалён!")
+                                st.rerun()
+                
+                # форма добавления нового интервала
+                with st.form("add_to_interval"):
+                    st.write("**➕ Добавить тип ТО**")
+                    to_type = st.text_input("Название (напр. ТО-1, ТО-2)", value="ТО-1")
+                    col1, col2 = st.columns(2)
+                    with col1: days = st.number_input("Интервал (дни)", min_value=0, value=0)
+                    with col2: hours = st.number_input("Интервал (моточасы)", min_value=0, value=0)
+                    if st.form_submit_button("💾 Сохранить интервал"):
+                        if to_type:
+                            add_to_interval(selected_eq, to_type, days, hours, user_name)
+                            st.success("✅ Интервал добавлен!")
+                            st.rerun()
+            
+            st.divider()
+            
+            # --- СВОДНАЯ ТАБЛИЦА ПЛАНА ТО ---
+            st.subheader("Сводная таблица по всем видам ТО")
+            plan_data = []
             today = datetime.now().date()
             for eq in equipment_list:
                 eq_name = eq[1]
-                service_days = eq[4] if len(eq) > 4 else 0
-                service_hours = eq[5] if len(eq) > 5 else 0
-                last_date, next_date = get_last_maintenance(eq_name)
-                last_motohours = get_last_usage(eq_name, 'motohours')
-                if next_date:
-                    next_dt = datetime.strptime(next_date[:10], "%Y-%m-%d").date()
-                    days_left = (next_dt - today).days
-                    if days_left < 0:
-                        day_status = "🔴 Просрочено"
-                    elif days_left <= 7:
-                        day_status = "🟡 Скоро"
-                    else:
-                        day_status = "🟢 ОК"
+                intervals = get_to_intervals(eq_name)
+                if not intervals:
+                    plan_data.append({
+                        "Техника": eq_name,
+                        "Тип ТО": "—",
+                        "Последнее ТО": "—",
+                        "След. ТО (дата)": "—",
+                        "Осталось дней": "—",
+                        "След. ТО (мот.)": "—",
+                        "Осталось часов": "—",
+                        "Статус": "⚪ Нет данных"
+                    })
                 else:
-                    days_left = "—"
-                    day_status = "⚪ Нет данных"
-                if service_hours > 0:
-                    current_hours = get_last_usage(eq_name, 'motohours')
-                    next_hours = last_motohours + service_hours
-                    hours_left = next_hours - current_hours
-                    if hours_left <= 0:
-                        hour_status = "🔴 Просрочено"
-                    elif hours_left <= 50:
-                        hour_status = "🟡 Скоро"
-                    else:
-                        hour_status = "🟢 ОК"
-                else:
-                    hours_left = "—"
-                    hour_status = "⚪ Нет данных"
-                    current_hours = "—"
-                    next_hours = "—"
-                maint_data.append({
-                    "Техника": eq_name,
-                    "Интервал (дни)": service_days,
-                    "Интервал (часы)": service_hours,
-                    "Последнее ТО": last_date[:10] if last_date else "—",
-                    "След. ТО (дата)": next_date[:10] if next_date else "—",
-                    "Осталось дней": days_left,
-                    "Статус (дни)": day_status,
-                    "Текущие моточасы": current_hours,
-                    "След. ТО (часы)": next_hours,
-                    "Осталось часов": hours_left if isinstance(hours_left, (int, float)) else "—",
-                    "Статус (часы)": hour_status
-                })
-            df_plan = pd.DataFrame(maint_data)
+                    for interval in intervals:
+                        int_id, _, to_type, int_days, int_hours, created_by, _ = interval
+                        # ищем последнее выполненное ТО этого типа
+                        conn = sqlite3.connect('storage.db')
+                        c = conn.cursor()
+                        c.execute("SELECT maintenance_date, next_maintenance_date FROM maintenance WHERE equipment_name=? AND to_type=? ORDER BY maintenance_date DESC LIMIT 1",
+                                  (eq_name, to_type))
+                        last_to = c.fetchone()
+                        conn.close()
+                        last_date = last_to[0] if last_to else None
+                        next_date = last_to[1] if last_to and last_to[1] else None
+                        # если нет следующей даты, а интервал по дням задан – вычисляем
+                        if not next_date and last_date and int_days > 0:
+                            last_dt = datetime.strptime(last_date[:10], "%Y-%m-%d").date()
+                            next_date = (last_dt + timedelta(days=int_days)).strftime("%Y-%m-%d")
+                        # статус по дням
+                        if next_date:
+                            next_dt = datetime.strptime(next_date[:10], "%Y-%m-%d").date()
+                            days_left = (next_dt - today).days
+                            if days_left < 0:
+                                day_status = "🔴"
+                            elif days_left <= 7:
+                                day_status = "🟡"
+                            else:
+                                day_status = "🟢"
+                        else:
+                            days_left = "—"
+                            day_status = "⚪"
+                        # по моточасам
+                        last_motohours = get_last_usage(eq_name, 'motohours')
+                        if int_hours > 0 and last_motohours:
+                            current_hours = get_last_usage(eq_name, 'motohours')
+                            next_hours = last_motohours + int_hours
+                            hours_left = next_hours - current_hours
+                            if hours_left <= 0:
+                                hour_status = "🔴"
+                            elif hours_left <= 50:
+                                hour_status = "🟡"
+                            else:
+                                hour_status = "🟢"
+                        else:
+                            hours_left = "—"
+                            hour_status = "⚪"
+                            next_hours = "—"
+                        # общий статус – наихудший
+                        if "🔴" in [day_status, hour_status]:
+                            overall = "🔴 Требует ТО"
+                        elif "🟡" in [day_status, hour_status]:
+                            overall = "🟡 Скоро"
+                        elif "🟢" in [day_status, hour_status]:
+                            overall = "🟢 ОК"
+                        else:
+                            overall = "⚪ Нет данных"
+                        plan_data.append({
+                            "Техника": eq_name,
+                            "Тип ТО": to_type,
+                            "Последнее ТО": last_date[:10] if last_date else "—",
+                            "След. ТО (дата)": next_date[:10] if next_date else "—",
+                            "Осталось дней": days_left,
+                            "След. ТО (мот.)": f"{next_hours} м/ч" if int_hours > 0 else "—",
+                            "Осталось часов": hours_left if isinstance(hours_left, (int, float)) else "—",
+                            "Статус": overall
+                        })
+            df_plan = pd.DataFrame(plan_data)
             st.dataframe(df_plan, use_container_width=True, hide_index=True)
             
+            # экспорт плана
             buffer_plan = io.BytesIO()
             with pd.ExcelWriter(buffer_plan, engine='openpyxl') as writer:
                 df_plan.to_excel(writer, sheet_name='План ТО', index=False)
@@ -1476,26 +1547,6 @@ with tabs[1]:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="download_plan_to"
             )
-            
-            if role == "admin":
-                st.divider()
-                st.subheader("⚙️ Настройка интервалов ТО")
-                with st.form("set_intervals"):
-                    eq_select = st.selectbox("Выберите технику", [eq[1] for eq in equipment_list])
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        days = st.number_input("Интервал по дням", min_value=0, value=0, step=1)
-                    with col2:
-                        hours = st.number_input("Интервал по моточасам", min_value=0, value=0, step=10)
-                    if st.form_submit_button("💾 Сохранить"):
-                        conn = sqlite3.connect('storage.db')
-                        c = conn.cursor()
-                        c.execute("UPDATE equipment SET service_interval_days=?, service_interval_hours=? WHERE name=?",
-                                  (days, hours, eq_select))
-                        conn.commit()
-                        conn.close()
-                        st.success("✅ Интервалы обновлены!")
-                        st.rerun()
         
         # ==================== ЖУРНАЛ РАБОТ ====================
         with tab2:
@@ -1547,6 +1598,13 @@ with tabs[1]:
                     with col2:
                         next_m_date = st.date_input("Дата следующего ТО (опционально)", value=None)
                         kit_option = st.checkbox("Использовать комплект ТО")
+                    # выбор типа ТО (если это ТО)
+                    to_type = "ТО-1"
+                    if m_type == "ТО":
+                        intervals = get_to_intervals(eq_name)
+                        if intervals:
+                            to_options = [i[2] for i in intervals]
+                            to_type = st.selectbox("Тип ТО", to_options)
                     desc = st.text_area("Описание работ*")
                     
                     if kit_option:
@@ -1567,9 +1625,15 @@ with tabs[1]:
                     
                     if st.form_submit_button("💾 Сохранить"):
                         if desc:
-                            add_maintenance(eq_name, m_date.strftime("%Y-%m-%d"),
-                                           next_m_date.strftime("%Y-%m-%d") if next_m_date else "",
-                                           desc, m_type, user_name)
+                            # обновляем функцию add_maintenance, чтобы она принимала to_type
+                            conn = sqlite3.connect('storage.db')
+                            c = conn.cursor()
+                            c.execute("INSERT INTO maintenance (equipment_name, maintenance_date, next_maintenance_date, description, maintenance_type, to_type, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                                      (eq_name, m_date.strftime("%Y-%m-%d"),
+                                       next_m_date.strftime("%Y-%m-%d") if next_m_date else "",
+                                       desc, m_type, to_type, user_name, now_local()))
+                            conn.commit()
+                            conn.close()
                             if kit_option and kits:
                                 for item_id, qty in kit[1]:
                                     conn = sqlite3.connect('storage.db')
