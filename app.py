@@ -250,7 +250,9 @@ def init_db():
         threshold INTEGER DEFAULT 1, photos_count INTEGER DEFAULT 0)''')
     c.execute('''CREATE TABLE IF NOT EXISTS equipment (
         id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE,
-        number TEXT, date_added TEXT)''')
+        number TEXT, date_added TEXT,
+        service_interval_days INTEGER DEFAULT 0,
+        service_interval_hours INTEGER DEFAULT 0)''')
     c.execute('''CREATE TABLE IF NOT EXISTS equipment_aggregates (
         id INTEGER PRIMARY KEY AUTOINCREMENT, equipment_name TEXT,
         aggregate_name TEXT, aggregate_number TEXT, date_added TEXT)''')
@@ -276,6 +278,45 @@ def init_db():
         password TEXT, full_name TEXT, role TEXT DEFAULT 'employee',
         status TEXT DEFAULT 'pending', created_at TEXT,
         approved_by TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS maintenance (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        equipment_name TEXT,
+        maintenance_date TEXT,
+        next_maintenance_date TEXT,
+        description TEXT,
+        maintenance_type TEXT DEFAULT 'TO',
+        created_by TEXT,
+        created_at TEXT
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS equipment_assignments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        equipment_name TEXT,
+        username TEXT,
+        assigned_date TEXT
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS equipment_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        equipment_name TEXT,
+        record_date TEXT,
+        value REAL,
+        usage_type TEXT DEFAULT 'motohours',
+        created_by TEXT,
+        created_at TEXT
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS service_kits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kit_name TEXT,
+        equipment_name TEXT,
+        description TEXT,
+        created_by TEXT,
+        created_at TEXT
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS service_kit_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kit_id INTEGER,
+        item_id TEXT,
+        quantity REAL
+    )''')
     c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO users (username,password,full_name,role,status,created_at) VALUES (?,?,?,?,?,?)",
@@ -336,7 +377,6 @@ def add_equipment(name, number=""):
         return False
 
 def search_items(query):
-    """Поиск товаров: все слова запроса должны присутствовать (AND) в названии, месте или помещении."""
     if not query:
         return get_all_items()
     conn = sqlite3.connect('storage.db')
@@ -356,10 +396,7 @@ def search_items(query):
     return res
 
 def search_equipment_extended(query):
-    """Расширенный поиск техники и агрегатов: все слова запроса ищутся в названии/номере техники
-    и в названии/номере агрегата. При пустом запросе возвращает всё."""
     if not query:
-        # пустой запрос – вся техника + агрегаты
         conn = sqlite3.connect('storage.db')
         c = conn.cursor()
         results = []
@@ -391,8 +428,6 @@ def search_equipment_extended(query):
     c = conn.cursor()
     words = query.strip().split()
     results = []
-
-    # Поиск по технике
     eq_conditions = []
     eq_params = []
     for word in words:
@@ -406,8 +441,6 @@ def search_equipment_extended(query):
         display = f"{eq_name}" + (f" (№{eq_num})" if eq_num else "")
         results.append({"display": display, "eq_name": eq_name, "eq_number": eq_num,
                         "agg_name": None, "agg_number": None})
-
-    # Поиск по агрегатам
     agg_conditions = []
     agg_params = []
     for word in words:
@@ -424,7 +457,6 @@ def search_equipment_extended(query):
         display = f"{eq_name}" + (f" (№{eq_num})" if eq_num else "") + f" 🔧 Агрегат: {agg_name}" + (f" (№{agg_num})" if agg_num else "")
         results.append({"display": display, "eq_name": eq_name, "eq_number": eq_num,
                         "agg_name": agg_name, "agg_number": agg_num})
-
     conn.close()
     seen = set()
     unique = []
@@ -739,6 +771,181 @@ def get_user_full_name(username):
     if res and res[0]:
         return res[0]
     return username
+
+# ============================================================
+# ФУНКЦИИ ДЛЯ ТО, МОТОЧАСОВ, КОМПЛЕКТОВ
+# ============================================================
+def get_equipment_assignments(username=None):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if username:
+        c.execute("SELECT equipment_name FROM equipment_assignments WHERE username=?", (username,))
+    else:
+        c.execute("SELECT equipment_name, username FROM equipment_assignments")
+    res = c.fetchall()
+    conn.close()
+    return res
+
+def assign_equipment(equipment_name, username):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO equipment_assignments (equipment_name, username, assigned_date) VALUES (?,?,?)",
+                  (equipment_name, username, now_local()))
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        conn.close()
+        return False
+
+def remove_assignment(assignment_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM equipment_assignments WHERE id=?", (assignment_id,))
+    conn.commit()
+    conn.close()
+
+def add_equipment_usage(equipment_name, value, usage_type, user):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO equipment_usage (equipment_name, record_date, value, usage_type, created_by, created_at) VALUES (?,?,?,?,?,?)",
+              (equipment_name, now_local(), value, usage_type, user, now_local()))
+    conn.commit()
+    conn.close()
+
+def get_equipment_usage(equipment_name=None):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if equipment_name:
+        c.execute("SELECT * FROM equipment_usage WHERE equipment_name=? ORDER BY record_date DESC", (equipment_name,))
+    else:
+        c.execute("SELECT * FROM equipment_usage ORDER BY record_date DESC")
+    res = c.fetchall()
+    conn.close()
+    return res
+
+def get_last_usage(equipment_name, usage_type='motohours'):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT value FROM equipment_usage WHERE equipment_name=? AND usage_type=? ORDER BY record_date DESC LIMIT 1",
+              (equipment_name, usage_type))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else 0
+
+def delete_usage(usage_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM equipment_usage WHERE id=?", (usage_id,))
+    conn.commit()
+    conn.close()
+
+def create_service_kit(kit_name, equipment_name, description, items, user):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO service_kits (kit_name, equipment_name, description, created_by, created_at) VALUES (?,?,?,?,?)",
+              (kit_name, equipment_name, description, user, now_local()))
+    kit_id = c.lastrowid
+    for item_id, qty in items:
+        c.execute("INSERT INTO service_kit_items (kit_id, item_id, quantity) VALUES (?,?,?)", (kit_id, item_id, qty))
+    conn.commit()
+    conn.close()
+    return kit_id
+
+def get_service_kits(equipment_name=None):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if equipment_name:
+        c.execute("SELECT * FROM service_kits WHERE equipment_name=?", (equipment_name,))
+    else:
+        c.execute("SELECT * FROM service_kits")
+    kits = c.fetchall()
+    result = []
+    for kit in kits:
+        c.execute("SELECT item_id, quantity FROM service_kit_items WHERE kit_id=?", (kit[0],))
+        items = c.fetchall()
+        result.append((kit, items))
+    conn.close()
+    return result
+
+def delete_service_kit(kit_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM service_kit_items WHERE kit_id=?", (kit_id,))
+    c.execute("DELETE FROM service_kits WHERE id=?", (kit_id,))
+    conn.commit()
+    conn.close()
+
+def get_maintenance(equipment_name=None):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if equipment_name:
+        c.execute("SELECT * FROM maintenance WHERE equipment_name=? ORDER BY maintenance_date DESC", (equipment_name,))
+    else:
+        c.execute("SELECT * FROM maintenance ORDER BY maintenance_date DESC")
+    res = c.fetchall()
+    conn.close()
+    return res
+
+def add_maintenance(equipment_name, maintenance_date, next_date, description, maint_type, user):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO maintenance (equipment_name, maintenance_date, next_maintenance_date, description, maintenance_type, created_by, created_at) VALUES (?,?,?,?,?,?,?)",
+              (equipment_name, maintenance_date, next_date, description, maint_type, user, now_local()))
+    conn.commit()
+    conn.close()
+
+def delete_maintenance(maint_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM maintenance WHERE id=?", (maint_id,))
+    conn.commit()
+    conn.close()
+
+def get_last_maintenance(equipment_name):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT maintenance_date, next_maintenance_date FROM maintenance WHERE equipment_name=? ORDER BY maintenance_date DESC LIMIT 1", (equipment_name,))
+    row = c.fetchone()
+    conn.close()
+    return (row[0], row[1]) if row else (None, None)
+
+def get_to_status():
+    equipment_list = get_equipment()
+    alerts = []
+    today = datetime.now().date()
+    for eq in equipment_list:
+        eq_name = eq[1]
+        service_days = eq[4] if len(eq) > 4 else 0
+        service_hours = eq[5] if len(eq) > 5 else 0
+        last_date, next_date = get_last_maintenance(eq_name)
+        last_motohours = get_last_usage(eq_name, 'motohours')
+        status = "ok"
+        message = ""
+        if next_date:
+            next_dt = datetime.strptime(next_date[:10], "%Y-%m-%d").date()
+            days_left = (next_dt - today).days
+            if days_left < 0:
+                status = "overdue"
+                message = f"Просрочено ТО на {-days_left} дн."
+            elif days_left <= 7:
+                status = "soon"
+                message = f"ТО через {days_left} дн."
+        if service_hours > 0 and last_motohours > 0:
+            next_hours = last_motohours + service_hours
+            hours_left = next_hours - get_last_usage(eq_name, 'motohours')
+            if hours_left <= 0:
+                status = "overdue" if status != "overdue" else status
+                message += f" | Просрочено по моточасам на {-hours_left} ч."
+            elif hours_left <= 50:
+                if status != "overdue":
+                    status = "soon"
+                message += f" | ТО через {hours_left} моточасов"
+        if status != "ok":
+            alerts.append((eq_name, status, message))
+    return alerts
+
 # ============================================================
 # 5. УВЕДОМЛЕНИЯ И СПИСОК ПОКУПОК
 # ============================================================
@@ -946,6 +1153,16 @@ with st.sidebar:
     else:
         if st.button("✅ Нет уведомлений", use_container_width=True):
             pass
+    # уведомления о ТО
+    to_alerts = get_to_status()
+    if to_alerts:
+        st.divider()
+        st.markdown("### 🔧 ТО")
+        for eq_name, status, msg in to_alerts:
+            if status == "overdue":
+                st.error(f"🔴 {eq_name}: {msg}")
+            else:
+                st.warning(f"🟡 {eq_name}: {msg}")
     if role == "admin":
         shopping = get_shopping_list()
         if shopping:
@@ -1011,13 +1228,13 @@ if role == "admin":
     if counts['unread_low_stock'] > 0: low_stock_label += f" ⚠️{counts['unread_low_stock']}"
     consumption_label = "📤 Списания"
     if counts['unread_consumptions'] > 0: consumption_label += f" 🆕{counts['unread_consumptions']}"
-    tabs = st.tabs([request_label, low_stock_label, consumption_label, "🛒 Покупки", "🚜 Парк", "👥 Пользователи", "⚙️ Управление", "📊 Отчёты"])
+    tabs = st.tabs([request_label, "🔧 ТО и ремонты", low_stock_label, consumption_label, "🛒 Покупки", "🚜 Парк", "👥 Пользователи", "⚙️ Управление", "📊 Отчёты"])
 else:
     request_label = "📝 Заявки"
     if counts['unread_requests'] > 0: request_label += f" 🔴{counts['unread_requests']}"
     consumption_label = "📤 Списания"
     if counts['unread_consumptions'] > 0: consumption_label += f" 🆕{counts['unread_consumptions']}"
-    tabs = st.tabs([request_label, "📋 Товары", consumption_label, "🛒 Покупки", "🚜 Парк", "⚙️ Управление"])
+    tabs = st.tabs([request_label, "🔧 ТО и ремонты", "📋 Товары", consumption_label, "🛒 Покупки", "🚜 Парк", "⚙️ Управление"])
 
 # ============================================================
 # 8.1 ЗАЯВКИ
@@ -1183,6 +1400,293 @@ with tabs[0]:
                                 if st.button("🗑️ Удалить", key=f"del_suggested_{r['id']}"): delete_request(r['id']); st.success("🗑️ Заявка удалена!"); st.rerun()
                 else:
                     st.info(f"Нет заявок со статусом '{label}'")
+
+# ============================================================
+# 8.2 ТО И РЕМОНТЫ (ИНДЕКС 1)
+# ============================================================
+with tabs[1]:
+    st.markdown("## 🔧 Техническое обслуживание и ремонты")
+    equipment_list = get_equipment()
+    if not equipment_list:
+        st.info("🚜 Парк техники пуст. Добавьте технику в разделе «Парк».")
+    else:
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📅 План ТО", "📋 Журнал работ", "⏱️ Моточасы / Пробег", "📦 Комплекты ТО", "📊 Аналитика"])
+        
+        # ==================== ПЛАН ТО ====================
+        with tab1:
+            st.subheader("📅 План технического обслуживания")
+            maint_data = []
+            today = datetime.now().date()
+            for eq in equipment_list:
+                eq_name = eq[1]
+                service_days = eq[4] if len(eq) > 4 else 0
+                service_hours = eq[5] if len(eq) > 5 else 0
+                last_date, next_date = get_last_maintenance(eq_name)
+                last_motohours = get_last_usage(eq_name, 'motohours')
+                if next_date:
+                    next_dt = datetime.strptime(next_date[:10], "%Y-%m-%d").date()
+                    days_left = (next_dt - today).days
+                    if days_left < 0:
+                        day_status = "🔴 Просрочено"
+                    elif days_left <= 7:
+                        day_status = "🟡 Скоро"
+                    else:
+                        day_status = "🟢 ОК"
+                else:
+                    days_left = "—"
+                    day_status = "⚪ Нет данных"
+                if service_hours > 0:
+                    current_hours = get_last_usage(eq_name, 'motohours')
+                    next_hours = last_motohours + service_hours
+                    hours_left = next_hours - current_hours
+                    if hours_left <= 0:
+                        hour_status = "🔴 Просрочено"
+                    elif hours_left <= 50:
+                        hour_status = "🟡 Скоро"
+                    else:
+                        hour_status = "🟢 ОК"
+                else:
+                    hours_left = "—"
+                    hour_status = "⚪ Нет данных"
+                    current_hours = "—"
+                    next_hours = "—"
+                maint_data.append({
+                    "Техника": eq_name,
+                    "Интервал (дни)": service_days,
+                    "Интервал (часы)": service_hours,
+                    "Последнее ТО": last_date[:10] if last_date else "—",
+                    "След. ТО (дата)": next_date[:10] if next_date else "—",
+                    "Осталось дней": days_left,
+                    "Статус (дни)": day_status,
+                    "Текущие моточасы": current_hours,
+                    "След. ТО (часы)": next_hours,
+                    "Осталось часов": hours_left if isinstance(hours_left, (int, float)) else "—",
+                    "Статус (часы)": hour_status
+                })
+            df_plan = pd.DataFrame(maint_data)
+            st.dataframe(df_plan, use_container_width=True, hide_index=True)
+            
+            buffer_plan = io.BytesIO()
+            with pd.ExcelWriter(buffer_plan, engine='openpyxl') as writer:
+                df_plan.to_excel(writer, sheet_name='План ТО', index=False)
+            st.download_button(
+                label="📥 Скачать план ТО (Excel)",
+                data=buffer_plan.getvalue(),
+                file_name=f"план_ТО_{now_local_file()}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_plan_to"
+            )
+            
+            if role == "admin":
+                st.divider()
+                st.subheader("⚙️ Настройка интервалов ТО")
+                with st.form("set_intervals"):
+                    eq_select = st.selectbox("Выберите технику", [eq[1] for eq in equipment_list])
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        days = st.number_input("Интервал по дням", min_value=0, value=0, step=1)
+                    with col2:
+                        hours = st.number_input("Интервал по моточасам", min_value=0, value=0, step=10)
+                    if st.form_submit_button("💾 Сохранить"):
+                        conn = sqlite3.connect('storage.db')
+                        c = conn.cursor()
+                        c.execute("UPDATE equipment SET service_interval_days=?, service_interval_hours=? WHERE name=?",
+                                  (days, hours, eq_select))
+                        conn.commit()
+                        conn.close()
+                        st.success("✅ Интервалы обновлены!")
+                        st.rerun()
+        
+        # ==================== ЖУРНАЛ РАБОТ ====================
+        with tab2:
+            st.subheader("📋 Журнал проведённых работ")
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                filter_eq = st.selectbox("Фильтр по технике", ["Все"] + [eq[1] for eq in equipment_list], key="maint_filter")
+            maint_records = get_maintenance() if filter_eq == "Все" else get_maintenance(filter_eq)
+            if maint_records:
+                df_journal = pd.DataFrame(maint_records, columns=[
+                    "ID", "Техника", "Дата", "След. ТО", "Описание", "Тип", "Кто", "Создано"
+                ])
+                buffer_journal = io.BytesIO()
+                with pd.ExcelWriter(buffer_journal, engine='openpyxl') as writer:
+                    df_journal.to_excel(writer, sheet_name='Журнал ТО', index=False)
+                st.download_button(
+                    label="📥 Скачать журнал (Excel)",
+                    data=buffer_journal.getvalue(),
+                    file_name=f"журнал_ТО_{now_local_file()}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_journal"
+                )
+                
+                for rec in maint_records:
+                    rec_id, eq_name, m_date, next_m_date, desc, m_type, created_by, created_at = rec
+                    with st.expander(f"{'🔧' if m_type == 'ТО' else '🛠️'} {eq_name} — {m_date[:10]} | {desc[:50]}"):
+                        st.write(f"**Тип:** {m_type}")
+                        st.write(f"**Дата:** {m_date[:10]}")
+                        st.write(f"**Следующее ТО:** {next_m_date[:10] if next_m_date else 'не указано'}")
+                        st.write(f"**Описание:** {desc}")
+                        st.caption(f"Запись: {created_by} | {created_at}")
+                        if role == "admin":
+                            if st.button("🗑️ Удалить", key=f"del_maint_{rec_id}"):
+                                delete_maintenance(rec_id)
+                                st.success("Удалено!")
+                                st.rerun()
+            else:
+                st.info("Записей не найдено.")
+            
+            if role == "admin":
+                st.divider()
+                st.subheader("➕ Добавить запись")
+                with st.form("add_maint"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        eq_name = st.selectbox("Техника*", [eq[1] for eq in equipment_list])
+                        m_type = st.selectbox("Тип работ", ["ТО", "Ремонт"])
+                        m_date = st.date_input("Дата проведения*", value=datetime.now().date())
+                    with col2:
+                        next_m_date = st.date_input("Дата следующего ТО (опционально)", value=None)
+                        kit_option = st.checkbox("Использовать комплект ТО")
+                    desc = st.text_area("Описание работ*")
+                    
+                    if kit_option:
+                        kits = get_service_kits(eq_name)
+                        if kits:
+                            kit_names = [f"{k[0][1]} (ID:{k[0][0]})" for k in kits]
+                            selected_kit = st.selectbox("Выберите комплект", kit_names)
+                            kit = kits[kit_names.index(selected_kit)]
+                            st.write("**Состав комплекта:**")
+                            for item_id, qty in kit[1]:
+                                conn = sqlite3.connect('storage.db')
+                                c = conn.cursor()
+                                c.execute("SELECT name, quantity FROM items WHERE id=?", (item_id,))
+                                item = c.fetchone()
+                                conn.close()
+                                if item:
+                                    st.write(f"- {item[0]} x{qty} (на складе: {item[1]})")
+                    
+                    if st.form_submit_button("💾 Сохранить"):
+                        if desc:
+                            add_maintenance(eq_name, m_date.strftime("%Y-%m-%d"),
+                                           next_m_date.strftime("%Y-%m-%d") if next_m_date else "",
+                                           desc, m_type, user_name)
+                            if kit_option and kits:
+                                for item_id, qty in kit[1]:
+                                    conn = sqlite3.connect('storage.db')
+                                    c = conn.cursor()
+                                    c.execute("UPDATE items SET quantity = quantity - ? WHERE id=?", (qty, item_id))
+                                    conn.commit()
+                                    conn.close()
+                            st.success("✅ Запись добавлена!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Заполните описание!")
+        
+        # ==================== МОТОЧАСЫ / ПРОБЕГ ====================
+        with tab3:
+            st.subheader("⏱️ Учёт моточасов и пробега")
+            with st.form("add_usage"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    eq_name = st.selectbox("Техника", [eq[1] for eq in equipment_list])
+                    usage_type = st.selectbox("Тип", ["motohours", "mileage"])
+                with col2:
+                    value = st.number_input("Текущее значение", min_value=0.0, step=1.0)
+                if st.form_submit_button("📝 Записать"):
+                    add_equipment_usage(eq_name, value, usage_type, user_name)
+                    st.success("✅ Показания сохранены!")
+                    alerts = get_to_status()
+                    for alert_eq, status, msg in alerts:
+                        if alert_eq == eq_name and status != "ok":
+                            st.warning(f"⚠️ {msg}")
+                    st.rerun()
+            
+            st.divider()
+            usage_records = get_equipment_usage()
+            if usage_records:
+                df_usage = pd.DataFrame(usage_records, columns=["ID","Техника","Дата","Значение","Тип","Кто","Создано"])
+                buffer_usage = io.BytesIO()
+                with pd.ExcelWriter(buffer_usage, engine='openpyxl') as writer:
+                    df_usage[["Техника","Дата","Значение","Тип","Кто"]].to_excel(writer, sheet_name='Моточасы', index=False)
+                st.download_button(
+                    label="📥 Скачать данные (Excel)",
+                    data=buffer_usage.getvalue(),
+                    file_name=f"моточасы_{now_local_file()}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_usage"
+                )
+                st.dataframe(df_usage[["Техника","Дата","Значение","Тип","Кто"]], use_container_width=True)
+                if role == "admin":
+                    st.subheader("🗑️ Удаление записей")
+                    del_id = st.number_input("ID записи для удаления", min_value=1, step=1)
+                    if st.button("Удалить"):
+                        delete_usage(del_id)
+                        st.success("Удалено!")
+                        st.rerun()
+            else:
+                st.info("Записей о наработке нет.")
+        
+        # ==================== КОМПЛЕКТЫ ТО ====================
+        with tab4:
+            st.subheader("📦 Комплекты для ТО")
+            if role == "admin":
+                with st.form("create_kit"):
+                    st.write("**Создать новый комплект**")
+                    kit_name = st.text_input("Название комплекта*")
+                    eq_for_kit = st.selectbox("Для техники", [eq[1] for eq in equipment_list])
+                    kit_desc = st.text_area("Описание")
+                    all_items = get_all_items()
+                    item_options = {f"{it[1]} (ост. {it[6]})": it[0] for it in all_items}
+                    selected_items = st.multiselect("Выберите товары", list(item_options.keys()))
+                    quantities = {}
+                    for item_str in selected_items:
+                        qty = st.number_input(f"Количество для '{item_str}'", min_value=0.1, value=1.0, step=1.0)
+                        quantities[item_str] = qty
+                    if st.form_submit_button("💾 Создать комплект"):
+                        if kit_name and selected_items:
+                            items = [(item_options[it], quantities[it]) for it in selected_items]
+                            create_service_kit(kit_name, eq_for_kit, kit_desc, items, user_name)
+                            st.success("✅ Комплект создан!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Укажите название и выберите товары!")
+            
+            kits = get_service_kits()
+            if kits:
+                for kit, items in kits:
+                    with st.expander(f"📦 {kit[1]} (ID:{kit[0]}) — для {kit[2]}"):
+                        st.write(f"**Описание:** {kit[3]}")
+                        st.write("**Состав:**")
+                        for item_id, qty in items:
+                            conn = sqlite3.connect('storage.db')
+                            c = conn.cursor()
+                            c.execute("SELECT name FROM items WHERE id=?", (item_id,))
+                            item = c.fetchone()
+                            conn.close()
+                            if item:
+                                st.write(f"- {item[0]} x{qty}")
+                        if role == "admin":
+                            if st.button("🗑️ Удалить комплект", key=f"del_kit_{kit[0]}"):
+                                delete_service_kit(kit[0])
+                                st.success("Комплект удалён!")
+                                st.rerun()
+            else:
+                st.info("Нет созданных комплектов.")
+        
+        # ==================== АНАЛИТИКА ====================
+        with tab5:
+            st.subheader("📊 Аналитика обслуживания")
+            maint_all = get_maintenance()
+            if maint_all:
+                df_maint = pd.DataFrame(maint_all, columns=["ID","Техника","Дата","След.ТО","Описание","Тип","Кто","Создано"])
+                df_maint['Дата'] = pd.to_datetime(df_maint['Дата'])
+                df_maint['Месяц'] = df_maint['Дата'].dt.to_period('M').astype(str)
+                repairs = df_maint[df_maint['Тип'] == 'Ремонт']
+                if not repairs.empty:
+                    monthly = repairs.groupby('Месяц').size()
+                    st.bar_chart(monthly)
+                else:
+                    st.info("Нет данных о ремонтах.")
 
 # ============================================================
 # 8.2 ТОВАРЫ (ИНДЕКС 1)
