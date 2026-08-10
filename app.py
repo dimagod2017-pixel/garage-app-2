@@ -1134,7 +1134,7 @@ with tabs[0]:
                     st.info(f"Нет заявок со статусом '{label}'")
 
 # ============================================================
-# 8.2 ТОВАРЫ
+# 8.2 ТОВАРЫ (ИНДЕКС 1)
 # ============================================================
 with tabs[1]:
     st.markdown("## 📋 Все товары")
@@ -1283,27 +1283,19 @@ with tabs[1]:
                                 eq_search = st.text_input("Поиск техники (название или номер)", key=f"eqs_{uid}", placeholder="Введите название…")
                             if eq_search:
                                 ext_results = search_equipment_extended(eq_search)
-                                if ext_results:
-                                    options = [r['display'] for r in ext_results]
-                                    selected_display = st.selectbox("Выберите технику", options, key=f"eq_sel_{uid}")
-                                    selected_obj = next(r for r in ext_results if r['display'] == selected_display)
-                                    eq_name, eq_number = selected_obj['eq_name'], selected_obj['eq_number']
-                                else:
-                                    st.warning("⚠️ Ничего не найдено")
-                                    eq_name, eq_number = None, None
                             else:
-                                all_eq = get_equipment()
-                                if all_eq:
-                                    options = [f"{e[1]}" + (f" (№{e[2]})" if e[2] else "") for e in all_eq]
-                                    selected_display = st.selectbox("Выберите технику", options, key=f"eq_sel_{uid}")
-                                    for e in all_eq:
-                                        disp = f"{e[1]}" + (f" (№{e[2]})" if e[2] else "")
-                                        if disp == selected_display:
-                                            eq_name, eq_number = e[1], e[2] if e[2] else ""
-                                            break
-                                else:
-                                    st.warning("⚠️ Нет техники")
-                                    eq_name, eq_number = None, None
+                                # Показываем всю технику вместе с агрегатами
+                                ext_results = search_equipment_extended("")
+                            
+                            if ext_results:
+                                options = [r['display'] for r in ext_results]
+                                selected_display = st.selectbox("Выберите технику", options, key=f"eq_sel_{uid}")
+                                selected_obj = next(r for r in ext_results if r['display'] == selected_display)
+                                eq_name, eq_number = selected_obj['eq_name'], selected_obj['eq_number']
+                            else:
+                                st.warning("⚠️ Ничего не найдено")
+                                eq_name, eq_number = None, None
+                            
                             if eq_name:
                                 take_photo = st.file_uploader("📸 Фото (опционально)", type=["jpg","jpeg","png"], key=f"tp_{uid}")
                                 if st.button("✅ Подтвердить взятие", key=f"confirm_{uid}", use_container_width=True):
@@ -1375,27 +1367,19 @@ with tabs[1]:
                                     eq_search = st.text_input("Поиск техники", key=f"eqs_admin_{uid}")
                                     if eq_search:
                                         ext_results = search_equipment_extended(eq_search)
-                                        if ext_results:
-                                            options = [r['display'] for r in ext_results]
-                                            selected_display = st.selectbox("Выберите технику", options, key=f"eq_sel_admin_{uid}")
-                                            selected_obj = next(r for r in ext_results if r['display'] == selected_display)
-                                            eq_name, eq_number = selected_obj['eq_name'], selected_obj['eq_number']
-                                        else:
-                                            st.warning("⚠️ Ничего не найдено")
-                                            eq_name, eq_number = None, None
                                     else:
-                                        all_eq = get_equipment()
-                                        if all_eq:
-                                            options = [f"{e[1]}" + (f" (№{e[2]})" if e[2] else "") for e in all_eq]
-                                            selected_display = st.selectbox("Выберите технику", options, key=f"eq_sel_admin_{uid}")
-                                            for e in all_eq:
-                                                disp = f"{e[1]}" + (f" (№{e[2]})" if e[2] else "")
-                                                if disp == selected_display:
-                                                    eq_name, eq_number = e[1], e[2] if e[2] else ""
-                                                    break
-                                        else:
-                                            st.warning("⚠️ Нет техники")
-                                            eq_name, eq_number = None, None
+                                        # Показываем всю технику вместе с агрегатами
+                                        ext_results = search_equipment_extended("")
+                                    
+                                    if ext_results:
+                                        options = [r['display'] for r in ext_results]
+                                        selected_display = st.selectbox("Выберите технику", options, key=f"eq_sel_admin_{uid}")
+                                        selected_obj = next(r for r in ext_results if r['display'] == selected_display)
+                                        eq_name, eq_number = selected_obj['eq_name'], selected_obj['eq_number']
+                                    else:
+                                        st.warning("⚠️ Ничего не найдено")
+                                        eq_name, eq_number = None, None
+                                    
                                     if eq_name:
                                         take_photo = st.file_uploader("📸 Фото", type=["jpg","jpeg","png"], key=f"tp_admin_{uid}")
                                         c1,c2 = st.columns(2)
