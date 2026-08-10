@@ -1447,8 +1447,7 @@ with tabs[1]:
     else:
         st.info("📭 Склад пуст. Добавьте товары через боковую панель.")
     st.success(f"Найдено товаров: {len(items)}")
-
-        # --- ЭКСПОРТ В EXCEL ---
+    # --- ЭКСПОРТ В EXCEL ---
         if items:
             # Формируем DataFrame из текущего списка товаров
             df_export = pd.DataFrame(items, columns=[
