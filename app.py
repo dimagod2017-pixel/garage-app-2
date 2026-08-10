@@ -278,17 +278,39 @@ def init_db():
         password TEXT, full_name TEXT, role TEXT DEFAULT 'employee',
         status TEXT DEFAULT 'pending', created_at TEXT,
         approved_by TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS maintenance (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        equipment_name TEXT,
-        maintenance_date TEXT,
-        next_maintenance_date TEXT,
-        description TEXT,
-        maintenance_type TEXT DEFAULT 'TO',
-        to_type TEXT DEFAULT 'TO-1',
-        created_by TEXT,
-        created_at TEXT
-    )''')
+    
+    # === ИСПРАВЛЕННАЯ ТАБЛИЦА maintenance ===
+    # Проверяем, есть ли колонка to_type в существующей таблице
+    c.execute("PRAGMA table_info(maintenance)")
+    columns = [col[1] for col in c.fetchall()]
+    if 'to_type' not in columns:
+        # Если колонки нет – пересоздаём таблицу
+        c.execute("DROP TABLE IF EXISTS maintenance")
+        c.execute('''CREATE TABLE IF NOT EXISTS maintenance (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            equipment_name TEXT,
+            maintenance_date TEXT,
+            next_maintenance_date TEXT,
+            description TEXT,
+            maintenance_type TEXT DEFAULT 'TO',
+            to_type TEXT DEFAULT 'TO-1',
+            created_by TEXT,
+            created_at TEXT
+        )''')
+    else:
+        # Если колонка есть – просто создаём таблицу (если её почему-то нет)
+        c.execute('''CREATE TABLE IF NOT EXISTS maintenance (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            equipment_name TEXT,
+            maintenance_date TEXT,
+            next_maintenance_date TEXT,
+            description TEXT,
+            maintenance_type TEXT DEFAULT 'TO',
+            to_type TEXT DEFAULT 'TO-1',
+            created_by TEXT,
+            created_at TEXT
+        )''')
+    
     c.execute('''CREATE TABLE IF NOT EXISTS equipment_to_intervals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         equipment_name TEXT,
