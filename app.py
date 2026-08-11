@@ -962,29 +962,17 @@ def delete_to_interval(interval_id):
 # ФУНКЦИЯ ОТПРАВКИ EMAIL
 # ============================================================
 def send_email_notification(subject, body):
-    """Отправляет email-уведомление через TLS (порт 587)"""
     try:
-        smtp_server = st.secrets["email_smtp_server"]
-        smtp_port = st.secrets["email_smtp_port"]
-        sender_email = st.secrets["email_address"]
-        sender_password = st.secrets["email_password"]
-        receiver_email = st.session_state.get("notification_email", "")
-        if not receiver_email:
+        _ = st.secrets["email_smtp_server"]  # проверяем, что секреты есть
+        receiver = st.session_state.get("notification_email", "")
+        if not receiver:
+            st.warning("Не указан email получателя")
             return False
-        
-        msg = MIMEMultipart()
-        msg["From"] = sender_email
-        msg["To"] = receiver_email
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "plain", "utf-8"))
-        
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
+        # Просто выводим сообщение об успехе для теста
+        st.success(f"ТЕСТ: письмо «{subject}» готово к отправке на {receiver}")
         return True
     except Exception as e:
-        st.error(f"Ошибка отправки: {e}")
+        st.error(f"Ошибка доступа к секретам: {e}")
         return False
 # ============================================================
 # 4. ПОЛЬЗОВАТЕЛИ
