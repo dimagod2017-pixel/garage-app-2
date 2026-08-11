@@ -279,34 +279,27 @@ def init_db():
         status TEXT DEFAULT 'pending', created_at TEXT,
         approved_by TEXT)''')
     
-    # === ИСПРАВЛЕННАЯ ТАБЛИЦА maintenance ===
+    # === ТАБЛИЦА maintenance ===
+    # Создаём таблицу, если её нет (с полем motohours)
+    c.execute('''CREATE TABLE IF NOT EXISTS maintenance (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        equipment_name TEXT,
+        maintenance_date TEXT,
+        next_maintenance_date TEXT,
+        description TEXT,
+        maintenance_type TEXT DEFAULT 'TO',
+        to_type TEXT DEFAULT 'TO-1',
+        motohours REAL DEFAULT 0,
+        created_by TEXT,
+        created_at TEXT
+    )''')
+    # Добавляем колонки, если их нет (для старых баз)
     c.execute("PRAGMA table_info(maintenance)")
     columns = [col[1] for col in c.fetchall()]
     if 'to_type' not in columns:
-        c.execute("DROP TABLE IF EXISTS maintenance")
-        c.execute('''CREATE TABLE IF NOT EXISTS maintenance (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            equipment_name TEXT,
-            maintenance_date TEXT,
-            next_maintenance_date TEXT,
-            description TEXT,
-            maintenance_type TEXT DEFAULT 'TO',
-            to_type TEXT DEFAULT 'TO-1',
-            created_by TEXT,
-            created_at TEXT
-        )''')
-    else:
-        c.execute('''CREATE TABLE IF NOT EXISTS maintenance (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            equipment_name TEXT,
-            maintenance_date TEXT,
-            next_maintenance_date TEXT,
-            description TEXT,
-            maintenance_type TEXT DEFAULT 'TO',
-            to_type TEXT DEFAULT 'TO-1',
-            created_by TEXT,
-            created_at TEXT
-        )''')
+        c.execute("ALTER TABLE maintenance ADD COLUMN to_type TEXT DEFAULT 'TO-1'")
+    if 'motohours' not in columns:
+        c.execute("ALTER TABLE maintenance ADD COLUMN motohours REAL DEFAULT 0")
     
     c.execute('''CREATE TABLE IF NOT EXISTS equipment_to_intervals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -318,14 +311,13 @@ def init_db():
         created_at TEXT
     )''')
     
-    # === ТАБЛИЦА НАЗНАЧЕНИЙ С ПОДДЕРЖКОЙ ВРЕМЕННОГО ЗАКРЕПЛЕНИЯ ===
+    # === ТАБЛИЦА НАЗНАЧЕНИЙ ===
     c.execute('''CREATE TABLE IF NOT EXISTS equipment_assignments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         equipment_name TEXT,
         username TEXT,
         assigned_date TEXT
     )''')
-    # Добавляем поле end_date, если его ещё нет (для временных назначений)
     c.execute("PRAGMA table_info(equipment_assignments)")
     assign_columns = [col[1] for col in c.fetchall()]
     if 'end_date' not in assign_columns:
