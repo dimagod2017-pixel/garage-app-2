@@ -2657,7 +2657,7 @@ if role == "admin":
 if role == "admin":
     with tabs[7]:
         st.markdown("## ⚙️ Управление")
-        tab_a, tab_b, tab_c = st.tabs(["🏠 Помещения", "🎨 Оформление", "💾 Бэкапы"])
+        tab_a, tab_b, tab_c, tab_d = st.tabs(["🏠 Помещения", "🎨 Оформление", "💾 Бэкапы", "🔔 Уведомления"])
         with tab_a:
             st.markdown("### 🏠 Управление помещениями")
             with st.expander("➕ Добавить помещение", expanded=False):
@@ -2786,6 +2786,26 @@ if role == "admin":
                     st.divider()
                     st.markdown("**📦 Существующие бэкапы:**")
                     for backup in backups[:10]: st.write(f"📦 {backup}")
+        with tab_d:
+            st.markdown("### 📧 Email-уведомления")
+            st.caption("Уведомления будут приходить на указанный email. Отправитель настраивается в секретах Streamlit.")
+            
+            notification_email = st.text_input(
+                "Email для уведомлений",
+                value=st.session_state.get("notification_email", ""),
+                key="notification_email_input"
+            )
+            if st.button("💾 Сохранить email"):
+                st.session_state.notification_email = notification_email
+                st.success("Email сохранён!")
+                st.rerun()
+            
+            st.divider()
+            if st.button("📤 Тестовое письмо"):
+                if send_email_notification("SmartStock ✅ Тест", "Тестовое уведомление. Всё работает!"):
+                    st.success("Письмо отправлено! Проверьте почту.")
+                else:
+                    st.error("❌ Не удалось отправить. Проверьте настройки в секретах.")
 
 else:
     with tabs[6]:
