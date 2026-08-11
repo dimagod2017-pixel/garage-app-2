@@ -1777,7 +1777,10 @@ with tabs[1]:
             st.subheader("📊 Аналитика обслуживания")
             maint_all = get_maintenance()
             if maint_all:
-                df_maint = pd.DataFrame(maint_all, columns=["ID","Техника","Дата","След.ТО","Описание","Тип","Кто","Создано"])
+                df_maint = pd.DataFrame(maint_all, columns=[
+                    "ID", "Техника", "Дата", "След.ТО", "Описание", 
+                    "Тип", "to_type", "Моточасы", "Кто", "Создано"
+                ])
                 df_maint['Дата'] = pd.to_datetime(df_maint['Дата'])
                 df_maint['Месяц'] = df_maint['Дата'].dt.to_period('M').astype(str)
                 repairs = df_maint[df_maint['Тип'] == 'Ремонт']
