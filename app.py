@@ -9,6 +9,9 @@ import base64
 import time
 import pandas as pd
 import io
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # ============================================================
 # 1. НАСТРОЙКА И ПЕРЕМЕННЫЕ
@@ -897,31 +900,39 @@ def get_to_status():
         for interval in intervals:
             int_id, _, to_type, int_days, int_hours, created_by, _ = interval
             last_date, next_date, last_motohours = get_last_maintenance(eq_name, to_type)
+            msg = ""
             # проверка по дням
             if next_date:
                 next_dt = datetime.strptime(next_date[:10], "%Y-%m-%d").date()
                 days_left = (next_dt - today).days
                 if days_left < 0:
-                    alerts.append((eq_name, "overdue", f"{to_type}: просрочено на {-days_left} дн."))
+                    msg = f"{to_type}: просрочено на {-days_left} дн."
                 elif days_left <= 7:
-                    alerts.append((eq_name, "soon", f"{to_type}: через {days_left} дн."))
+                    msg = f"{to_type}: через {days_left} дн."
             elif last_date and int_days > 0:
                 last_dt = datetime.strptime(last_date[:10], "%Y-%m-%d").date()
                 next_dt = last_dt + timedelta(days=int_days)
                 days_left = (next_dt - today).days
                 if days_left < 0:
-                    alerts.append((eq_name, "overdue", f"{to_type}: просрочено на {-days_left} дн."))
+                    msg = f"{to_type}: просрочено на {-days_left} дн."
                 elif days_left <= 7:
-                    alerts.append((eq_name, "soon", f"{to_type}: через {days_left} дн."))
+                    msg = f"{to_type}: через {days_left} дн."
             # проверка по моточасам (используем моточасы на момент последнего ТО)
             if int_hours > 0 and last_motohours > 0:
                 current_hours = get_last_usage(eq_name, 'motohours')
                 next_hours = last_motohours + int_hours
                 hours_left = next_hours - current_hours
                 if hours_left <= 0:
-                    alerts.append((eq_name, "overdue", f"{to_type}: просрочено по моточасам на {-hours_left} ч."))
+                    msg = f"{to_type}: просрочено по моточасам на {-hours_left} ч."
                 elif hours_left <= 50:
-                    alerts.append((eq_name, "soon", f"{to_type}: через {hours_left} моточасов"))
+                    msg = f"{to_type}: через {hours_left} моточасов"
+            if msg:
+                alerts.append((eq_name, "overdue" if "просрочено" in msg else "soon", msg))
+                # Email-уведомление о ТО
+                send_email_notification(
+                    "🔧 ТО требуется",
+                    f"{eq_name} — {msg}"
+                )
     return alerts
 
 def get_to_intervals(equipment_name):
@@ -951,7 +962,7 @@ def delete_to_interval(interval_id):
 # ФУНКЦИЯ ОТПРАВКИ EMAIL
 # ============================================================
 def send_email_notification(subject, body):
-    """Отправляет email-уведомление"""
+    """Отправляет email-уведомление через TLS (порт 587)"""
     try:
         smtp_server = st.secrets["email_smtp_server"]
         smtp_port = st.secrets["email_smtp_port"]
@@ -967,11 +978,13 @@ def send_email_notification(subject, body):
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain", "utf-8"))
         
-        with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, receiver_email, msg.as_string())
         return True
-    except:
+    except Exception as e:
+        st.error(f"Ошибка отправки: {e}")
         return False
 # ============================================================
 # 4. ПОЛЬЗОВАТЕЛИ
@@ -1065,6 +1078,11 @@ def get_notifications():
                     'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
                     'actions': ['approve', 'reject', 'work'], 'is_read': r.get('seen', 0) == 1
                 })
+                # Email-уведомление о новой заявке
+                send_email_notification(
+                    "📝 Новая заявка",
+                    f"{r['name']} от {r['user']}\nКоличество: {r['quantity']} {r['unit']}"
+                )
         for req in get_requests(status='returned'):
             r = unpack_request(req)
             nid = f"returned_{r['id']}"
@@ -1104,6 +1122,17 @@ def get_notifications():
                     'date': item[4], 'item_id': item[0], 'photo': photo_path,
                     'actions': ['restock'], 'is_read': False
                 })
+                # Email-уведомление о низких остатках
+                if item[6] == 0:
+                    send_email_notification(
+                        "🚨 Склад: закончился товар!",
+                        f"{item[1]} — отсутствует.\n📍 {item[2]} / {item[3]}"
+                    )
+                elif item[6] <= item[7] / 2:
+                    send_email_notification(
+                        "⚠️ Склад: заканчивается",
+                        f"{item[1]}: {item[6]} {item[5]} (порог {item[7]})\n📍 {item[2]} / {item[3]}"
+                    )
     else:
         user_name = st.session_state.user.get("username", "")
         for req in get_requests(user=user_name):
