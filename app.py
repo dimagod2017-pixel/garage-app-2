@@ -963,16 +963,35 @@ def delete_to_interval(interval_id):
 # ============================================================
 def send_email_notification(subject, body):
     try:
-        _ = st.secrets["email_smtp_server"]  # проверяем, что секреты есть
-        receiver = st.session_state.get("notification_email", "")
-        if not receiver:
+        smtp_server = st.secrets["email_smtp_server"]
+        smtp_port = int(st.secrets["email_smtp_port"])
+        sender_email = st.secrets["email_address"]
+        sender_password = st.secrets["email_password"]
+        receiver_email = st.session_state.get("notification_email", "")
+        
+        if not receiver_email:
             st.warning("Не указан email получателя")
             return False
-        # Просто выводим сообщение об успехе для теста
-        st.success(f"ТЕСТ: письмо «{subject}» готово к отправке на {receiver}")
+
+        msg = MIMEMultipart()
+        msg["From"] = sender_email
+        msg["To"] = receiver_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+
+        if smtp_port == 465:
+            with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+                server.login(sender_email, sender_password)
+                server.sendmail(sender_email, receiver_email, msg.as_string())
+        else:
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(sender_email, sender_password)
+                server.sendmail(sender_email, receiver_email, msg.as_string())
+        
         return True
     except Exception as e:
-        st.error(f"Ошибка доступа к секретам: {e}")
+        st.error(f"❌ Ошибка отправки: {e}")
         return False
 # ============================================================
 # 4. ПОЛЬЗОВАТЕЛИ
