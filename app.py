@@ -947,6 +947,32 @@ def delete_to_interval(interval_id):
     conn.commit()
     conn.close()
 # ============================================================
+# ФУНКЦИЯ ОТПРАВКИ EMAIL
+# ============================================================
+def send_email_notification(subject, body):
+    """Отправляет email-уведомление"""
+    try:
+        smtp_server = st.secrets["email_smtp_server"]
+        smtp_port = st.secrets["email_smtp_port"]
+        sender_email = st.secrets["email_address"]
+        sender_password = st.secrets["email_password"]
+        receiver_email = st.session_state.get("notification_email", "")
+        if not receiver_email:
+            return False
+        
+        msg = MIMEMultipart()
+        msg["From"] = sender_email
+        msg["To"] = receiver_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+        
+        with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+        return True
+    except:
+        return False
+# ============================================================
 # 4. ПОЛЬЗОВАТЕЛИ
 # ============================================================
 def add_user(username, code, full_name):
