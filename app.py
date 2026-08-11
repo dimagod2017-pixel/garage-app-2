@@ -867,11 +867,11 @@ def get_maintenance(equipment_name=None):
     conn.close()
     return res
 
-def add_maintenance(equipment_name, maintenance_date, next_date, description, maint_type, to_type, user):
+def add_maintenance(equipment_name, maintenance_date, next_date, description, maint_type, to_type, motohours, user):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    c.execute("INSERT INTO maintenance (equipment_name, maintenance_date, next_maintenance_date, description, maintenance_type, to_type, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)",
-              (equipment_name, maintenance_date, next_date, description, maint_type, to_type, user, now_local()))
+    c.execute("INSERT INTO maintenance (equipment_name, maintenance_date, next_maintenance_date, description, maintenance_type, to_type, motohours, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+              (equipment_name, maintenance_date, next_date, description, maint_type, to_type, motohours, user, now_local()))
     conn.commit()
     conn.close()
 
@@ -886,12 +886,12 @@ def get_last_maintenance(equipment_name, to_type=None):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
     if to_type:
-        c.execute("SELECT maintenance_date, next_maintenance_date FROM maintenance WHERE equipment_name=? AND to_type=? ORDER BY maintenance_date DESC LIMIT 1", (equipment_name, to_type))
+        c.execute("SELECT maintenance_date, next_maintenance_date, motohours FROM maintenance WHERE equipment_name=? AND to_type=? ORDER BY maintenance_date DESC LIMIT 1", (equipment_name, to_type))
     else:
-        c.execute("SELECT maintenance_date, next_maintenance_date FROM maintenance WHERE equipment_name=? ORDER BY maintenance_date DESC LIMIT 1", (equipment_name,))
+        c.execute("SELECT maintenance_date, next_maintenance_date, motohours FROM maintenance WHERE equipment_name=? ORDER BY maintenance_date DESC LIMIT 1", (equipment_name,))
     row = c.fetchone()
     conn.close()
-    return (row[0], row[1]) if row else (None, None)
+    return (row[0], row[1], row[2]) if row else (None, None, 0)
 
 def get_to_status():
     equipment_list = get_equipment()
@@ -904,7 +904,8 @@ def get_to_status():
             continue
         for interval in intervals:
             int_id, _, to_type, int_days, int_hours, created_by, _ = interval
-            last_date, next_date = get_last_maintenance(eq_name, to_type)
+            last_date, next_date, last_motohours = get_last_maintenance(eq_name, to_type)
+            # проверка по дням
             if next_date:
                 next_dt = datetime.strptime(next_date[:10], "%Y-%m-%d").date()
                 days_left = (next_dt - today).days
@@ -920,16 +921,15 @@ def get_to_status():
                     alerts.append((eq_name, "overdue", f"{to_type}: просрочено на {-days_left} дн."))
                 elif days_left <= 7:
                     alerts.append((eq_name, "soon", f"{to_type}: через {days_left} дн."))
-            if int_hours > 0:
-                last_motohours = get_last_usage(eq_name, 'motohours')
-                if last_motohours:
-                    current_hours = get_last_usage(eq_name, 'motohours')
-                    next_hours = last_motohours + int_hours
-                    hours_left = next_hours - current_hours
-                    if hours_left <= 0:
-                        alerts.append((eq_name, "overdue", f"{to_type}: просрочено по моточасам на {-hours_left} ч."))
-                    elif hours_left <= 50:
-                        alerts.append((eq_name, "soon", f"{to_type}: через {hours_left} моточасов"))
+            # проверка по моточасам (используем моточасы на момент последнего ТО)
+            if int_hours > 0 and last_motohours > 0:
+                current_hours = get_last_usage(eq_name, 'motohours')
+                next_hours = last_motohours + int_hours
+                hours_left = next_hours - current_hours
+                if hours_left <= 0:
+                    alerts.append((eq_name, "overdue", f"{to_type}: просрочено по моточасам на {-hours_left} ч."))
+                elif hours_left <= 50:
+                    alerts.append((eq_name, "soon", f"{to_type}: через {hours_left} моточасов"))
     return alerts
 
 def get_to_intervals(equipment_name):
@@ -1555,12 +1555,13 @@ with tabs[1]:
                         int_id, _, to_type, int_days, int_hours, created_by, _ = interval
                         conn = sqlite3.connect('storage.db')
                         c = conn.cursor()
-                        c.execute("SELECT maintenance_date, next_maintenance_date FROM maintenance WHERE equipment_name=? AND to_type=? ORDER BY maintenance_date DESC LIMIT 1",
+                        c.execute("SELECT maintenance_date, next_maintenance_date, motohours FROM maintenance WHERE equipment_name=? AND to_type=? ORDER BY maintenance_date DESC LIMIT 1",
                                   (eq_name, to_type))
                         last_to = c.fetchone()
                         conn.close()
                         last_date = last_to[0] if last_to else None
                         next_date = last_to[1] if last_to and last_to[1] else None
+                        last_to_motohours = last_to[2] if last_to else 0
                         if not next_date and last_date and int_days > 0:
                             last_dt = datetime.strptime(last_date[:10], "%Y-%m-%d").date()
                             next_date = (last_dt + timedelta(days=int_days)).strftime("%Y-%m-%d")
@@ -1576,10 +1577,10 @@ with tabs[1]:
                         else:
                             days_left = "—"
                             day_status = "⚪"
-                        last_motohours = get_last_usage(eq_name, 'motohours')
-                        if int_hours > 0 and last_motohours:
+                        # Расчёт по моточасам от моточасов последнего ТО этого типа
+                        if int_hours > 0 and last_to_motohours > 0:
                             current_hours = get_last_usage(eq_name, 'motohours')
-                            next_hours = last_motohours + int_hours
+                            next_hours = last_to_motohours + int_hours
                             hours_left = next_hours - current_hours
                             if hours_left <= 0:
                                 hour_status = "🔴"
@@ -1624,44 +1625,7 @@ with tabs[1]:
             )
         
         # ==================== ЖУРНАЛ РАБОТ ====================
-        with tab2:
-            st.subheader("📋 Журнал проведённых работ")
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                filter_eq = st.selectbox("Фильтр по технике", ["Все"] + [eq[1] for eq in equipment_list], key="maint_filter")
-            maint_records = get_maintenance() if filter_eq == "Все" else get_maintenance(filter_eq)
-            if maint_records:
-                df_journal = pd.DataFrame(maint_records, columns=[
-                    "ID", "Техника", "Дата", "След. ТО", "Описание", "Тип", "Кто", "Создано"
-                ])
-                buffer_journal = io.BytesIO()
-                with pd.ExcelWriter(buffer_journal, engine='openpyxl') as writer:
-                    df_journal.to_excel(writer, sheet_name='Журнал ТО', index=False)
-                st.download_button(
-                    label="📥 Скачать журнал (Excel)",
-                    data=buffer_journal.getvalue(),
-                    file_name=f"журнал_ТО_{now_local_file()}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="download_journal"
-                )
-                
-                for rec in maint_records:
-                    rec_id, eq_name, m_date, next_m_date, desc, m_type, created_by, created_at = rec
-                    with st.expander(f"{'🔧' if m_type == 'ТО' else '🛠️'} {eq_name} — {m_date[:10]} | {desc[:50]}"):
-                        st.write(f"**Тип:** {m_type}")
-                        st.write(f"**Дата:** {m_date[:10]}")
-                        st.write(f"**Следующее ТО:** {next_m_date[:10] if next_m_date else 'не указано'}")
-                        st.write(f"**Описание:** {desc}")
-                        st.caption(f"Запись: {created_by} | {created_at}")
-                        if role == "admin":
-                            if st.button("🗑️ Удалить", key=f"del_maint_{rec_id}"):
-                                delete_maintenance(rec_id)
-                                st.success("Удалено!")
-                                st.rerun()
-            else:
-                st.info("Записей не найдено.")
-            
-            if role == "admin":
+        if role == "admin":
                 st.divider()
                 st.subheader("➕ Добавить запись")
                 with st.form("add_maint"):
@@ -1674,11 +1638,15 @@ with tabs[1]:
                         next_m_date = st.date_input("Дата следующего ТО (опционально)", value=None)
                         kit_option = st.checkbox("Использовать комплект ТО")
                     to_type = "ТО-1"
+                    motohours = 0.0
                     if m_type == "ТО":
                         intervals = get_to_intervals(eq_name)
                         if intervals:
                             to_options = [i[2] for i in intervals]
                             to_type = st.selectbox("Тип ТО", to_options)
+                        # авто подстановка последних моточасов
+                        last_mh = get_last_usage(eq_name, 'motohours')
+                        motohours = st.number_input("Моточасы на момент ТО", value=float(last_mh), step=1.0)
                     desc = st.text_area("Описание работ*")
                     
                     if kit_option:
@@ -1701,10 +1669,10 @@ with tabs[1]:
                         if desc:
                             conn = sqlite3.connect('storage.db')
                             c = conn.cursor()
-                            c.execute("INSERT INTO maintenance (equipment_name, maintenance_date, next_maintenance_date, description, maintenance_type, to_type, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                            c.execute("INSERT INTO maintenance (equipment_name, maintenance_date, next_maintenance_date, description, maintenance_type, to_type, motohours, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                                       (eq_name, m_date.strftime("%Y-%m-%d"),
                                        next_m_date.strftime("%Y-%m-%d") if next_m_date else "",
-                                       desc, m_type, to_type, user_name, now_local()))
+                                       desc, m_type, to_type, motohours, user_name, now_local()))
                             conn.commit()
                             conn.close()
                             if kit_option and kits:
