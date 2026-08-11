@@ -1503,7 +1503,130 @@ with tabs[1]:
         
         # ==================== ПЛАН ТО ====================
         with tab1:
-            # ... (весь существующий код Плана ТО, который вы присылали ранее, без изменений) ...
+            st.subheader("📅 План технического обслуживания")
+            
+            if role == "admin":
+                st.divider()
+                st.subheader("⚙️ Настройка интервалов ТО")
+                selected_eq = st.selectbox("Выберите технику для настройки", [eq[1] for eq in equipment_list], key="to_interval_eq")
+                existing_intervals = get_to_intervals(selected_eq)
+                
+                if existing_intervals:
+                    st.write("**Существующие интервалы:**")
+                    for interval in existing_intervals:
+                        col1, col2, col3 = st.columns([2,2,1])
+                        with col1: st.write(f"**{interval[2]}** — {interval[3]} дн. / {interval[4]} м/ч")
+                        with col2: st.caption(f"Создал: {interval[5]}")
+                        with col3:
+                            if st.button("🗑️", key=f"del_to_int_{interval[0]}"):
+                                delete_to_interval(interval[0])
+                                st.success("Интервал удалён!")
+                                st.rerun()
+                
+                with st.form("add_to_interval"):
+                    st.write("**➕ Добавить тип ТО**")
+                    to_type = st.text_input("Название (напр. ТО-1, ТО-2)", value="ТО-1")
+                    col1, col2 = st.columns(2)
+                    with col1: days = st.number_input("Интервал (дни)", min_value=0, value=0)
+                    with col2: hours = st.number_input("Интервал (моточасы)", min_value=0, value=0)
+                    if st.form_submit_button("💾 Сохранить интервал"):
+                        if to_type:
+                            add_to_interval(selected_eq, to_type, days, hours, user_name)
+                            st.success("✅ Интервал добавлен!")
+                            st.rerun()
+            
+            st.divider()
+            
+            st.subheader("Сводная таблица по всем видам ТО")
+            plan_data = []
+            today = datetime.now().date()
+            for eq in equipment_list:
+                eq_name = eq[1]
+                intervals = get_to_intervals(eq_name)
+                if not intervals:
+                    plan_data.append({
+                        "Техника": eq_name,
+                        "Тип ТО": "—",
+                        "Последнее ТО": "—",
+                        "След. ТО (дата)": "—",
+                        "Осталось дней": "—",
+                        "След. ТО (мот.)": "—",
+                        "Осталось часов": "—",
+                        "Статус": "⚪ Нет данных"
+                    })
+                else:
+                    for interval in intervals:
+                        int_id, _, to_type, int_days, int_hours, created_by, _ = interval
+                        conn = sqlite3.connect('storage.db')
+                        c = conn.cursor()
+                        c.execute("SELECT maintenance_date, next_maintenance_date, motohours FROM maintenance WHERE equipment_name=? AND to_type=? ORDER BY maintenance_date DESC LIMIT 1",
+                                  (eq_name, to_type))
+                        last_to = c.fetchone()
+                        conn.close()
+                        last_date = last_to[0] if last_to else None
+                        next_date = last_to[1] if last_to and last_to[1] else None
+                        last_to_motohours = last_to[2] if last_to else 0
+                        if not next_date and last_date and int_days > 0:
+                            last_dt = datetime.strptime(last_date[:10], "%Y-%m-%d").date()
+                            next_date = (last_dt + timedelta(days=int_days)).strftime("%Y-%m-%d")
+                        if next_date:
+                            next_dt = datetime.strptime(next_date[:10], "%Y-%m-%d").date()
+                            days_left = (next_dt - today).days
+                            if days_left < 0:
+                                day_status = "🔴"
+                            elif days_left <= 7:
+                                day_status = "🟡"
+                            else:
+                                day_status = "🟢"
+                        else:
+                            days_left = "—"
+                            day_status = "⚪"
+                        # Расчёт по моточасам от моточасов последнего ТО этого типа
+                        if int_hours > 0 and last_to_motohours > 0:
+                            current_hours = get_last_usage(eq_name, 'motohours')
+                            next_hours = last_to_motohours + int_hours
+                            hours_left = next_hours - current_hours
+                            if hours_left <= 0:
+                                hour_status = "🔴"
+                            elif hours_left <= 50:
+                                hour_status = "🟡"
+                            else:
+                                hour_status = "🟢"
+                        else:
+                            hours_left = "—"
+                            hour_status = "⚪"
+                            next_hours = "—"
+                        if "🔴" in [day_status, hour_status]:
+                            overall = "🔴 Требует ТО"
+                        elif "🟡" in [day_status, hour_status]:
+                            overall = "🟡 Скоро"
+                        elif "🟢" in [day_status, hour_status]:
+                            overall = "🟢 ОК"
+                        else:
+                            overall = "⚪ Нет данных"
+                        plan_data.append({
+                            "Техника": eq_name,
+                            "Тип ТО": to_type,
+                            "Последнее ТО": last_date[:10] if last_date else "—",
+                            "След. ТО (дата)": next_date[:10] if next_date else "—",
+                            "Осталось дней": days_left,
+                            "След. ТО (мот.)": f"{next_hours} м/ч" if int_hours > 0 else "—",
+                            "Осталось часов": hours_left if isinstance(hours_left, (int, float)) else "—",
+                            "Статус": overall
+                        })
+            df_plan = pd.DataFrame(plan_data)
+            st.dataframe(df_plan, use_container_width=True, hide_index=True)
+            
+            buffer_plan = io.BytesIO()
+            with pd.ExcelWriter(buffer_plan, engine='openpyxl') as writer:
+                df_plan.to_excel(writer, sheet_name='План ТО', index=False)
+            st.download_button(
+                label="📥 Скачать план ТО (Excel)",
+                data=buffer_plan.getvalue(),
+                file_name=f"план_ТО_{now_local_file()}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_plan_to"
+            )
         
         # ==================== ЖУРНАЛ РАБОТ ====================
         with tab2:
@@ -1610,11 +1733,95 @@ with tabs[1]:
         
         # ==================== МОТОЧАСЫ / ПРОБЕГ ====================
         with tab3:
-            # ... (весь существующий код Моточасов, без изменений) ...
+            st.subheader("⏱️ Учёт моточасов и пробега")
+            eq_names = [eq[1] for eq in equipment_list]
+            with st.form("add_usage"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    eq_name = st.selectbox("Техника", eq_names)
+                    usage_type = st.selectbox("Тип", ["motohours", "mileage"])
+                with col2:
+                    value = st.number_input("Текущее значение", min_value=0.0, step=1.0)
+                if st.form_submit_button("📝 Записать"):
+                    add_equipment_usage(eq_name, value, usage_type, user_name)
+                    st.success("✅ Показания сохранены!")
+                    alerts = get_to_status()
+                    for alert_eq, status, msg in alerts:
+                        if alert_eq == eq_name and status != "ok":
+                            st.warning(f"⚠️ {msg}")
+                    st.rerun()
+            
+            st.divider()
+            usage_records = get_equipment_usage()
+            if usage_records:
+                df_usage = pd.DataFrame(usage_records, columns=["ID","Техника","Дата","Значение","Тип","Кто","Создано"])
+                buffer_usage = io.BytesIO()
+                with pd.ExcelWriter(buffer_usage, engine='openpyxl') as writer:
+                    df_usage[["Техника","Дата","Значение","Тип","Кто"]].to_excel(writer, sheet_name='Моточасы', index=False)
+                st.download_button(
+                    label="📥 Скачать данные (Excel)",
+                    data=buffer_usage.getvalue(),
+                    file_name=f"моточасы_{now_local_file()}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_usage"
+                )
+                st.dataframe(df_usage[["Техника","Дата","Значение","Тип","Кто"]], use_container_width=True)
+                if role == "admin":
+                    st.subheader("🗑️ Удаление записей")
+                    del_id = st.number_input("ID записи для удаления", min_value=1, step=1)
+                    if st.button("Удалить"):
+                        delete_usage(del_id)
+                        st.success("Удалено!")
+                        st.rerun()
+            else:
+                st.info("Записей о наработке нет.")
         
         # ==================== КОМПЛЕКТЫ ТО ====================
         with tab4:
-            # ... (весь существующий код Комплектов ТО, без изменений) ...
+            st.subheader("📦 Комплекты для ТО")
+            if role == "admin":
+                with st.form("create_kit"):
+                    st.write("**Создать новый комплект**")
+                    kit_name = st.text_input("Название комплекта*")
+                    eq_for_kit = st.selectbox("Для техники", [eq[1] for eq in equipment_list])
+                    kit_desc = st.text_area("Описание")
+                    all_items = get_all_items()
+                    item_options = {f"{it[1]} (ост. {it[6]})": it[0] for it in all_items}
+                    selected_items = st.multiselect("Выберите товары", list(item_options.keys()))
+                    quantities = {}
+                    for item_str in selected_items:
+                        qty = st.number_input(f"Количество для '{item_str}'", min_value=0.1, value=1.0, step=1.0)
+                        quantities[item_str] = qty
+                    if st.form_submit_button("💾 Создать комплект"):
+                        if kit_name and selected_items:
+                            items = [(item_options[it], quantities[it]) for it in selected_items]
+                            create_service_kit(kit_name, eq_for_kit, kit_desc, items, user_name)
+                            st.success("✅ Комплект создан!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Укажите название и выберите товары!")
+            
+            kits = get_service_kits()
+            if kits:
+                for kit, items in kits:
+                    with st.expander(f"📦 {kit[1]} (ID:{kit[0]}) — для {kit[2]}"):
+                        st.write(f"**Описание:** {kit[3]}")
+                        st.write("**Состав:**")
+                        for item_id, qty in items:
+                            conn = sqlite3.connect('storage.db')
+                            c = conn.cursor()
+                            c.execute("SELECT name FROM items WHERE id=?", (item_id,))
+                            item = c.fetchone()
+                            conn.close()
+                            if item:
+                                st.write(f"- {item[0]} x{qty}")
+                        if role == "admin":
+                            if st.button("🗑️ Удалить комплект", key=f"del_kit_{kit[0]}"):
+                                delete_service_kit(kit[0])
+                                st.success("Комплект удалён!")
+                                st.rerun()
+            else:
+                st.info("Нет созданных комплектов.")
         
         # ==================== АНАЛИТИКА ====================
         with tab5:
