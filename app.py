@@ -784,7 +784,154 @@ def get_assigned_equipment_for_user(username):
     res = [row[0] for row in c.fetchall()]
     conn.close()
     return res
-    
+
+def add_equipment_usage(equipment_name, value, usage_type, user):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO equipment_usage (equipment_name, record_date, value, usage_type, created_by, created_at) VALUES (?,?,?,?,?,?)",
+              (equipment_name, now_local(), value, usage_type, user, now_local()))
+    conn.commit()
+    conn.close()
+
+def get_equipment_usage(equipment_name=None):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if equipment_name:
+        c.execute("SELECT * FROM equipment_usage WHERE equipment_name=? ORDER BY record_date DESC", (equipment_name,))
+    else:
+        c.execute("SELECT * FROM equipment_usage ORDER BY record_date DESC")
+    res = c.fetchall()
+    conn.close()
+    return res
+
+def get_last_usage(equipment_name, usage_type='motohours'):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT value FROM equipment_usage WHERE equipment_name=? AND usage_type=? ORDER BY record_date DESC LIMIT 1",
+              (equipment_name, usage_type))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else 0
+
+def delete_usage(usage_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM equipment_usage WHERE id=?", (usage_id,))
+    conn.commit()
+    conn.close()
+
+def create_service_kit(kit_name, equipment_name, description, items, user):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO service_kits (kit_name, equipment_name, description, created_by, created_at) VALUES (?,?,?,?,?)",
+              (kit_name, equipment_name, description, user, now_local()))
+    kit_id = c.lastrowid
+    for item_id, qty in items:
+        c.execute("INSERT INTO service_kit_items (kit_id, item_id, quantity) VALUES (?,?,?)", (kit_id, item_id, qty))
+    conn.commit()
+    conn.close()
+    return kit_id
+
+def get_service_kits(equipment_name=None):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if equipment_name:
+        c.execute("SELECT * FROM service_kits WHERE equipment_name=?", (equipment_name,))
+    else:
+        c.execute("SELECT * FROM service_kits")
+    kits = c.fetchall()
+    result = []
+    for kit in kits:
+        c.execute("SELECT item_id, quantity FROM service_kit_items WHERE kit_id=?", (kit[0],))
+        items = c.fetchall()
+        result.append((kit, items))
+    conn.close()
+    return result
+
+def delete_service_kit(kit_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM service_kit_items WHERE kit_id=?", (kit_id,))
+    c.execute("DELETE FROM service_kits WHERE id=?", (kit_id,))
+    conn.commit()
+    conn.close()
+
+def get_maintenance(equipment_name=None):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if equipment_name:
+        c.execute("SELECT * FROM maintenance WHERE equipment_name=? ORDER BY maintenance_date DESC", (equipment_name,))
+    else:
+        c.execute("SELECT * FROM maintenance ORDER BY maintenance_date DESC")
+    res = c.fetchall()
+    conn.close()
+    return res
+
+def add_maintenance(equipment_name, maintenance_date, next_date, description, maint_type, to_type, user):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO maintenance (equipment_name, maintenance_date, next_maintenance_date, description, maintenance_type, to_type, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)",
+              (equipment_name, maintenance_date, next_date, description, maint_type, to_type, user, now_local()))
+    conn.commit()
+    conn.close()
+
+def delete_maintenance(maint_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM maintenance WHERE id=?", (maint_id,))
+    conn.commit()
+    conn.close()
+
+def get_last_maintenance(equipment_name, to_type=None):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    if to_type:
+        c.execute("SELECT maintenance_date, next_maintenance_date FROM maintenance WHERE equipment_name=? AND to_type=? ORDER BY maintenance_date DESC LIMIT 1", (equipment_name, to_type))
+    else:
+        c.execute("SELECT maintenance_date, next_maintenance_date FROM maintenance WHERE equipment_name=? ORDER BY maintenance_date DESC LIMIT 1", (equipment_name,))
+    row = c.fetchone()
+    conn.close()
+    return (row[0], row[1]) if row else (None, None)
+
+def get_to_status():
+    equipment_list = get_equipment()
+    alerts = []
+    today = datetime.now().date()
+    for eq in equipment_list:
+        eq_name = eq[1]
+        intervals = get_to_intervals(eq_name)
+        if not intervals:
+            continue
+        for interval in intervals:
+            int_id, _, to_type, int_days, int_hours, created_by, _ = interval
+            last_date, next_date = get_last_maintenance(eq_name, to_type)
+            if next_date:
+                next_dt = datetime.strptime(next_date[:10], "%Y-%m-%d").date()
+                days_left = (next_dt - today).days
+                if days_left < 0:
+                    alerts.append((eq_name, "overdue", f"{to_type}: просрочено на {-days_left} дн."))
+                elif days_left <= 7:
+                    alerts.append((eq_name, "soon", f"{to_type}: через {days_left} дн."))
+            elif last_date and int_days > 0:
+                last_dt = datetime.strptime(last_date[:10], "%Y-%m-%d").date()
+                next_dt = last_dt + timedelta(days=int_days)
+                days_left = (next_dt - today).days
+                if days_left < 0:
+                    alerts.append((eq_name, "overdue", f"{to_type}: просрочено на {-days_left} дн."))
+                elif days_left <= 7:
+                    alerts.append((eq_name, "soon", f"{to_type}: через {days_left} дн."))
+            if int_hours > 0:
+                last_motohours = get_last_usage(eq_name, 'motohours')
+                if last_motohours:
+                    current_hours = get_last_usage(eq_name, 'motohours')
+                    next_hours = last_motohours + int_hours
+                    hours_left = next_hours - current_hours
+                    if hours_left <= 0:
+                        alerts.append((eq_name, "overdue", f"{to_type}: просрочено по моточасам на {-hours_left} ч."))
+                    elif hours_left <= 50:
+                        alerts.append((eq_name, "soon", f"{to_type}: через {hours_left} моточасов"))
+    return alerts
+
 def get_to_intervals(equipment_name):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -792,6 +939,21 @@ def get_to_intervals(equipment_name):
     rows = c.fetchall()
     conn.close()
     return rows
+
+def add_to_interval(equipment_name, to_type, interval_days, interval_hours, user):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO equipment_to_intervals (equipment_name, to_type, interval_days, interval_hours, created_by, created_at) VALUES (?,?,?,?,?,?)",
+              (equipment_name, to_type, interval_days, interval_hours, user, now_local()))
+    conn.commit()
+    conn.close()
+
+def delete_to_interval(interval_id):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM equipment_to_intervals WHERE id=?", (interval_id,))
+    conn.commit()
+    conn.close()
 # ============================================================
 # 4. ПОЛЬЗОВАТЕЛИ
 # ============================================================
