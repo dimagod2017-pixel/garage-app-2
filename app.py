@@ -784,6 +784,14 @@ def get_assigned_equipment_for_user(username):
     res = [row[0] for row in c.fetchall()]
     conn.close()
     return res
+    
+def get_to_intervals(equipment_name):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM equipment_to_intervals WHERE equipment_name=? ORDER BY to_type", (equipment_name,))
+    rows = c.fetchall()
+    conn.close()
+    return rows
 # ============================================================
 # 4. ПОЛЬЗОВАТЕЛИ
 # ============================================================
