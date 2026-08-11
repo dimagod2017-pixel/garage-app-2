@@ -2155,6 +2155,7 @@ with tabs[2]:
                                         st.rerun()
                 st.divider()
                 if role != "admin":
+                    # ==================== СОТРУДНИК: выбор техники ====================
                     with st.expander("📤 Взять товар", expanded=False):
                         if quantity > 0:
                             st.markdown(f"**Доступно: {quantity} {unit}**")
@@ -2162,12 +2163,31 @@ with tabs[2]:
                             with col1:
                                 take_qty = st.number_input("Количество", min_value=0.1, max_value=float(quantity), value=min(1.0, float(quantity)), key=f"tq_{uid}")
                             with col2:
-                                eq_search = st.text_input("Поиск техники (название или номер)", key=f"eqs_{uid}", placeholder="Введите название…")
+                                eq_search = st.text_input("🔍 Поиск техники (название/номер)", key=f"eqs_{uid}", placeholder="Введите для поиска…")
+
+                            # Получаем список закреплённой техники
+                            assigned_names = get_assigned_equipment_for_user(user_name)
+
                             if eq_search:
+                                # Динамический поиск по всем машинам
                                 ext_results = search_equipment_extended(eq_search)
+                                # Помечаем закреплённую технику звёздочкой
+                                for r in ext_results:
+                                    if r['eq_name'] in assigned_names:
+                                        r['display'] = "⭐ " + r['display']
                             else:
-                                ext_results = search_equipment_extended("")
-                            
+                                # Без поиска: сначала закреплённая техника, потом остальная
+                                all_results = search_equipment_extended("")
+                                assigned_results = []
+                                other_results = []
+                                for r in all_results:
+                                    if r['eq_name'] in assigned_names:
+                                        r['display'] = "⭐ " + r['display']
+                                        assigned_results.append(r)
+                                    else:
+                                        other_results.append(r)
+                                ext_results = assigned_results + other_results
+
                             if ext_results:
                                 options = [r['display'] for r in ext_results]
                                 selected_display = st.selectbox("Выберите технику", options, key=f"eq_sel_{uid}")
@@ -2176,7 +2196,7 @@ with tabs[2]:
                             else:
                                 st.warning("⚠️ Ничего не найдено")
                                 eq_name, eq_number = None, None
-                            
+
                             if eq_name:
                                 take_photo = st.file_uploader("📸 Фото (опционально)", type=["jpg","jpeg","png"], key=f"tp_{uid}")
                                 if st.button("✅ Подтвердить взятие", key=f"confirm_{uid}", use_container_width=True):
@@ -2205,6 +2225,7 @@ with tabs[2]:
                         else:
                             st.warning("🚫 Товара нет в наличии")
                 else:
+                    # ==================== АДМИНИСТРАТОР: без изменений ====================
                     col_btn1,col_btn2,col_btn3,col_btn4 = st.columns(4)
                     with col_btn1:
                         if st.button("✏️ Редактировать", key=f"edit_btn_{uid}", use_container_width=True): st.session_state[f"edit_mode_{uid}"] = not st.session_state.get(f"edit_mode_{uid}", False)
