@@ -1,3 +1,4 @@
+import requests
 import streamlit as st
 import sqlite3
 import os
@@ -12,6 +13,39 @@ import io
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+# ============================================================
+# ФУНКЦИЯ ОТПРАВКИ TELEGRAM
+# ============================================================
+def send_telegram_notification(message):
+    """
+    Отправляет сообщение в Telegram через бота.
+    Возвращает True при успехе, иначе False.
+    """
+    token = st.secrets.get("telegram_bot_token")
+    chat_id = st.session_state.get("telegram_chat_id", "")
+    if not token:
+        st.error("❌ Токен бота не найден в секретах.")
+        return False
+    if not chat_id:
+        st.warning("⚠️ Не указан chat_id для Telegram. Задайте его в настройках.")
+        return False
+
+    try:
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML"
+        }
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code == 200:
+            return True
+        else:
+            st.error(f"❌ Ошибка Telegram: {response.text}")
+            return False
+    except Exception as e:
+        st.error(f"❌ Исключение при отправке: {e}")
+        return False
 
 # ============================================================
 # 1. НАСТРОЙКА И ПЕРЕМЕННЫЕ
