@@ -2754,7 +2754,7 @@ if role == "admin":
 if role == "admin":
     with tabs[7]:
         st.markdown("## ⚙️ Управление")
-        tab_a, tab_b, tab_c, tab_d = st.tabs(["🏠 Помещения", "🎨 Оформление", "💾 Бэкапы", "🔔 Уведомления"])
+        tab_a, tab_b, tab_c, tab_d = st.tabs(["🏠 Помещения", "🎨 Оформление", "💾 Бэкапы", "🤖 Уведомления"])
         with tab_a:
             st.markdown("### 🏠 Управление помещениями")
             with st.expander("➕ Добавить помещение", expanded=False):
@@ -2884,34 +2884,27 @@ if role == "admin":
                     st.markdown("**📦 Существующие бэкапы:**")
                     for backup in backups[:10]: st.write(f"📦 {backup}")
         with tab_d:
-            st.markdown("### 📧 Email-уведомления")
-            st.caption("Уведомления будут приходить на указанный email. Отправитель настраивается в секретах Streamlit.")
+            st.markdown("### 🤖 Telegram-уведомления")
+            st.caption("Получайте мгновенные уведомления о заявках, низких остатках и ТО в Telegram.")
             
-            notification_email = st.text_input(
-                "Email для уведомлений",
-                value=st.session_state.get("notification_email", ""),
-                key="notification_email_input"
+            current_chat_id = st.session_state.get("telegram_chat_id", "")
+            new_chat_id = st.text_input(
+                "Ваш Telegram chat_id (можно получить у @userinfobot)",
+                value=current_chat_id,
+                key="telegram_chat_id_input"
             )
-            if st.button("💾 Сохранить email"):
-                st.session_state.notification_email = notification_email
-                st.success("Email сохранён!")
+            if st.button("💾 Сохранить chat_id"):
+                st.session_state.telegram_chat_id = new_chat_id.strip()
+                st.success("✅ Chat_id сохранён!")
                 st.rerun()
             
             st.divider()
-            if st.button("📤 Тестовое письмо"):
-                if send_email_notification("SmartStock ✅ Тест", "Тестовое уведомление. Всё работает!"):
-                    st.success("Письмо отправлено! Проверьте почту.")
-                else:
-                    st.error("❌ Не удалось отправить. Проверьте настройки в секретах.")
             
-            # Тестовый блок email
-            with st.expander("📧 Дополнительный тест", expanded=False):
-                st.write("Нажмите кнопку, чтобы проверить отправку письма через TLS.")
-                if st.button("📤 Отправить тестовое письмо (SMTP TLS 587)"):
-                    if send_email_notification("Тест SmartStock", "Тестовое письмо из приложения. Если вы это видите — всё работает!"):
-                        st.success("Письмо отправлено! Проверьте почту dimamokhov1998@yandex.ru")
-                    else:
-                        st.error("Ошибка отправки. Проверьте настройки.")
+            if st.button("📤 Отправить тестовое сообщение"):
+                if send_telegram_notification("✅ Тестовое уведомление из SmartStock Pro! Всё работает."):
+                    st.success("✅ Тестовое сообщение отправлено в Telegram!")
+                else:
+                    st.error("❌ Не удалось отправить. Проверьте токен и chat_id.")
 
 else:
     with tabs[6]:
