@@ -1282,7 +1282,10 @@ if user_name == "admin" and role != "admin":
     role = "admin"
     user["role"] = "admin"
     st.session_state.user = user
-
+    
+# Загрузить chat_id из БД, если его нет в session_state
+if "telegram_chat_id" not in st.session_state:
+    st.session_state.telegram_chat_id = get_setting("telegram_chat_id") or ""
 # ============================================================
 # 7. БОКОВАЯ ПАНЕЛЬ
 # ============================================================
