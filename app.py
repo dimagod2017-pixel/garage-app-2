@@ -1,3 +1,4 @@
+import json
 import requests
 import streamlit as st
 import sqlite3
@@ -1317,9 +1318,9 @@ if user_name == "admin" and role != "admin":
     user["role"] = "admin"
     st.session_state.user = user
     
-# Загрузить chat_id из БД, если его нет в session_state
-if "telegram_chat_id" not in st.session_state:
-    st.session_state.telegram_chat_id = get_setting("telegram_chat_id") or ""
+# Загрузить список chat_id из БД в session_state
+if "chat_ids" not in st.session_state:
+    st.session_state.chat_ids = get_chat_ids()
 # ============================================================
 # 7. БОКОВАЯ ПАНЕЛЬ
 # ============================================================
