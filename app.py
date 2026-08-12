@@ -10,9 +10,7 @@ import base64
 import time
 import pandas as pd
 import io
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+
 # ============================================================
 # ФУНКЦИЯ ОТПРАВКИ TELEGRAM
 # ============================================================
@@ -383,6 +381,14 @@ def init_db():
         item_id TEXT,
         quantity REAL
     )''')
+    
+    # === ТАБЛИЦА НАСТРОЕК (для хранения chat_id и других глобальных настроек) ===
+    c.execute('''CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT
+    )''')
+    
     c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO users (username,password,full_name,role,status,created_at) VALUES (?,?,?,?,?,?)",
@@ -766,6 +772,25 @@ def get_stats():
     return stats
 
 # ============================================================
+# ФУНКЦИИ ДЛЯ РАБОТЫ С НАСТРОЙКАМИ (СОХРАНЕНИЕ CHAT_ID)
+# ============================================================
+def get_setting(key):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("SELECT value FROM settings WHERE key=?", (key,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else None
+
+def set_setting(key, value):
+    conn = sqlite3.connect('storage.db')
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?,?,?)",
+              (key, value, now_local()))
+    conn.commit()
+    conn.close()
+
+# ============================================================
 # ФУНКЦИИ ДЛЯ ТО, МОТОЧАСОВ, КОМПЛЕКТОВ И НАЗНАЧЕНИЙ
 # ============================================================
 def get_equipment_assignments(username=None):
@@ -962,10 +987,9 @@ def get_to_status():
                     msg = f"{to_type}: через {hours_left} моточасов"
             if msg:
                 alerts.append((eq_name, "overdue" if "просрочено" in msg else "soon", msg))
-                # Email-уведомление о ТО
-                send_email_notification(
-                    "🔧 ТО требуется",
-                    f"{eq_name} — {msg}"
+                # Telegram-уведомление о ТО
+                send_telegram_notification(
+                    f"🔧 ТО требуется\nТехника: {eq_name}\n{msg}"
                 )
     return alerts
 
@@ -992,41 +1016,6 @@ def delete_to_interval(interval_id):
     conn.commit()
     conn.close()
 
-# ============================================================
-# ФУНКЦИЯ ОТПРАВКИ EMAIL
-# ============================================================
-def send_email_notification(subject, body):
-    try:
-        smtp_server = st.secrets["email_smtp_server"]
-        smtp_port = int(st.secrets["email_smtp_port"])
-        sender_email = st.secrets["email_address"]
-        sender_password = st.secrets["email_password"]
-        receiver_email = st.session_state.get("notification_email", "")
-        
-        if not receiver_email:
-            st.warning("Не указан email получателя")
-            return False
-
-        msg = MIMEMultipart()
-        msg["From"] = sender_email
-        msg["To"] = receiver_email
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "plain", "utf-8"))
-
-        if smtp_port == 465:
-            with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
-                server.login(sender_email, sender_password)
-                server.sendmail(sender_email, receiver_email, msg.as_string())
-        else:
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls()
-                server.login(sender_email, sender_password)
-                server.sendmail(sender_email, receiver_email, msg.as_string())
-        
-        return True
-    except Exception as e:
-        st.error(f"❌ Ошибка отправки: {e}")
-        return False
 # ============================================================
 # 4. ПОЛЬЗОВАТЕЛИ
 # ============================================================
@@ -1119,10 +1108,9 @@ def get_notifications():
                     'photo': photo_path if photo_path and os.path.exists(photo_path) else None,
                     'actions': ['approve', 'reject', 'work'], 'is_read': r.get('seen', 0) == 1
                 })
-                # Email-уведомление о новой заявке
-                send_email_notification(
-                    "📝 Новая заявка",
-                    f"{r['name']} от {r['user']}\nКоличество: {r['quantity']} {r['unit']}"
+                # Telegram-уведомление о новой заявке
+                send_telegram_notification(
+                    f"📝 Новая заявка\n\nТовар: {r['name']}\nКоличество: {r['quantity']} {r['unit']}\nОт: {r['user']}"
                 )
         for req in get_requests(status='returned'):
             r = unpack_request(req)
@@ -1163,16 +1151,14 @@ def get_notifications():
                     'date': item[4], 'item_id': item[0], 'photo': photo_path,
                     'actions': ['restock'], 'is_read': False
                 })
-                # Email-уведомление о низких остатках
+                # Telegram-уведомление о низких остатках
                 if item[6] == 0:
-                    send_email_notification(
-                        "🚨 Склад: закончился товар!",
-                        f"{item[1]} — отсутствует.\n📍 {item[2]} / {item[3]}"
+                    send_telegram_notification(
+                        f"🚨 {item[1]} — отсутствует!\n📍 {item[2]} / {item[3]}"
                     )
                 elif item[6] <= item[7] / 2:
-                    send_email_notification(
-                        "⚠️ Склад: заканчивается",
-                        f"{item[1]}: {item[6]} {item[5]} (порог {item[7]})\n📍 {item[2]} / {item[3]}"
+                    send_telegram_notification(
+                        f"⚠️ {item[1]} — заканчивается!\nОсталось: {item[6]} {item[5]} (порог {item[7]})\n📍 {item[2]} / {item[3]}"
                     )
     else:
         user_name = st.session_state.user.get("username", "")
