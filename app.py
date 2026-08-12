@@ -12,39 +12,40 @@ import pandas as pd
 import io
 
 # ============================================================
-# ФУНКЦИЯ ОТПРАВКИ TELEGRAM
+# ФУНКЦИЯ ОТПРАВКИ TELEGRAM (ДЛЯ НЕСКОЛЬКИХ ПОЛУЧАТЕЛЕЙ)
 # ============================================================
 def send_telegram_notification(message):
     """
-    Отправляет сообщение в Telegram через бота.
-    Возвращает True при успехе, иначе False.
+    Отправляет сообщение в Telegram всем chat_id из списка.
+    Возвращает True, если хотя бы одно сообщение отправлено успешно.
     """
     token = st.secrets.get("telegram_bot_token")
-    chat_id = st.session_state.get("telegram_chat_id", "")
     if not token:
         st.error("❌ Токен бота не найден в секретах.")
         return False
-    if not chat_id:
-        st.warning("⚠️ Не указан chat_id для Telegram. Задайте его в настройках.")
+
+    chat_ids = st.session_state.get("chat_ids", [])
+    if not chat_ids:
+        st.warning("⚠️ Нет сохранённых chat_id. Добавьте их в настройках.")
         return False
 
-    try:
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        payload = {
-            "chat_id": chat_id,
-            "text": message,
-            "parse_mode": "HTML"
-        }
-        response = requests.post(url, json=payload, timeout=10)
-        if response.status_code == 200:
-            return True
-        else:
-            st.error(f"❌ Ошибка Telegram: {response.text}")
-            return False
-    except Exception as e:
-        st.error(f"❌ Исключение при отправке: {e}")
-        return False
-
+    success = False
+    for chat_id in chat_ids:
+        try:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            payload = {
+                "chat_id": chat_id,
+                "text": message,
+                "parse_mode": "HTML"
+            }
+            response = requests.post(url, json=payload, timeout=10)
+            if response.status_code == 200:
+                success = True
+            else:
+                st.error(f"❌ Ошибка для chat_id {chat_id}: {response.text}")
+        except Exception as e:
+            st.error(f"❌ Исключение для chat_id {chat_id}: {e}")
+    return success
 # ============================================================
 # 1. НАСТРОЙКА И ПЕРЕМЕННЫЕ
 # ============================================================
@@ -774,6 +775,8 @@ def get_stats():
 # ============================================================
 # ФУНКЦИИ ДЛЯ РАБОТЫ С НАСТРОЙКАМИ (СОХРАНЕНИЕ CHAT_ID)
 # ============================================================
+import json
+
 def get_setting(key):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
@@ -790,6 +793,37 @@ def set_setting(key, value):
     conn.commit()
     conn.close()
 
+def get_chat_ids():
+    """Возвращает список chat_id из настроек"""
+    data = get_setting("chat_ids")
+    if data:
+        try:
+            return json.loads(data)
+        except:
+            return []
+    return []
+
+def set_chat_ids(chat_ids):
+    """Сохраняет список chat_id в настройках (как JSON)"""
+    set_setting("chat_ids", json.dumps(chat_ids, ensure_ascii=False))
+
+def add_chat_id(chat_id):
+    """Добавляет chat_id в список, если его там нет"""
+    ids = get_chat_ids()
+    if chat_id not in ids:
+        ids.append(chat_id)
+        set_chat_ids(ids)
+        return True
+    return False
+
+def remove_chat_id(chat_id):
+    """Удаляет chat_id из списка"""
+    ids = get_chat_ids()
+    if chat_id in ids:
+        ids.remove(chat_id)
+        set_chat_ids(ids)
+        return True
+    return False
 # ============================================================
 # ФУНКЦИИ ДЛЯ ТО, МОТОЧАСОВ, КОМПЛЕКТОВ И НАЗНАЧЕНИЙ
 # ============================================================
@@ -2874,24 +2908,45 @@ if role == "admin":
                     for backup in backups[:10]: st.write(f"📦 {backup}")
         with tab_d:
             st.markdown("### 🤖 Telegram-уведомления")
-            st.caption("Получайте мгновенные уведомления о заявках, низких остатках и ТО в Telegram.")
+            st.caption("Добавьте chat_id для получения уведомлений. Все сохранённые ID получат сообщения.")
             
-            current_chat_id = st.session_state.get("telegram_chat_id", "")
-            new_chat_id = st.text_input(
-                "Ваш Telegram chat_id (можно получить у @userinfobot)",
-                value=current_chat_id,
-                key="telegram_chat_id_input"
-            )
-            if st.button("💾 Сохранить chat_id"):
-                st.session_state.telegram_chat_id = new_chat_id.strip()
-                st.success("✅ Chat_id сохранён!")
-                st.rerun()
+            # Отображение текущего списка chat_id
+            chat_ids = st.session_state.get("chat_ids", [])
+            if chat_ids:
+                st.markdown("**📋 Текущие получатели:**")
+                for idx, cid in enumerate(chat_ids):
+                    col1, col2 = st.columns([4, 1])
+                    with col1:
+                        st.code(cid, language="text")
+                    with col2:
+                        if st.button("🗑️ Удалить", key=f"del_chat_{idx}"):
+                            remove_chat_id(cid)
+                            st.session_state.chat_ids = get_chat_ids()
+                            st.rerun()
+            else:
+                st.info("Нет сохранённых chat_id.")
             
             st.divider()
             
-            if st.button("📤 Отправить тестовое сообщение"):
+            # Форма добавления нового chat_id
+            with st.form("add_chat_id_form"):
+                new_chat_id = st.text_input("Введите новый chat_id (можно получить у @userinfobot)")
+                if st.form_submit_button("➕ Добавить"):
+                    if new_chat_id.strip():
+                        if add_chat_id(new_chat_id.strip()):
+                            st.session_state.chat_ids = get_chat_ids()
+                            st.success(f"✅ chat_id {new_chat_id} добавлен!")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Такой chat_id уже есть в списке.")
+                    else:
+                        st.error("❌ Введите chat_id.")
+            
+            st.divider()
+            
+            if st.button("📤 Отправить тестовое сообщение всем"):
                 if send_telegram_notification("✅ Тестовое уведомление из SmartStock Pro! Всё работает."):
-                    st.success("✅ Тестовое сообщение отправлено в Telegram!")
+                    st.success("✅ Тестовое сообщение отправлено всем получателям!")
                 else:
                     st.error("❌ Не удалось отправить. Проверьте токен и chat_id.")
 
