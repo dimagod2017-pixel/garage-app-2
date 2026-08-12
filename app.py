@@ -669,7 +669,7 @@ def rotate_photo(path, degrees):
 def take_item(item_id, quantity, eq_name, eq_number, photo_path=""):
     conn = sqlite3.connect('storage.db')
     c = conn.cursor()
-    c.execute("SELECT quantity, unit FROM items WHERE id=?", (item_id,))
+    c.execute("SELECT quantity, unit, name FROM items WHERE id=?", (item_id,))
     row = c.fetchone()
     if not row or quantity > row[0]:
         conn.close()
@@ -683,7 +683,14 @@ def take_item(item_id, quantity, eq_name, eq_number, photo_path=""):
                user_login, now_local(), eq_name, eq_number, photo_path))
     conn.commit()
     conn.close()
-    return True, f"✅ Взято {quantity} {row[1]} на {eq_name}"
+    
+    # Отправка уведомления в Telegram
+    item_name = row[2]
+    unit = row[1]
+    message = f"📦 Списание\n\nТовар: {item_name}\nКоличество: {quantity} {unit}\nСотрудник: {user_login}\nТехника: {eq_name} (№{eq_number})"
+    send_telegram_notification(message)
+    
+    return True, f"✅ Взято {quantity} {unit} на {eq_name}"
 
 def get_consumption():
     conn = sqlite3.connect('storage.db')
